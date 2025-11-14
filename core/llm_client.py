@@ -96,6 +96,13 @@ class LLMClient:
 - run_tests: 运行测试，参数 {{"test_path": "测试路径"}}
 - git_status: 查看git状态，参数 {{}}
 - git_diff: 查看git差异，参数 {{"file": "文件名(可选)"}}
+- git_commit: 提交代码，参数 {{"message": "提交信息"}}
+- sequentialthinking: 顺序思维推理工具，用于复杂分析和推理。参数：
+  {{"thought": "当前思考内容(字符串)", "thoughtNumber": 思考编号(整数), "totalThoughts": 总思考步数(整数), "nextThoughtNeeded": 是否需要下一步(布尔值)}}
+  注意：sequentialthinking 工具需要多个步骤连续调用，每次调用 thoughtNumber 递增，最后一步设置 nextThoughtNeeded=false
+- fetch: 获取网页内容，参数 {{"url": "网址"}}
+- resolve-library-id: 解析库ID，参数 {{"libraryName": "库名"}}
+- get-library-docs: 获取库文档，参数 {{"context7CompatibleLibraryID": "库ID", "topic": "主题(可选)"}}
 
 请将任务分解为多个步骤，每个步骤包含：
 - id: 步骤编号（从1开始）
@@ -103,6 +110,11 @@ class LLMClient:
 - tool: 使用的工具名称
 - args: 工具参数（JSON对象）
 - expected_outcome: 预期结果描述
+
+重要提示：
+1. 如果用户要求使用"顺序思维"或"sequential thinking"分析，必须将任务分解为多个 sequentialthinking 工具调用
+2. 每个 sequentialthinking 步骤必须包含完整的参数：thought, thoughtNumber, totalThoughts, nextThoughtNeeded
+3. 不要使用 sequentialthinking 工具的简化参数（如只传 task），这会导致调用失败
 
 必须返回有效的 JSON 数组格式。"""
 

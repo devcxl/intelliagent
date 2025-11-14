@@ -113,68 +113,6 @@ async def write_file(path: str, content: str) -> str:
         return error_response(str(e))
 
 
-
-@mcp.tool()
-async def run_tests(test_path: str = ".") -> str:
-    """运行测试
-
-    Args:
-        test_path: 测试文件或目录路径，默认为当前目录
-    """
-    try:
-        # 运行 pytest
-        cmd = f"pytest {test_path} -v"
-        process = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        output = stdout.decode() if stdout else stderr.decode()
-
-        return success_response({
-            "output": output,
-            "exit_code": process.returncode
-        })
-    except Exception as e:
-        return error_response(str(e))
-
-
-
-@mcp.tool()
-async def git_commit(message: str) -> str:
-    """Git提交代码
-
-    Args:
-        message: 提交信息
-    """
-    if not message:
-        return error_response("缺少 message 参数")
-
-    try:
-        # 先 add 所有更改
-        process = await asyncio.create_subprocess_shell(
-            "git add .",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        await process.communicate()
-
-        # 执行提交
-        cmd = f'git commit -m "{message}"'
-        process = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        output = stdout.decode() if stdout else stderr.decode()
-
-        return success_response({"output": output.strip()})
-    except Exception as e:
-        return error_response(str(e))
-
-
 if __name__ == "__main__":
     # 运行服务器
     mcp.run(transport='stdio')

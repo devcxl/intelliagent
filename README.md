@@ -74,7 +74,16 @@ OPENAI_API_KEY=sk-your-openai-api-key
 OPENAI_MODEL=gpt-4o-mini
 MAX_PDCA_CYCLES=3
 MAX_RETRY_PER_STEP=3
+
+# 可选：配置外部 MCP 服务器（JSON 文件）
+MCP_CONFIG_FILE=mcp_config.json
 ```
+
+**关于 MCP 服务器**:
+- 系统内置 5 个基础工具（文件读写、Shell 命令、测试、Git）
+- 可以通过 `mcp_config.json` 添加外部 MCP 服务器扩展功能
+- 使用与 Claude Code 兼容的 JSON 配置格式
+- 详细配置指南请参考 [docs/MCP_SERVERS.md](docs/MCP_SERVERS.md)
 
 ### 3. 运行示例
 

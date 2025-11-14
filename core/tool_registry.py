@@ -2,29 +2,163 @@
 """
 工具注册中心
 通过 MCP 协议连接到工具服务器，提供工具调用接口
+支持多个 MCP 服务器（内置 + 外部）
+支持 stdio, SSE 和 streamable-http 三种连接方式
 """
 import json
 import asyncio
-from typing import Dict, Any, Optional, List
+import os
+from pathlib import Path
+from typing import Dict, Any, Optional, List, Tuple
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.client.sse import sse_client
+from mcp.client.streamable_http import streamablehttp_client
 from utils.logger import logger
-from utils.config import MCP_SERVER_COMMAND, MCP_SERVER_SCRIPT
+from utils.config import MCP_SERVER_COMMAND, MCP_SERVER_SCRIPT, MCP_CONFIG_FILE
+
+
+class MCPServer:
+    """单个 MCP 服务器连接"""
+    
+    def __init__(
+        self, 
+        name: str, 
+        command: Optional[str] = None, 
+        args: Optional[List[str]] = None, 
+        env: Optional[Dict[str, str]] = None,
+        server_type: str = "stdio",
+        url: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None
+    ):
+        self.name = name
+        self.server_type = server_type  # "stdio" 或 "http"
+        
+        # stdio 类型参数
+        self.command = command
+        self.args = args or []
+        self.env = env or {}
+        
+        # http 类型参数
+        self.url = url
+        self.headers = headers or {}
+        
+        # 共用属性
+        self.session: Optional[ClientSession] = None
+        self.tools: Dict[str, Any] = {}
+        self.prompts: Dict[str, Any] = {}
+        self._context = None
+        self.read = None
+        self.write = None
 
 
 class ToolRegistry:
-    """MCP 工具注册中心 - 基于 MCP 协议"""
+    """MCP 工具注册中心 - 支持多个 MCP 服务器"""
 
     def __init__(self):
         """初始化 MCP 客户端"""
-        self.session: Optional[ClientSession] = None
-        self.tools: Dict[str, Any] = {}
+        self.servers: List[MCPServer] = []
+        self.tools: Dict[str, Tuple[MCPServer, Any]] = {}  # tool_name -> (server, tool_info)
+        self.prompts: Dict[str, Tuple[MCPServer, Any]] = {}  # prompt_name -> (server, prompt_info)
         self._initialized = False
         self._loop = None
-        self._stdio_context = None
-        self.read = None
-        self.write = None
         logger.info("🔧 MCP 工具注册中心已创建")
+        
+        # 配置服务器列表
+        self._configure_servers()
+
+    def _configure_servers(self):
+        """配置 MCP 服务器列表（支持 JSON 配置文件）"""
+        # 添加内置服务器
+        self.servers.append(
+            MCPServer(
+                name="builtin",
+                command=MCP_SERVER_COMMAND,
+                args=[MCP_SERVER_SCRIPT],
+                server_type="stdio"
+            )
+        )
+        logger.debug(f"✅ 已添加内置 MCP 服务器: {MCP_SERVER_SCRIPT}")
+        
+        # 从 JSON 配置文件加载外部服务器
+        self._load_servers_from_json()
+
+    def _load_servers_from_json(self):
+        """从 JSON 配置文件加载 MCP 服务器（支持 stdio 和 http 类型）"""
+        config_path = Path(MCP_CONFIG_FILE)
+        
+        if not config_path.exists():
+            logger.debug(f"📄 MCP 配置文件不存在: {MCP_CONFIG_FILE}")
+            return
+        
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            # 支持 Claude Code 的 mcpServers 格式
+            servers_config = config.get('mcpServers', {})
+            
+            for server_name, server_config in servers_config.items():
+                try:
+                    # 检测服务器类型
+                    server_type = server_config.get('type', 'stdio')
+                    
+                    if server_type == 'http' or server_type == 'http-streamable' or server_type == 'sse':
+                        # HTTP/SSE 类型服务器
+                        url = server_config.get('url')
+                        headers = server_config.get('headers', {})
+                        
+                        if not url:
+                            logger.warning(f"⚠️ HTTP 服务器 {server_name} 缺少 url 配置")
+                            continue
+                        
+                        # 确保包含必要的 SSE 头
+                        if 'Accept' not in headers:
+                            headers['Accept'] = 'text/event-stream'
+                        
+                        # 创建 HTTP 服务器实例
+                        mcp_server = MCPServer(
+                            name=server_name,
+                            server_type='http',
+                            url=url,
+                            headers=headers
+                        )
+                        
+                        self.servers.append(mcp_server)
+                        logger.info(f"✅ 已添加 HTTP MCP 服务器: {server_name} ({url})")
+                        
+                    else:
+                        # stdio 类型服务器
+                        command = server_config.get('command')
+                        args = server_config.get('args', [])
+                        env = server_config.get('env', {})
+                        
+                        if not command:
+                            logger.warning(f"⚠️ 服务器 {server_name} 缺少 command 配置")
+                            continue
+                        
+                        # 创建 stdio 服务器实例
+                        mcp_server = MCPServer(
+                            name=server_name,
+                            command=command,
+                            args=args,
+                            env=env,
+                            server_type='stdio'
+                        )
+                        
+                        self.servers.append(mcp_server)
+                        logger.info(f"✅ 已添加 stdio MCP 服务器: {server_name} ({command})")
+                    
+                except Exception as e:
+                    logger.error(f"❌ 加载服务器 {server_name} 失败: {e}")
+                    continue
+            
+            logger.info(f"📦 从配置文件加载了 {len(servers_config)} 个外部 MCP 服务器")
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON 配置文件格式错误: {e}")
+        except Exception as e:
+            logger.error(f"❌ 读取 MCP 配置文件失败: {e}")
 
     def _get_or_create_event_loop(self):
         """获取或创建事件循环"""
@@ -40,39 +174,95 @@ class ToolRegistry:
             return loop
 
     async def _init_async(self):
-        """异步初始化 MCP 连接"""
+        """异步初始化所有 MCP 服务器连接"""
         if self._initialized:
             return
 
-        try:
-            # 配置 MCP 服务器参数
-            server_params = StdioServerParameters(
-                command=MCP_SERVER_COMMAND,
-                args=[MCP_SERVER_SCRIPT],
-                env=None
-            )
+        all_tools = []
+        
+        for server in self.servers:
+            try:
+                logger.info(f"🔄 正在连接 MCP 服务器: {server.name} (类型: {server.server_type})")
+                
+                if server.server_type == 'http':
+                    # HTTP streamable 连接（支持 Context7 等服务）
+                    server._context = streamablehttp_client(
+                        server.url, 
+                        headers=server.headers,
+                        timeout=10.0,
+                        sse_read_timeout=300.0
+                    )
+                    # streamablehttp_client 返回 (read, write, get_session_id)
+                    result = await server._context.__aenter__()
+                    server.read, server.write = result[0], result[1]
+                    
+                else:
+                    # stdio 连接
+                    # 合并系统环境变量和服务器特定环境变量
+                    merged_env = os.environ.copy()
+                    if server.env:
+                        merged_env.update(server.env)
+                    
+                    server_params = StdioServerParameters(
+                        command=server.command,
+                        args=server.args,
+                        env=merged_env if server.env else None
+                    )
 
-            # 建立连接（不使用 async with，手动管理生命周期）
-            self._stdio_context = stdio_client(server_params)
-            self.read, self.write = await self._stdio_context.__aenter__()
+                    # 建立连接
+                    server._context = stdio_client(server_params)
+                    server.read, server.write = await server._context.__aenter__()
 
-            # 创建会话（不使用 async with，手动管理）
-            self.session = ClientSession(self.read, self.write)
-            await self.session.__aenter__()
+                # 创建会话
+                server.session = ClientSession(server.read, server.write)
+                await server.session.__aenter__()
 
-            # 初始化会话
-            await self.session.initialize()
+                # 初始化会话
+                await server.session.initialize()
 
-            # 列出可用工具
-            response = await self.session.list_tools()
-            self.tools = {tool.name: tool for tool in response.tools}
+                # 列出可用工具
+                response = await server.session.list_tools()
+                server.tools = {tool.name: tool for tool in response.tools}
+                
+                # 将工具添加到全局工具列表
+                for tool_name, tool_info in server.tools.items():
+                    if tool_name in self.tools:
+                        logger.warning(f"⚠️ 工具名称冲突: {tool_name} (来自 {server.name}，已忽略)")
+                    else:
+                        self.tools[tool_name] = (server, tool_info)
+                        all_tools.append(tool_name)
 
-            logger.info(f"✅ MCP 工具注册中心已连接，可用工具: {list(self.tools.keys())}")
-            self._initialized = True
+                # 列出可用 prompts
+                try:
+                    prompts_response = await server.session.list_prompts()
+                    server.prompts = {prompt.name: prompt for prompt in prompts_response.prompts}
+                    
+                    # 将 prompts 添加到全局列表
+                    for prompt_name, prompt_info in server.prompts.items():
+                        if prompt_name in self.prompts:
+                            logger.warning(f"⚠️ Prompt 名称冲突: {prompt_name} (来自 {server.name}，已忽略)")
+                        else:
+                            self.prompts[prompt_name] = (server, prompt_info)
+                    
+                    if server.prompts:
+                        logger.info(f"📝 {server.name} 提供 prompts: {list(server.prompts.keys())}")
+                except Exception as e:
+                    logger.debug(f"服务器 {server.name} 不支持 prompts: {e}")
 
-        except Exception as e:
-            logger.error(f"❌ MCP 初始化失败: {e}")
-            raise RuntimeError(f"无法连接到 MCP 服务器: {e}") from e
+                logger.info(f"✅ {server.name} 已连接，提供工具: {list(server.tools.keys())}")
+
+            except Exception as e:
+                logger.error(f"❌ {server.name} 连接失败: {e}")
+                import traceback
+                logger.debug(traceback.format_exc())
+                # 继续尝试其他服务器
+                continue
+
+        if not self.tools:
+            raise RuntimeError("没有可用的 MCP 工具，请检查服务器配置")
+            
+        logger.info(f"✅ MCP 工具注册中心已初始化，总共 {len(self.tools)} 个工具: {all_tools}")
+        self._initialized = True
 
     def initialize(self):
         """同步初始化入口"""
@@ -91,17 +281,30 @@ class ToolRegistry:
             raise ValueError(f"工具 '{name}' 不存在")
 
         try:
-            result = await self.session.call_tool(name, arguments)
+            # 获取工具所属的服务器
+            server, tool_info = self.tools[name]
+            
+            # 调用对应服务器的工具
+            result = await server.session.call_tool(name, arguments)
 
             # 解析结果
             if result.content:
                 content = result.content[0]
                 if hasattr(content, 'text'):
-                    response_data = json.loads(content.text)
-                    if response_data.get("status") == "ok":
-                        return response_data
-                    else:
-                        raise RuntimeError(response_data.get("error", "未知错误"))
+                    text = content.text
+                    # 尝试解析为 JSON
+                    try:
+                        response_data = json.loads(text)
+                        if response_data.get("status") == "ok":
+                            return response_data
+                        elif "status" in response_data:
+                            raise RuntimeError(response_data.get("error", "未知错误"))
+                        else:
+                            # 不是标准格式，直接返回
+                            return {"status": "ok", "result": response_data}
+                    except json.JSONDecodeError:
+                        # 不是 JSON，直接返回文本
+                        return {"status": "ok", "result": text}
 
             return {"status": "ok", "result": str(result)}
 
@@ -129,8 +332,8 @@ class ToolRegistry:
             self.initialize()
 
         descriptions = []
-        for name, tool in self.tools.items():
-            desc = f"- {name}: {tool.description if hasattr(tool, 'description') else '无描述'}"
+        for name, (server, tool) in self.tools.items():
+            desc = f"- {name} (from {server.name}): {tool.description if hasattr(tool, 'description') else '无描述'}"
             descriptions.append(desc)
 
         return "\n".join(descriptions)
@@ -141,6 +344,70 @@ class ToolRegistry:
             self.initialize()
 
         return list(self.tools.keys())
+
+    async def _get_prompt_async(self, name: str, arguments: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """异步获取 prompt"""
+        if not self._initialized:
+            await self._init_async()
+
+        if name not in self.prompts:
+            raise ValueError(f"Prompt '{name}' 不存在")
+
+        try:
+            # 获取 prompt 所属的服务器
+            server, prompt_info = self.prompts[name]
+            
+            # 调用对应服务器的 get_prompt
+            result = await server.session.get_prompt(name, arguments)
+
+            # 返回 prompt 的消息
+            return {
+                "status": "ok",
+                "description": result.description if hasattr(result, 'description') else None,
+                "messages": [
+                    {
+                        "role": msg.role,
+                        "content": msg.content.model_dump() if hasattr(msg.content, 'model_dump') else str(msg.content)
+                    }
+                    for msg in result.messages
+                ]
+            }
+
+        except Exception as e:
+            logger.error(f"❌ 获取 prompt '{name}' 失败: {e}")
+            raise
+
+    def get_prompt(self, name: str, arguments: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """获取 prompt（同步接口）"""
+        if not self._initialized:
+            self.initialize()
+
+        loop = self._get_or_create_event_loop()
+        return loop.run_until_complete(
+            self._get_prompt_async(name, arguments)
+        )
+
+    def list_prompts(self) -> List[str]:
+        """列出所有可用的 prompts"""
+        if not self._initialized:
+            self.initialize()
+
+        return list(self.prompts.keys())
+
+    def describe_prompts(self) -> str:
+        """描述所有可用 prompts"""
+        if not self._initialized:
+            self.initialize()
+
+        descriptions = []
+        for name, (server, prompt) in self.prompts.items():
+            desc = f"- {name} (from {server.name}): {prompt.description if hasattr(prompt, 'description') else '无描述'}"
+            if hasattr(prompt, 'arguments') and prompt.arguments:
+                args_desc = ", ".join([f"{arg.name}{'*' if arg.required else ''}" for arg in prompt.arguments])
+                desc += f"\n  参数: {args_desc}"
+            descriptions.append(desc)
+
+        return "\n".join(descriptions)
 
     async def _cleanup_async(self):
         """异步清理资源"""
