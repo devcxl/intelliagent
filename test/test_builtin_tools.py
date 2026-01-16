@@ -1,0 +1,408 @@
+#!/usr/bin/env python3
+"""
+内置工具单元测试
+
+测试所有内置工具的功能和错误处理。
+这些测试会真实执行工具操作，不使用 mock。
+"""
+import asyncio
+import json
+import tempfile
+import sys
+import os
+from pathlib import Path
+from typing import Dict, Any
+
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from utils.logger import logger
+
+
+def load_tool_from_mcp_server():
+    """从 mcp_server.py 加载工具函数
+    
+    由于 mcp 框架的特殊性，直接导入工具函数可能有问题，
+    因此这里通过执行子进程的方式测试，或直接导入模块
+    """
+    try:
+        # 尝试导入 mcp_server 模块
+        import mcp_server
+        return mcp_server
+    except ImportError as e:
+        logger.warning(f"无法导入 mcp_server: {e}")
+        return None
+
+
+class TestBuiltinTools:
+    """内置工具测试类"""
+    
+    def __init__(self):
+        self.passed = 0
+        self.failed = 0
+        self.temp_dir = None
+    
+    def setup(self):
+        """测试前准备"""
+        # 创建临时目录用于测试文件操作
+        self.temp_dir = tempfile.TemporaryDirectory()
+        logger.info(f"✅ 创建临时测试目录: {self.temp_dir.name}")
+    
+    def teardown(self):
+        """测试后清理"""
+        if self.temp_dir:
+            self.temp_dir.cleanup()
+            logger.info("🧹 清理临时测试目录")
+    
+    def _parse_json_response(self, response_str: str) -> Dict[str, Any]:
+        """解析工具响应（JSON 格式）"""
+        return json.loads(response_str)
+    
+    async def test_run_shell_success(self):
+        """测试 run_shell - 成功情况"""
+        logger.info("\n🧪 测试 run_shell 成功情况...")
+        try:
+            from mcp_server import run_shell
+            
+            result = await run_shell("echo 'Hello World'")
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", f"期望 status=ok，得到 {data['status']}"
+            assert "Hello World" in data["output"], f"输出不匹配: {data['output']}"
+            assert data["returncode"] == 0, f"返回码应为 0，得到 {data['returncode']}"
+            
+            logger.info(f"✅ 通过: run_shell 成功执行命令")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_run_shell_empty_command(self):
+        """测试 run_shell - 空命令"""
+        logger.info("\n🧪 测试 run_shell 空命令...")
+        try:
+            from mcp_server import run_shell
+            
+            result = await run_shell("")
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "error", "应该返回错误状态"
+            assert data["code"] == "EMPTY_COMMAND", f"错误代码应为 EMPTY_COMMAND，得到 {data['code']}"
+            
+            logger.info(f"✅ 通过: run_shell 正确拒绝空命令")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_run_shell_with_pipe(self):
+        """测试 run_shell - 复杂命令（管道）"""
+        logger.info("\n🧪 测试 run_shell 管道命令...")
+        try:
+            from mcp_server import run_shell
+            
+            result = await run_shell("echo '1\\n2\\n3' | wc -l")
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", "管道命令应该成功"
+            assert "3" in data["output"].strip(), f"输出应包含 3，得到 {data['output']}"
+            
+            logger.info(f"✅ 通过: run_shell 支持管道操作")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_read_file_success(self):
+        """测试 read_file - 成功读取"""
+        logger.info("\n🧪 测试 read_file 成功读取...")
+        try:
+            from mcp_server import read_file, write_file
+            
+            # 先写入测试文件
+            test_file = Path(self.temp_dir.name) / "test.txt"
+            test_content = "Hello World\nLine 2"
+            await write_file(str(test_file), test_content)
+            
+            # 读取文件
+            result = await read_file(str(test_file))
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", f"应该成功读取，得到 {data['status']}"
+            assert test_content in data["content"], f"内容不匹配: {data['content']}"
+            assert data["truncated"] == False, "小文件不应被截断"
+            
+            logger.info(f"✅ 通过: read_file 成功读取文件")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_read_file_not_found(self):
+        """测试 read_file - 文件不存在"""
+        logger.info("\n🧪 测试 read_file 文件不存在...")
+        try:
+            from mcp_server import read_file
+            
+            result = await read_file("/nonexistent/file.txt")
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "error", "应该返回错误"
+            assert data["code"] == "FILE_NOT_FOUND", f"应该是 FILE_NOT_FOUND，得到 {data['code']}"
+            
+            logger.info(f"✅ 通过: read_file 正确处理不存在的文件")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_write_file_success(self):
+        """测试 write_file - 成功写入"""
+        logger.info("\n🧪 测试 write_file 成功写入...")
+        try:
+            from mcp_server import write_file
+            
+            test_file = Path(self.temp_dir.name) / "output.txt"
+            content = "Test Content"
+            
+            result = await write_file(str(test_file), content)
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", f"应该成功写入，得到 {data['status']}"
+            assert test_file.exists(), "文件应该被创建"
+            
+            # 验证文件内容
+            actual_content = test_file.read_text()
+            assert actual_content == content, f"文件内容不匹配: {actual_content}"
+            
+            logger.info(f"✅ 通过: write_file 成功创建文件")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_write_file_create_parents(self):
+        """测试 write_file - 自动创建父目录"""
+        logger.info("\n🧪 测试 write_file 自动创建父目录...")
+        try:
+            from mcp_server import write_file
+            
+            test_file = Path(self.temp_dir.name) / "subdir" / "nested" / "file.txt"
+            content = "Nested Content"
+            
+            result = await write_file(str(test_file), content)
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", "应该成功写入"
+            assert test_file.exists(), "文件应该被创建，包括父目录"
+            
+            logger.info(f"✅ 通过: write_file 自动创建父目录")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_list_dir_success(self):
+        """测试 list_dir - 列出目录"""
+        logger.info("\n🧪 测试 list_dir 列出目录...")
+        try:
+            from mcp_server import list_dir, write_file
+            
+            # 创建测试文件
+            (Path(self.temp_dir.name) / "file1.txt").write_text("content1")
+            (Path(self.temp_dir.name) / "file2.txt").write_text("content2")
+            (Path(self.temp_dir.name) / "subdir").mkdir()
+            
+            result = await list_dir(self.temp_dir.name)
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", "应该成功列出目录"
+            assert data["count"] >= 3, f"应该至少有 3 个项目，得到 {data['count']}"
+            assert any(item["name"] == "file1.txt" for item in data["items"]), "应该包含 file1.txt"
+            assert any(item["name"] == "subdir" for item in data["items"]), "应该包含 subdir"
+            
+            logger.info(f"✅ 通过: list_dir 成功列出目录（{data['count']} 项）")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_list_dir_not_found(self):
+        """测试 list_dir - 目录不存在"""
+        logger.info("\n🧪 测试 list_dir 目录不存在...")
+        try:
+            from mcp_server import list_dir
+            
+            result = await list_dir("/nonexistent/directory")
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "error", "应该返回错误"
+            assert data["code"] == "NOT_FOUND", f"应该是 NOT_FOUND，得到 {data['code']}"
+            
+            logger.info(f"✅ 通过: list_dir 正确处理不存在的目录")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_delete_file_success(self):
+        """测试 delete_file - 成功删除"""
+        logger.info("\n🧪 测试 delete_file 成功删除...")
+        try:
+            from mcp_server import delete_file, write_file
+            
+            test_file = Path(self.temp_dir.name) / "to_delete.txt"
+            
+            # 先创建文件
+            await write_file(str(test_file), "to be deleted")
+            assert test_file.exists(), "文件应该被创建"
+            
+            # 删除文件
+            result = await delete_file(str(test_file))
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", "应该成功删除"
+            assert not test_file.exists(), "文件应该被删除"
+            
+            logger.info(f"✅ 通过: delete_file 成功删除文件")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_delete_file_not_found(self):
+        """测试 delete_file - 文件不存在"""
+        logger.info("\n🧪 测试 delete_file 文件不存在...")
+        try:
+            from mcp_server import delete_file
+            
+            result = await delete_file("/nonexistent/file.txt")
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "error", "应该返回错误"
+            assert data["code"] == "NOT_FOUND", f"应该是 NOT_FOUND，得到 {data['code']}"
+            
+            logger.info(f"✅ 通过: delete_file 正确处理不存在的文件")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_file_exists_file(self):
+        """测试 file_exists - 文件存在"""
+        logger.info("\n🧪 测试 file_exists 文件存在...")
+        try:
+            from mcp_server import file_exists, write_file
+            
+            test_file = Path(self.temp_dir.name) / "exists.txt"
+            await write_file(str(test_file), "exists")
+            
+            result = await file_exists(str(test_file))
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", "应该成功检查"
+            assert data["exists"] == True, "文件应该存在"
+            assert data["type"] == "file", f"类型应该是 file，得到 {data['type']}"
+            
+            logger.info(f"✅ 通过: file_exists 正确识别存在的文件")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_file_exists_directory(self):
+        """测试 file_exists - 目录存在"""
+        logger.info("\n🧪 测试 file_exists 目录存在...")
+        try:
+            from mcp_server import file_exists
+            
+            result = await file_exists(self.temp_dir.name)
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", "应该成功检查"
+            assert data["exists"] == True, "目录应该存在"
+            assert data["type"] == "directory", f"类型应该是 directory，得到 {data['type']}"
+            
+            logger.info(f"✅ 通过: file_exists 正确识别目录")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def test_file_exists_not_found(self):
+        """测试 file_exists - 不存在"""
+        logger.info("\n🧪 测试 file_exists 不存在...")
+        try:
+            from mcp_server import file_exists
+            
+            result = await file_exists("/nonexistent/path")
+            data = self._parse_json_response(result)
+            
+            assert data["status"] == "ok", "应该成功检查"
+            assert data["exists"] == False, "路径应该不存在"
+            
+            logger.info(f"✅ 通过: file_exists 正确识别不存在的路径")
+            self.passed += 1
+        except Exception as e:
+            logger.error(f"❌ 失败: {str(e)}")
+            self.failed += 1
+    
+    async def run_all_tests(self):
+        """运行所有测试"""
+        logger.info("=" * 60)
+        logger.info("🚀 开始内置工具测试")
+        logger.info("=" * 60)
+        
+        self.setup()
+        
+        try:
+            # run_shell 测试
+            await self.test_run_shell_success()
+            await self.test_run_shell_empty_command()
+            await self.test_run_shell_with_pipe()
+            
+            # read_file 测试
+            await self.test_read_file_success()
+            await self.test_read_file_not_found()
+            
+            # write_file 测试
+            await self.test_write_file_success()
+            await self.test_write_file_create_parents()
+            
+            # list_dir 测试
+            await self.test_list_dir_success()
+            await self.test_list_dir_not_found()
+            
+            # delete_file 测试
+            await self.test_delete_file_success()
+            await self.test_delete_file_not_found()
+            
+            # file_exists 测试
+            await self.test_file_exists_file()
+            await self.test_file_exists_directory()
+            await self.test_file_exists_not_found()
+            
+        finally:
+            self.teardown()
+        
+        # 输出总结
+        logger.info("\n" + "=" * 60)
+        logger.info("📊 测试总结")
+        logger.info("=" * 60)
+        logger.info(f"✅ 通过: {self.passed}")
+        logger.info(f"❌ 失败: {self.failed}")
+        logger.info(f"📈 成功率: {self.passed / (self.passed + self.failed) * 100:.1f}%")
+        logger.info("=" * 60)
+        
+        return self.failed == 0
+
+
+async def main():
+    """主函数"""
+    tester = TestBuiltinTools()
+    success = await tester.run_all_tests()
+    sys.exit(0 if success else 1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

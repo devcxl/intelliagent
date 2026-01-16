@@ -79,11 +79,10 @@ MAX_RETRY_PER_STEP=3
 MCP_CONFIG_FILE=mcp_config.json
 ```
 
-**关于 MCP 服务器**:
-- 系统内置 5 个基础工具（文件读写、Shell 命令、测试、Git）
-- 可以通过 `mcp_config.json` 添加外部 MCP 服务器扩展功能
+**关于工具系统**:
+- 内置工具（6 个）无需配置，详见 [工具文档](docs/TOOLS.md)
+- 外部 MCP 服务器通过 `mcp_config.json` 配置，详见 [集成指南](docs/TOOL_INTEGRATION.md)
 - 使用与 Claude Code 兼容的 JSON 配置格式
-- 详细配置指南请参考 [docs/MCP_SERVERS.md](docs/MCP_SERVERS.md)
 
 ### 3. 运行示例
 
@@ -93,13 +92,13 @@ MCP_CONFIG_FILE=mcp_config.json
 python main.py "创建一个 Python 文件并写入 Hello World"
 ```
 
-#### 方式二：运行交互式示例
+#### 方式二：运行交互式示例（如存在 example.py）
 
 ```bash
 python example.py
 ```
 
-然后选择示例：
+如果仓库包含该示例文件，可选择示例：
 - 1. 简单文件操作
 - 2. 复杂代码生成
 - 3. Git 操作
@@ -115,7 +114,7 @@ from main import IntelliAgent
 agent = IntelliAgent()
 
 # 执行任务
-result = agent.run("检查当前目录的 git 状态")
+result = agent.run("列出当前目录文件")
 
 # 查看结果
 print(f"执行状态: {result['success']}")
@@ -125,16 +124,38 @@ print(f"摘要: {result['summary']}")
 experiences = agent.get_experiences()
 ```
 
-## 📋 可用工具
+## 🛠️ Tools - 工具系统
 
-当前系统支持以下工具（通过 MCP 服务器提供）：
+IntelliAgent 提供强大的工具系统，包括**内置工具**和**可扩展的外部工具**。
 
-- `run_shell`: 执行终端命令
-- `read_file`: 读取文件内容
-- `write_file`: 写入文件内容
-- `run_tests`: 运行测试
-- `git_status`: 查看 Git 状态
-- `git_diff`: 查看 Git 差异
+### 内置工具 (6 个)
+
+开箱即用的基础工具，无需额外配置：
+
+| 工具名 | 功能 | 参数 |
+|-------|------|------|
+| `run_shell` | 执行终端命令 | cmd: 命令字符串 |
+| `read_file` | 读取文件内容 | path: 文件路径 |
+| `write_file` | 写入文件内容 | path, content |
+| `list_dir` | 列出目录内容 | path: 目录路径 |
+| `delete_file` | 删除文件 | path: 文件路径 |
+| `file_exists` | 检查文件是否存在 | path: 文件路径 |
+
+### 外部工具 (可配置)
+
+通过 MCP 协议集成第三方服务（如 GitHub、搜索、文档查询等）。
+
+**已支持的外部服务**:
+- `filesystem` - 高级文件操作
+- `github` - GitHub API 集成
+- `brave-search` - 互联网搜索
+- `context7` - 编程文档查询
+- `sequential-thinking` - 结构化思维
+
+### 📖 完整文档
+
+- **[工具系统文档](docs/TOOLS.md)** - 内置工具详细说明和使用示例
+- **[MCP 集成指南](docs/TOOL_INTEGRATION.md)** - 如何配置和使用外部工具
 
 ## 🔧 配置说明
 
@@ -268,9 +289,9 @@ async def your_tool(param: str) -> str:
 
 ## 📚 文档
 
-- 📖 [快速开始指南](docs/QUICK_START.md) - 详细的安装和使用教程
-- 🏗️ [架构设计文档](docs/ARCHITECTURE.md) - 深入了解系统设计原理
-- 📁 [项目结构说明](docs/PROJECT_STRUCTURE.md) - 了解项目文件组织
+- 📖 [工具系统文档](docs/TOOLS.md) - 所有内置工具的详细说明
+- 🔗 [MCP 集成指南](docs/TOOL_INTEGRATION.md) - 如何配置外部工具
+- 🏗️ [架构设计文档](docs/ARCHITECTURE.md) - 深入了解系统设计原理（如存在）
 
 ## 📝 开发计划
 
