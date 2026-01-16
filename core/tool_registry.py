@@ -1,21 +1,41 @@
 #!/usr/bin/env python3
 """
 工具注册中心
-通过 MCP 协议连接到工具服务器，提供工具调用接口
-支持多个 MCP 服务器（内置 + 外部）
-支持 stdio, SSE 和 streamable-http 三种连接方式
+
+提供内置工具和外部 MCP 工具的统一接口。
+
+架构说明：
+  - 内置工具：直接导入 core.builtin_tools 的 Python 函数，无需 MCP 依赖
+  - 外部工具：通过 MCP 协议连接的远程服务（可选）
+  
+连接方式：
+  - 内置工具：直接 Python 函数调用
+  - MCP 工具：stdio, SSE, streamable-http 三种协议连接
 """
 import json
 import asyncio
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.client.sse import sse_client
-from mcp.client.streamable_http import streamablehttp_client
 from utils.logger import logger
 from utils.config import MCP_SERVER_COMMAND, MCP_SERVER_SCRIPT, MCP_CONFIG_FILE
+
+# 导入内置工具
+from core.builtin_tools import (
+    BUILTIN_TOOLS,
+    call_tool as call_builtin_tool
+)
+
+# 尝试导入 MCP（可选）
+try:
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    from mcp.client.sse import sse_client
+    from mcp.client.streamable_http import streamablehttp_client
+    HAS_MCP = True
+except ImportError:
+    HAS_MCP = False
+    logger.debug("⚠️ MCP 库未安装，仅支持内置工具")
 
 
 class MCPServer:
@@ -273,7 +293,29 @@ class ToolRegistry:
         self._loop.run_until_complete(self._init_async())
 
     async def _call_tool_async(self, name: str, arguments: Dict[str, Any]) -> Any:
-        """异步调用工具"""
+        """异步调用工具
+        
+        优先级：
+        1. 内置工具（直接 Python 函数调用）
+        2. MCP 外部工具（如果已配置）
+        """
+        # 首先检查是否是内置工具
+        if name in BUILTIN_TOOLS:
+            logger.debug(f"🔧 调用内置工具: {name}")
+            try:
+                # 直接调用内置工具
+                result_json = await call_builtin_tool(name, **arguments)
+                # 解析 JSON 响应
+                result = json.loads(result_json)
+                return result
+            except Exception as e:
+                logger.error(f"❌ 调用内置工具 '{name}' 失败: {e}")
+                raise
+        
+        # 否则尝试通过 MCP 调用外部工具
+        if not HAS_MCP:
+            raise RuntimeError(f"工具 '{name}' 不存在，且 MCP 库未安装")
+        
         if not self._initialized:
             await self._init_async()
 
@@ -309,7 +351,7 @@ class ToolRegistry:
             return {"status": "ok", "result": str(result)}
 
         except Exception as e:
-            logger.error(f"❌ 调用工具 '{name}' 失败: {e}")
+            logger.error(f"❌ 调用 MCP 工具 '{name}' 失败: {e}")
             raise
 
     def get_tool(self, name: str):
@@ -327,23 +369,36 @@ class ToolRegistry:
         return tool_wrapper
 
     def describe_tools(self) -> str:
-        """描述所有可用工具"""
-        if not self._initialized:
-            self.initialize()
-
+        """描述所有可用工具（包括内置工具）"""
         descriptions = []
-        for name, (server, tool) in self.tools.items():
-            desc = f"- {name} (from {server.name}): {tool.description if hasattr(tool, 'description') else '无描述'}"
+        
+        # 添加内置工具
+        for name, tool_info in BUILTIN_TOOLS.items():
+            desc = f"- {name} (内置): {tool_info.get('description', '无描述')}"
             descriptions.append(desc)
+        
+        # 添加 MCP 外部工具
+        if self._initialized or HAS_MCP:
+            if not self._initialized:
+                self.initialize()
+            
+            for name, (server, tool) in self.tools.items():
+                desc = f"- {name} (from {server.name}): {tool.description if hasattr(tool, 'description') else '无描述'}"
+                descriptions.append(desc)
 
         return "\n".join(descriptions)
 
     def list_tools(self) -> List[str]:
-        """列出所有可用工具名称"""
-        if not self._initialized:
-            self.initialize()
-
-        return list(self.tools.keys())
+        """列出所有可用工具名称（包括内置工具）"""
+        tools = list(BUILTIN_TOOLS.keys())
+        
+        if self._initialized or HAS_MCP:
+            if not self._initialized:
+                self.initialize()
+            
+            tools.extend(list(self.tools.keys()))
+        
+        return tools
 
     async def _get_prompt_async(self, name: str, arguments: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """异步获取 prompt"""

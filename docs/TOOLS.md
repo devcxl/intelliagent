@@ -4,12 +4,44 @@
 
 ## 概览
 
-IntelliAgent 提供两类工具：
+IntelliAgent 提供两类工具，通过统一的 `ToolRegistry` 接口访问：
 
-1. **内置工具** (mcp_server.py) - 提供基础的文件、目录、命令执行等功能
-2. **外部工具** (MCP 服务) - 通过 Model Context Protocol 集成的第三方服务
+1. **内置工具** (`core.builtin_tools`) 
+   - 直接 Python 实现
+   - 无需 MCP 依赖
+   - 6 个基础工具：文件、目录、命令执行等
+   - 开箱即用，性能最优
 
-所有工具都通过统一的 JSON 接口访问，返回格式一致。
+2. **外部工具** (MCP 服务) 
+   - 通过 Model Context Protocol 集成
+   - 第三方远程服务（可选）
+   - 灵活扩展，按需配置
+
+所有工具都返回统一的 JSON 格式响应，便于处理和集成。
+
+## 架构说明
+
+```
+IntelliAgent 系统
+    │
+    └─ ToolRegistry (工具注册中心)
+           │
+           ├─ 内置工具（直接 Python）
+           │  └─ core.builtin_tools 模块
+           │     ├─ run_shell
+           │     ├─ read_file
+           │     ├─ write_file
+           │     ├─ list_dir
+           │     ├─ delete_file
+           │     └─ file_exists
+           │
+           └─ MCP 外部工具（可选）
+              └─ mcp_config.json 配置
+                 ├─ filesystem
+                 ├─ github
+                 ├─ brave-search
+                 └─ ...其他服务
+```
 
 ---
 

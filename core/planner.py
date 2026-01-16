@@ -43,7 +43,7 @@ class Planner:
         except Exception as e:
             logger.error(f"获取工具列表失败 | error={e}")
             # 返回默认工具列表
-            return ["run_shell", "read_file", "write_file", "run_tests", "git_status", "git_diff"]
+            return ["run_shell", "read_file", "write_file"]
 
     def generate_plan(self, user_input: str) -> List[Dict[str, Any]]:
         """
