@@ -48,7 +48,8 @@ class PDCALoop:
                 "final_plan": list,
                 "execution_results": list,
                 "check_results": list,
-                "summary": str
+                "summary": str,
+                "execution_metrics": dict
             }
         """
         logger.info("=" * 60)
@@ -59,6 +60,15 @@ class PDCALoop:
         current_plan = None
         all_execution_results = []
         all_check_results = []
+        execution_metrics = {
+            "total_steps": 0,
+            "successful_steps": 0,
+            "failed_steps": 0,
+            "skipped_steps": 0,
+            "total_retries": 0,
+            "total_time": 0.0,
+            "step_times": {}
+        }
 
         while cycle_count < self.max_pdca_cycles:
             cycle_count += 1
@@ -85,14 +95,29 @@ class PDCALoop:
                 
                 logger.info(f"✅ 计划生成完成 | 共 {len(current_plan)} 个步骤")
                 for step in current_plan:
-                    logger.info(f"   步骤 {step.get('id')}: {step.get('goal')}")
+                    deps = step.get('dependencies', [])
+                    dep_str = f" (依赖步骤: {deps})" if deps else ""
+                    logger.info(f"   步骤 {step.get('id')}: {step.get('goal')}{dep_str}")
 
             # ============ DO 阶段 ============
-            logger.info("⚙️  [DO] 执行计划...")
+            logger.info("⚙️  [DO] 执行计划（新的循环处理引擎）...")
             execution_results = self.executor.execute_plan(current_plan)
             all_execution_results.extend(execution_results)
             
-            logger.info(f"✅ 执行完成 | 完成 {len(execution_results)} 个步骤")
+            # 获取执行指标（来自新的 executor）
+            execution_metrics = {
+                "total_steps": self.executor.metrics.total_steps,
+                "successful_steps": self.executor.metrics.successful_steps,
+                "failed_steps": self.executor.metrics.failed_steps,
+                "skipped_steps": self.executor.metrics.skipped_steps,
+                "total_retries": self.executor.metrics.total_retries,
+                "total_time": self.executor.metrics.total_time,
+                "step_times": self.executor.metrics.step_times
+            }
+            
+            logger.info(f"✅ 执行完成 | 成功: {execution_metrics['successful_steps']}, "
+                       f"失败: {execution_metrics['failed_steps']}, "
+                       f"跳过: {execution_metrics['skipped_steps']}")
 
             # ============ CHECK 阶段 ============
             logger.info("🔍 [CHECK] 检查执行结果...")
@@ -146,6 +171,7 @@ class PDCALoop:
                     "final_plan": current_plan,
                     "execution_results": all_execution_results,
                     "check_results": all_check_results,
+                    "execution_metrics": execution_metrics,
                     "summary": f"任务成功完成，经过 {cycle_count} 轮 PDCA 循环"
                 }
 
@@ -198,6 +224,7 @@ class PDCALoop:
             "final_plan": current_plan,
             "execution_results": all_execution_results,
             "check_results": all_check_results,
+            "execution_metrics": execution_metrics,
             "summary": f"部分完成，经过 {cycle_count} 轮 PDCA 循环后仍有步骤未通过"
         }
 
@@ -209,5 +236,14 @@ class PDCALoop:
             "final_plan": [],
             "execution_results": [],
             "check_results": [],
+            "execution_metrics": {
+                "total_steps": 0,
+                "successful_steps": 0,
+                "failed_steps": 0,
+                "skipped_steps": 0,
+                "total_retries": 0,
+                "total_time": 0.0,
+                "step_times": {}
+            },
             "summary": f"任务失败: {reason}"
         }

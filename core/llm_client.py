@@ -112,6 +112,12 @@ class LLMClient:
 - tool: 使用的工具名称
 - args: 工具参数（JSON对象）
 - expected_outcome: 预期结果描述
+- dependencies: [可选] 依赖的步骤ID列表（如步骤2依赖步骤1，则写 "dependencies": [1]）
+
+变量引用支持：
+- 可在 args 中使用 ${{step_X.args.字段}} 引用前置步骤的参数
+- 可在 args 中使用 ${{step_X.result.字段}} 引用前置步骤的执行结果
+- 例：${{step_1.args.path}} 表示步骤1的参数中的 path 字段
 
 必须返回有效的 JSON 数组格式。"""
 
@@ -149,20 +155,20 @@ class LLMClient:
                 elif "steps" in result:
                     plan = result["steps"]
                 else:
-                    # 尝试找到第一个数组类型的值
-                    plan = None
-                    for value in result.values():
-                        if isinstance(value, list):
-                            plan = value
-                            break
-                    
-                    # 如果没找到数组，检查是否整个对象就是一个计划步骤
-                    if plan is None:
-                        # 检查是否包含计划步骤的必需字段
-                        if "goal" in result and "tool" in result:
-                            # 单个步骤，包装成列表
-                            plan = [result]
-                        else:
+                    # 首先检查是否整个对象就是一个计划步骤
+                    if "goal" in result and "tool" in result:
+                        # 单个步骤，包装成列表
+                        logger.info("检测到单个步骤对象，将其包装成列表")
+                        plan = [result]
+                    else:
+                        # 尝试找到第一个数组类型的值
+                        plan = None
+                        for value in result.values():
+                            if isinstance(value, list):
+                                plan = value
+                                break
+                        
+                        if plan is None:
                             plan = []
             else:
                 plan = []

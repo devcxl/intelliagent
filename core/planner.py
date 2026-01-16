@@ -59,6 +59,7 @@ class Planner:
             - tool: 使用的工具
             - args: 工具参数
             - expected_outcome: 预期结果
+            - dependencies: 依赖的步骤ID列表
         """
         try:
             txt = user_input.strip()
@@ -101,7 +102,8 @@ class Planner:
                     "goal": step.get("goal", "未指定目标"),
                     "tool": tool,
                     "args": step.get("args", {}),
-                    "expected_outcome": step.get("expected_outcome", "无具体预期")
+                    "expected_outcome": step.get("expected_outcome", "无具体预期"),
+                    "dependencies": step.get("dependencies", [])  # 支持依赖关系
                 }
                 validated_plan.append(validated_step)
 
@@ -116,3 +118,45 @@ class Planner:
             logger.error(f"生成计划失败 | type={type(e).__name__} detail={e}")
             # 抛出异常而不是返回无效步骤，让 PDCA 循环处理重试
             raise RuntimeError(f"规划失败: {e}")
+    
+    def analyze_dependencies(self, plan: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        分析执行计划中的依赖关系
+        
+        Args:
+            plan: 执行计划列表
+            
+        Returns:
+            带有自动分析依赖的计划
+        """
+        if not plan:
+            return plan
+            
+        # 如果计划已经包含依赖信息，直接返回
+        has_dependencies = any(step.get('dependencies') for step in plan)
+        if has_dependencies:
+            logger.info("计划已包含依赖信息，跳过自动分析")
+            return plan
+            
+        # 分析隐式依赖（变量引用）
+        import re
+        analyzed_plan = []
+        
+        for step in plan:
+            dependencies = []
+            args_str = str(step.get('args', {}))
+            
+            # 查找 ${step_X.xxx} 的所有引用
+            matches = re.findall(r'\$\{step_(\d+)\.', args_str)
+            if matches:
+                dependencies = list(set(int(m) for m in matches))
+                dependencies.sort()
+            
+            step_copy = dict(step)
+            step_copy['dependencies'] = dependencies
+            analyzed_plan.append(step_copy)
+            
+            if dependencies:
+                logger.info(f"步骤 {step.get('id')}: 自动检测依赖 {dependencies}")
+        
+        return analyzed_plan
