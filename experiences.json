@@ -4324,5 +4324,3929 @@
     "passed_steps": 3,
     "average_score": 0.3733333333333333,
     "timestamp": "2025-11-14T15:23:14.511345"
+  },
+  {
+    "task": "创建一个 Python 文件并写入 Hello World",
+    "plan": [
+      {
+        "id": 1,
+        "goal": "生成失败",
+        "tool": "none",
+        "args": {},
+        "expected_outcome": "无具体预期"
+      }
+    ],
+    "execution_results": [
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      }
+    ],
+    "check_results": [
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      }
+    ],
+    "final_status": "partial",
+    "total_steps": 1,
+    "passed_steps": 0,
+    "average_score": 0.0,
+    "timestamp": "2026-01-16T13:55:12.363490"
+  },
+  {
+    "task": "创建一个文件并写入 Hello World",
+    "plan": [
+      {
+        "id": 1,
+        "goal": "生成失败",
+        "tool": "none",
+        "args": {},
+        "expected_outcome": "无具体预期"
+      }
+    ],
+    "execution_results": [
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      }
+    ],
+    "check_results": [
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      }
+    ],
+    "final_status": "partial",
+    "total_steps": 1,
+    "passed_steps": 0,
+    "average_score": 0.0,
+    "timestamp": "2026-01-16T13:59:05.184796"
+  },
+  {
+    "task": "创建一个 Python 文件并写入 Hello World",
+    "plan": [
+      {
+        "id": 1,
+        "goal": "生成失败",
+        "tool": "none",
+        "args": {},
+        "expected_outcome": "无具体预期"
+      }
+    ],
+    "execution_results": [
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      },
+      {
+        "step_id": 1,
+        "status": "skipped",
+        "reason": "未指定工具"
+      }
+    ],
+    "check_results": [
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      },
+      {
+        "step_id": 1,
+        "passed": false,
+        "score": 0.0,
+        "feedback": "步骤被跳过",
+        "suggestion": "未指定工具",
+        "needs_retry": false
+      }
+    ],
+    "final_status": "partial",
+    "total_steps": 1,
+    "passed_steps": 0,
+    "average_score": 0.0,
+    "timestamp": "2026-01-16T14:00:23.967133"
   }
 ]

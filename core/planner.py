@@ -83,7 +83,7 @@ class Planner:
             # 验证计划格式
             if not plan or not isinstance(plan, list):
                 logger.error("LLM 返回的计划格式无效")
-                return [{"id": 1, "goal": "计划生成失败", "tool": "none", "args": {}}]
+                raise ValueError("LLM 返回的计划不是有效的列表格式")
 
             # 确保每个步骤都有必需的字段
             validated_plan = []
@@ -91,18 +91,28 @@ class Planner:
                 if not isinstance(step, dict):
                     continue
 
+                tool = step.get("tool")
+                if not tool or tool == "none":
+                    logger.warning(f"步骤 {i} 未指定有效工具，跳过此步骤")
+                    continue
+
                 validated_step = {
                     "id": step.get("id", i),
                     "goal": step.get("goal", "未指定目标"),
-                    "tool": step.get("tool", "none"),
+                    "tool": tool,
                     "args": step.get("args", {}),
                     "expected_outcome": step.get("expected_outcome", "无具体预期")
                 }
                 validated_plan.append(validated_step)
+
+            # 如果没有有效步骤，抛出异常
+            if not validated_plan:
+                raise ValueError("生成的计划中没有有效步骤（所有步骤都缺少工具）")
 
             logger.info(f"计划生成成功 | 共 {len(validated_plan)} 个步骤")
             return validated_plan
 
         except Exception as e:
             logger.error(f"生成计划失败 | type={type(e).__name__} detail={e}")
-            return [{"id": 1, "goal": "执行失败", "tool": "none", "args": {}, "expected_outcome": "无"}]
+            # 抛出异常而不是返回无效步骤，让 PDCA 循环处理重试
+            raise RuntimeError(f"规划失败: {e}")

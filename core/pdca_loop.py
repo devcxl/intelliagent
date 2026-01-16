@@ -70,7 +70,14 @@ class PDCALoop:
             if current_plan is None:
                 # 首次生成计划
                 logger.info("📝 [PLAN] 生成执行计划...")
-                current_plan = self.planner.generate_plan(user_input)
+                try:
+                    current_plan = self.planner.generate_plan(user_input)
+                except Exception as e:
+                    logger.error(f"LLM 调用失败 | error={e}")
+                    logger.error("生成计划失败")
+                    # 规划失败，继续重试（在下一轮）
+                    current_plan = None
+                    continue
                 
                 if not current_plan:
                     logger.error("计划生成失败")
