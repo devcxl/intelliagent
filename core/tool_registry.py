@@ -88,19 +88,12 @@ class ToolRegistry:
         self._configure_servers()
 
     def _configure_servers(self):
-        """配置 MCP 服务器列表（支持 JSON 配置文件）"""
-        # 添加内置服务器
-        self.servers.append(
-            MCPServer(
-                name="builtin",
-                command=MCP_SERVER_COMMAND,
-                args=[MCP_SERVER_SCRIPT],
-                server_type="stdio"
-            )
-        )
-        logger.debug(f"✅ 已添加内置 MCP 服务器: {MCP_SERVER_SCRIPT}")
+        """配置 MCP 服务器列表（支持 JSON 配置文件）
         
-        # 从 JSON 配置文件加载外部服务器
+        注意：内置工具不再通过 MCP 服务器配置。
+        它们由 core.builtin_tools 直接提供。
+        """
+        # 从 JSON 配置文件加载外部 MCP 服务器
         self._load_servers_from_json()
 
     def _load_servers_from_json(self):
@@ -278,15 +271,25 @@ class ToolRegistry:
                 # 继续尝试其他服务器
                 continue
 
-        if not self.tools:
-            raise RuntimeError("没有可用的 MCP 工具，请检查服务器配置")
-            
-        logger.info(f"✅ MCP 工具注册中心已初始化，总共 {len(self.tools)} 个工具: {all_tools}")
+        # 记录初始化结果
+        # 注意：即使没有外部 MCP 工具，我们仍然有内置工具可用，所以这不是错误
+        if self.tools:
+            logger.info(f"✅ MCP 工具注册中心已初始化，总共 {len(self.tools)} 个外部工具: {all_tools}")
+        else:
+            logger.info(f"✅ 无外部 MCP 工具配置，内置工具已可用")
+        
         self._initialized = True
 
     def initialize(self):
         """同步初始化入口"""
         if self._initialized:
+            return
+
+        # 快速路径：如果没有外部 MCP 服务器，直接标记为已初始化
+        # 内置工具总是可用的
+        if not self.servers:
+            logger.debug("⚡ 没有外部 MCP 服务器配置，跳过异步初始化")
+            self._initialized = True
             return
 
         self._loop = self._get_or_create_event_loop()
