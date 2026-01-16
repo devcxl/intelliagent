@@ -28,7 +28,8 @@ class LLMClient:
 
         self.model = model
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-        logger.info(f"LLM 客户端初始化完成 | model={self.model}")
+        response = self.chat(messages=[{"role": "user", "content": "hello"}])
+        logger.info(f"LLM 客户端初始化完成 | model={self.model} | response={response}")
 
     def chat(
         self,
@@ -134,32 +135,49 @@ class LLMClient:
 
             # 解析JSON响应
             result = json.loads(response)
+
+            logger.info(f"result={result}")
             
             # 提取计划数组
-            if "plan" in result:
-                plan = result["plan"]
-            elif "steps" in result:
-                plan = result["steps"]
-            elif isinstance(result, list):
+            if isinstance(result, list):
+                # 如果结果本身就是列表
                 plan = result
-            else:
-                # 尝试找到第一个数组类型的值
-                for value in result.values():
-                    if isinstance(value, list):
-                        plan = value
-                        break
+            elif isinstance(result, dict):
+                # 如果结果是对象，尝试提取数组
+                if "plan" in result:
+                    plan = result["plan"]
+                elif "steps" in result:
+                    plan = result["steps"]
                 else:
-                    plan = []
-
+                    # 尝试找到第一个数组类型的值
+                    plan = None
+                    for value in result.values():
+                        if isinstance(value, list):
+                            plan = value
+                            break
+                    
+                    # 如果没找到数组，检查是否整个对象就是一个计划步骤
+                    if plan is None:
+                        # 检查是否包含计划步骤的必需字段
+                        if "goal" in result and "tool" in result:
+                            # 单个步骤，包装成列表
+                            plan = [result]
+                        else:
+                            plan = []
+            else:
+                plan = []
+            
             logger.info(f"生成计划成功 | steps={len(plan)}")
             return plan
 
         except json.JSONDecodeError as e:
             logger.error(f"解析计划JSON失败 | error={e}")
-            return [{"id": 1, "goal": "解析失败", "tool": "none", "args": {}}]
+            # 返回空列表，让 Planner 和 PDCA 循环处理错误
+            return []
         except Exception as e:
             logger.error(f"生成计划失败 | error={e}")
-            return [{"id": 1, "goal": "生成失败", "tool": "none", "args": {}}]
+            # 返回空列表，让 Planner 和 PDCA 循环处理错误
+            return []
 
     def check_result(
         self,
