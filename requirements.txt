@@ -1,6 +1,12 @@
+# 核心依赖
 mcp==1.18.0
 anyio==4.11.0
 python-dotenv==1.1.1
 aiofiles==24.1.0
 pytest==8.3.3
 openai>=1.0.0
+
+# Web UI 依赖
+fastapi>=0.104.0
+uvicorn>=0.24.0
+websockets>=12.0

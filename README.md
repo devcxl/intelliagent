@@ -1,20 +1,35 @@
-# 🤖 IntelliAgent - 基于 PDCA 循环的智能代理系统
+# 🤖 IntelliAgent - 基于 ReAct 循环的智能代理系统
 
-> 一个使用 OpenAI LLM 驱动的智能任务规划与执行系统，遵循 PDCA（Plan-Do-Check-Act）戴明环理论
+> 一个使用 OpenAI LLM 驱动的代码开发助手，遵循 ReAct（Reason-Act-Observe）循环模式
 
 ## ✨ 核心特性
 
-- **🎯 智能规划**: 使用 LLM 根据用户输入自动生成结构化执行计划
+- **🎯 智能规划**: 使用 LLM 根据用户输入自动生成执行计划
 - **⚙️ 自动执行**: 调用工具执行计划中的各个步骤
 - **🔍 质量检查**: LLM 评估每个步骤的执行质量，确保符合预期
-- **🔄 自适应改进**: 失败时自动重试（最多3次），超出后智能调整计划
 - **🧠 经验学习**: 保存成功和失败的经验，支持历史查询和学习
+- **🌐 Web UI**: 基于 FastAPI 的现代网页界面，支持实时交互
 
 ## 🏗️ 系统架构
 
-基于 **PDCA 循环**设计：
+基于 **ReAct 循环**设计：
 
 ```
+┌─────────────────────────┐
+│    ReAct 循环       │
+│                     │
+│  Thought → Act → Observe → Repeat
+│                     │
+│    (迭代至完成)       │
+│                     │
+└─────────────────────────┘
+```
+
+**核心流程**：
+1. **Thought**: LLM 思考下一步行动
+2. **Act**: 执行工具
+3. **Observe**: 观察结果并更新上下文
+4. **Repeat**: 继续迭代直到任务完成
 ┌─────────────────────────────────────────────────┐
 │                  PDCA 循环                       │
 │                                                 │
@@ -31,21 +46,26 @@
 
 | 阶段 | 模块 | 功能 |
 |------|------|------|
-| **Plan** | `planner.py` | 使用 LLM 生成执行计划，分解任务步骤 |
-| **Do** | `executor.py` | 执行计划中的各个步骤，调用工具 |
-| **Check** | `checker.py` | LLM 检查执行结果质量，评估是否达标 |
-| **Act** | `actor.py` | 根据检查结果决定重试/调整计划/保存经验 |
+| **Thought** | `react_engine.py` | LLM 思考下一步行动（Reasoning） |
+| **Act** | `react_engine.py` | 执行工具（Action） |
+| **Observe** | `react_engine.py` | 观察结果并更新上下文（Observation） |
+
+**ReAct 循环流程**：
+```
+Thought → Act → Observe → Repeat
+```
+
+1. **Thought**: LLM 分析任务和上下文，思考下一步行动
+2. **Act**: 选择并执行工具
+3. **Observe**: 观察结果，更新上下文
+4. **Repeat**: 继续迭代直到任务完成
 
 ### 核心模块
 
 ```
 core/
 ├── llm_client.py      # OpenAI LLM 客户端封装
-├── planner.py         # 规划器 (Plan)
-├── executor.py        # 执行器 (Do)
-├── checker.py         # 检查器 (Check)
-├── actor.py           # 改进器 (Act)
-├── pdca_loop.py       # PDCA 循环控制器
+├── react_engine.py    # ReAct 循环引擎（核心）
 ├── memory.py          # 记忆管理（支持经验保存）
 ├── context.py         # 上下文管理
 └── tool_registry.py   # 工具注册中心
@@ -62,18 +82,19 @@ pip install -r requirements.txt
 ### 2. 配置环境变量
 
 复制 `.env.example` 并重命名为 `.env`，填入你的 OpenAI API Key：
-
 ```bash
 cp .env.example .env
 ```
 
 编辑 `.env` 文件：
-
 ```env
 OPENAI_API_KEY=sk-your-openai-api-key
 OPENAI_MODEL=gpt-4o-mini
-MAX_PDCA_CYCLES=3
+MAX_ITERATIONS=10
 MAX_RETRY_PER_STEP=3
+EXPERIENCE_FILE=experiences.json
+LOG_LEVEL=INFO
+```
 
 # 可选：配置外部 MCP 服务器（JSON 文件）
 MCP_CONFIG_FILE=mcp_config.json
@@ -84,7 +105,7 @@ MCP_CONFIG_FILE=mcp_config.json
 - 外部 MCP 服务器通过 `mcp_config.json` 配置，详见 [集成指南](docs/TOOL_INTEGRATION.md)
 - 使用与 Claude Code 兼容的 JSON 配置格式
 
-### 3. 运行示例
+## 🚀 快速开始
 
 #### 方式一：命令行直接运行
 
@@ -105,8 +126,7 @@ python example.py
 - 4. 查看历史经验
 - 5. 自定义配置
 
-#### 方式三：在代码中使用
-
+#### 方式三：在代码中使用（ReAct 模式）
 ```python
 from main import IntelliAgent
 
@@ -114,15 +134,23 @@ from main import IntelliAgent
 agent = IntelliAgent()
 
 # 执行任务
-result = agent.run("列出当前目录文件")
+result = agent.run("创建一个 Python 文件并编写测试")
 
 # 查看结果
 print(f"执行状态: {result['success']}")
+print(f"迭代次数: {result.get('iterations', 0)}")
 print(f"摘要: {result['summary']}")
 
-# 查看历史经验
-experiences = agent.get_experiences()
+# 注意：ReAct 模式专注于代码开发场景，迭代次数代替循环次数
 ```
+
+#### 方式二：启动 Web UI 服务器
+```bash
+# 启动 Web UI（默认端口 8000）
+python main.py --web
+```
+
+浏览器访问 http://localhost:8000，在 Web 界面输入任务并运行。
 
 ## 🛠️ Tools - 工具系统
 

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelliAgent - ReAct Agent</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 IntelliAgent</h1>
+            <p class="subtitle">基于 ReAct 循环的代码开发助手</p>
+        </header>
+        
+        <main>
+            <section class="input-section">
+                <h2>任务输入</h2>
+                <textarea 
+                    id="task-input" 
+                    class="task-input" 
+                    placeholder="输入你的任务，例如：创建一个 Python 文件并编写测试..."
+                    rows="5"
+                ></textarea>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="max-iterations">最大迭代次数：</label>
+                        <select id="max-iterations" class="select">
+                            <option value="5">5 次</option>
+                            <option value="10" selected>10 次（推荐）</option>
+                            <option value="15">15 次</option>
+                            <option value="20">20 次</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <button id="run-btn" class="btn btn-primary">
+                            <span class="btn-icon">🚀</span> 运行任务
+                        </button>
+                        <button id="stop-btn" class="btn btn-secondary" disabled>
+                            <span class="btn-icon">⏹️</span> 停止
+                        </button>
+                        <button id="clear-btn" class="btn btn-tertiary">
+                            <span class="btn-icon">🗑️</span> 清空日志
+                        </button>
+                    </div>
+                </div>
+            </section>
+            
+            <section class="output-section">
+                <div class="output-header">
+                    <h2>执行日志</h2>
+                    <div class="status-badge" id="status-badge">
+                        <span class="status-dot" id="status-dot"></span>
+                        <span id="status-text">等待任务...</span>
+                    </div>
+                </div>
+                <div id="output-log" class="output-log"></div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>
+                基于 ReAct（Reason → Act → Observe）循环 | 
+                聚焦代码开发场景（编写、测试、重构）
+            </p>
+        </footer>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

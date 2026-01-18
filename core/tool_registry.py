@@ -364,10 +364,46 @@ class ToolRegistry:
 
         def tool_wrapper(**kwargs):
             """工具调用包装器"""
-            loop = self._get_or_create_event_loop()
-            return loop.run_until_complete(
-                self._call_tool_async(name, kwargs)
-            )
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_running():
+                    import concurrent.futures
+                    import threading
+                    
+                    result_container = []
+                    exception_container = []
+                    thread_done = threading.Event()
+                    
+                    def run_in_new_loop():
+                        try:
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            try:
+                                result = new_loop.run_until_complete(
+                                    self._call_tool_async(name, kwargs)
+                                )
+                                result_container.append(result)
+                            finally:
+                                new_loop.close()
+                        except Exception as e:
+                            exception_container.append(e)
+                        finally:
+                            thread_done.set()
+                    
+                    thread = threading.Thread(target=run_in_new_loop)
+                    thread.start()
+                    thread_done.wait()
+                    
+                    if exception_container:
+                        raise exception_container[0]
+                    if result_container:
+                        return result_container[0]
+                    raise RuntimeError("工具执行失败：未获取到结果")
+            except RuntimeError:
+                loop = self._get_or_create_event_loop()
+                return loop.run_until_complete(
+                    self._call_tool_async(name, kwargs)
+                )
 
         return tool_wrapper
 
