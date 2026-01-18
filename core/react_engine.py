@@ -129,7 +129,7 @@ class ReactEngine:
                     tool_args,
                     iteration
                 )
-                logger.info(f"工具调用结果：{observation}")
+                # logger.info(f"工具调用结果：{observation}")
                 
                 all_observations.append(observation)
             

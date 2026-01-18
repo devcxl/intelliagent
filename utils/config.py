@@ -12,8 +12,6 @@ load_dotenv()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 # MCP 服务配置（默认内置服务器）
-MCP_SERVER_COMMAND = os.getenv("MCP_SERVER_COMMAND", "python3")
-MCP_SERVER_SCRIPT = os.getenv("MCP_SERVER_SCRIPT", "mcp_server.py")
 
 # MCP 服务器配置文件路径（JSON 格式）
 MCP_CONFIG_FILE = os.getenv("MCP_CONFIG_FILE", "mcp_config.json")

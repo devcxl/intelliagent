@@ -18,7 +18,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 from utils.logger import logger
-from utils.config import MCP_SERVER_COMMAND, MCP_SERVER_SCRIPT, MCP_CONFIG_FILE
+from utils.config import  MCP_CONFIG_FILE
 
 # 导入内置工具
 from core.builtin_tools import (
