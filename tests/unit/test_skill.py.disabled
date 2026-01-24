@@ -10,9 +10,9 @@ import json
 import tempfile
 from pathlib import Path
 
-from core.skill import CodeSkill, SkillType, Parameter, SkillMetadata
-from core.skill_manager import SkillManager
-from core.skill_integration import SkillIntegration, SkillRecommender, SkillExecutor
+from src.skills.skill import CodeSkill, SkillType, Parameter, SkillMetadata
+from src.skills.skill_manager import SkillManager
+from src.skills.skill_integration import SkillIntegration, SkillRecommender, SkillExecutor
 
 
 class TestCodeSkill:
@@ -230,7 +230,7 @@ class TestSkillIntegration:
         """测试前准备"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.manager = SkillManager(self.temp_dir.name)
-        self.integration = SkillIntegration(self.manager)
+        self.integration = SkillIntegration(self.temp_dir.name)
         
         # 创建测试 Skill
         skill = CodeSkill(
@@ -308,7 +308,7 @@ class TestSkillRecommender:
             )
             self.manager.register(skill)
         
-        self.recommender = SkillRecommender(self.manager)
+        self.recommender = SkillRecommender(self.temp_dir.name)
     
     def teardown_method(self):
         """测试后清理"""

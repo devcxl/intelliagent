@@ -13,12 +13,12 @@ echo "=========================================="
 echo ""
 
 # 检查前端是否已构建
-if [ ! -d "web/frontend/dist" ]; then
+if [ ! -d "frontend/dist" ]; then
     echo "❌ 前端尚未构建，开始构建..."
-    cd web/frontend
+    cd frontend
     npm install
     npm run build
-    cd ../..
+    cd ..
     echo "✅ 前端构建完成"
     echo ""
 fi
@@ -31,4 +31,4 @@ echo "🌐 启动 FastAPI 服务器..."
 echo "访问地址: http://localhost:8000"
 echo ""
 
-python web/server.py
+python -m src.web.server

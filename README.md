@@ -63,12 +63,13 @@ Thought → Act → Observe → Repeat
 ### 核心模块
 
 ```
-core/
-├── llm_client.py      # OpenAI LLM 客户端封装
-├── react_engine.py    # ReAct 循环引擎（核心）
-├── memory.py          # 记忆管理（支持经验保存）
-├── context.py         # 上下文管理
-└── tool_registry.py   # 工具注册中心
+src/
+├── agent/             # Agent 核心逻辑（ReAct 引擎、执行器）
+├── tools/             # 工具系统（内置工具、工具注册）
+├── llm/               # LLM 客户端封装
+├── memory/            # 记忆和上下文管理
+├── skills/            # 技能系统
+└── web/               # Web 后端服务
 ```
 
 ## 🚀 快速开始

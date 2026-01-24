@@ -21,7 +21,7 @@ from pydantic import BaseModel
 from utils.logger import logger
 
 # 导入 ReactEngine 和 DatabaseManager
-from core.react_engine import ReactEngine
+from src.react_engine import ReactEngine
 from web.database import DatabaseManager
 
 
@@ -127,10 +127,10 @@ def initialize_engine():
         return engine
     
     try:
-        from core.llm_client import LLMClient
-        from core.tool_registry import ToolRegistry
-        from core.memory import Memory
-        from core.context import ContextManager
+        from src.llm_client import LLMClient
+        from src.tool_registry import ToolRegistry
+        from src.memory import Memory
+        from src.context import ContextManager
         
         # 创建组件
         llm_client = LLMClient()

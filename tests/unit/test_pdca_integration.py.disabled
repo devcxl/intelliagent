@@ -24,15 +24,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.logger import logger
 import utils.config as config
-from core.llm_client import LLMClient
-from core.planner import Planner
-from core.executor import Executor, ExecutionMetrics
-from core.checker import Checker
-from core.actor import Actor
-from core.pdca_loop import PDCALoop
-from core.context import ContextManager
-from core.memory import Memory
-from core.tool_registry import ToolRegistry
+from src.llm.llm_client import LLMClient
+from src.agent.planner import Planner
+from src.agent.executor import Executor, ExecutionMetrics
+from src.agent.checker import Checker
+from src.agent.actor import Actor
+from src.agent.pdca_loop import PDCALoop
+from src.memory.memory.context import ContextManager
+from src.memory.memory import Memory
+from src.tools.tool_registry import ToolRegistry
 
 
 class TestDOPhaseLoops:

@@ -21,7 +21,7 @@ from utils.logger import logger
 from utils.config import  MCP_CONFIG_FILE
 
 # 导入内置工具
-from core.builtin_tools import (
+from src.builtin_tools import (
     BUILTIN_TOOLS,
     call_tool as call_builtin_tool
 )

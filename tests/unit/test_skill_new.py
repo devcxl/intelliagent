@@ -11,11 +11,11 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from core.skill_system import (
+from src.skills.skill_system import (
     Skill, SkillMetadata, SkillParser, SkillRegistry, Workflow
 )
-from core.skill_loader import SkillLoader
-from core.skill_integration import SkillIntegration, SkillExecutionHistory
+from src.skills.skill_loader import SkillLoader
+from src.skills.skill_integration import SkillIntegration, SkillExecutionHistory
 
 
 class TestSkillMetadata:

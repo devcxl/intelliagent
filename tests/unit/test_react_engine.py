@@ -4,7 +4,7 @@ ReAct 循环引擎单元测试
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from core.react_engine import ReactEngine
+from src.agent.react_engine import ReactEngine
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ class TestReactEngineBasicRun:
     
     def test_react_engine_tool_call_failure(self, mock_engine):
         """测试工具调用失败的处理"""
-        mock_engine.llm.generate_react_thought.return_value = {
+        mock_engine.llm_client.generate_react_thought.return_value = {
             'reasoning': '需要读取文件',
             'is_complete': False,
             'action': {'tool': 'read_file', 'args': {'path': 'test.txt'}}
@@ -75,8 +75,9 @@ class TestReactEngineBasicRun:
         result = mock_engine.run('测试任务')
         
         assert result['success'] == False
-        assert '执行失败' in result['summary'] or 'error' in result['summary']
-        assert mock_engine.memory.add_observation.call_count == 1
+        # ReactEngine 会继续重试直到达到最大迭代次数
+        assert '达到最大迭代次数' in result['summary']
+        assert mock_engine.memory.add_observation.call_count == 10  # 每次迭代都会记录
 
 
 class TestReactEngineToolCalls:

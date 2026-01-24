@@ -22,25 +22,25 @@ echo ""
 echo "检查 Python 依赖..."
 python -c "import fastapi, uvicorn; print('✅ FastAPI 已安装')"
 python -c "from utils.logger import logger; print('✅ utils.logger 可导入')"
-python -c "from core.react_engine import ReactEngine; print('✅ ReactEngine 可导入')"
+python -c "from src.agent.react_engine import ReactEngine; print('✅ ReactEngine 可导入')"
 
 # 检查前端构建
 echo ""
 echo "检查前端构建..."
-if [ -d "web/frontend/dist" ]; then
+if [ -d "frontend/dist" ]; then
     echo "✅ 前端已构建"
-    echo "   - index.html: $(test -f web/frontend/dist/index.html && echo '存在' || echo '缺失')"
-    echo "   - assets/: $(test -d web/frontend/dist/assets && echo '存在' || echo '缺失')"
+    echo "   - index.html: $(test -f frontend/dist/index.html && echo '存在' || echo '缺失')"
+    echo "   - assets/: $(test -d frontend/dist/assets && echo '存在' || echo '缺失')"
 else
     echo "❌ 前端未构建"
-    echo "   运行: cd web/frontend && npm install && npm run build"
+    echo "   运行: cd frontend && npm install && npm run build"
     exit 1
 fi
 
 # 检查 Node.js 依赖
 echo ""
 echo "检查 Node.js 依赖..."
-if [ -d "web/frontend/node_modules" ]; then
+if [ -d "frontend/node_modules" ]; then
     echo "✅ Node.js 依赖已安装"
 else
     echo "⚠️  Node.js 依赖未安装（不影响生产模式运行）"

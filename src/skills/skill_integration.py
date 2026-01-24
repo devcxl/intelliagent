@@ -95,6 +95,7 @@ class SkillIntegration:
         skills_path = Path(skills_dir) if skills_dir else None
         self.loader = SkillLoader(skills_path)
         self.history = SkillExecutionHistory()
+        self.executor = SkillExecutor(skills_path)
         self._loaded = False
     
     def initialize(self) -> None:
@@ -103,6 +104,11 @@ class SkillIntegration:
             self.loader.load_all()
             self._loaded = True
             logger.info(f"✅ Skill 集成初始化完成 ({self.loader.registry.count()} 个 Skills)")
+
+    def get_skill_count(self) -> int:
+        """获取已加载的 Skill 数量"""
+        self.initialize()
+        return self.loader.registry.count()
 
 
     def get_full_skill_details(self) -> Dict[str, Any]:
@@ -427,3 +433,69 @@ class SkillIntegration:
         self._loaded = True
         return self.loader.registry.count()
     
+
+class SkillRecommender:
+    """Skill 推荐器（占位符实现）"""
+    
+    def __init__(self, skills_dir: Optional[str] = None):
+        from pathlib import Path
+        skills_path = Path(skills_dir) if skills_dir else None
+        self.loader = SkillLoader(skills_path)
+    
+    def recommend(self, task_description: str, top_k: int = 3) -> List[Dict[str, Any]]:
+        """根据任务推荐 Skills"""
+        self.loader.load_all()
+        skills = self.loader.discover_relevant_skills(task_description, top_k=top_k)
+        return [
+            {
+                'id': skill.skill_id,
+                'name': skill.metadata.name,
+                'description': skill.metadata.description,
+                'category': skill.metadata.category,
+                'tags': skill.metadata.tags
+            }
+            for skill in skills
+        ]
+
+
+class SkillExecutor:
+    """Skill 执行器（占位符实现）"""
+    
+    def __init__(self, skills_dir: Optional[str] = None):
+        from pathlib import Path
+        skills_path = Path(skills_dir) if skills_dir else None
+        self.loader = SkillLoader(skills_path)
+        self.history = SkillExecutionHistory()
+    
+    def execute(self, skill_id: str, parameters: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:
+        """执行 Skill"""
+        parameters = parameters or {}
+        parameters.update(kwargs)  # 合并关键字参数
+        
+        skill = self.loader.get(skill_id)
+        if not skill:
+            result = {
+                'success': False,
+                'error': f'Skill 不存在: {skill_id}'
+            }
+            self.history.record(skill_id, '', parameters, result)
+            return result
+        
+        try:
+            # 这里调用 skill.execute() 的实际实现
+            result = skill.execute(**parameters)
+            self.history.record(skill_id, skill.metadata.name, parameters, result)
+            return result
+        except Exception as e:
+            logger.error(f"Skill {skill_id} 执行失败: {e}")
+            result = {
+                'success': False,
+                'error': str(e)
+            }
+            self.history.record(skill_id, skill.metadata.name, parameters, result)
+            return result
+    
+    def get_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """获取执行历史"""
+        return self.history.get_history(limit)
+

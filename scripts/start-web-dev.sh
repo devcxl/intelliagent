@@ -13,7 +13,7 @@ echo "=========================================="
 echo ""
 
 # 启动前端开发服务器
-cd web/frontend
+cd frontend
 
 echo "📦 启动前端开发服务器..."
 echo "前端地址: http://localhost:5173"
@@ -23,7 +23,7 @@ npm run dev &
 FRONTEND_PID=$!
 
 # 返回项目根目录
-cd ../..
+cd ..
 
 echo "🔧 启动后端 FastAPI 服务器..."
 echo "后端地址: http://localhost:8000"
@@ -31,7 +31,7 @@ echo ""
 
 # 启动后端服务器
 export WEB_ENV=development
-python web/server.py &
+python -m src.web.server &
 BACKEND_PID=$!
 
 # 等待任意键退出

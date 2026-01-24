@@ -5,12 +5,12 @@ IntelliAgent - 基于 ReAct 循环的智能代理
 """
 import sys
 import argparse
-from core.llm_client import LLMClient
-from core.react_engine import ReactEngine
-from core.memory import Memory
-from core.context import ContextManager
-from core.tool_registry import ToolRegistry
-from core.skill_integration import SkillIntegration
+from src.llm.llm_client import LLMClient
+from src.agent.react_engine import ReactEngine
+from src.memory.memory import Memory
+from src.memory.context import ContextManager
+from src.tools.tool_registry import ToolRegistry
+from src.skills.skill_integration import SkillIntegration
 from utils.config import (
     OPENAI_API_KEY,
     OPENAI_MODEL,
@@ -186,7 +186,7 @@ def main():
         logger.info("🌐 启动 Web UI 模式")
         logger.info("="*60)
         
-        from web.server import app
+        from src.web.server import app
         import uvicorn
         
         host = '0.0.0.0'

@@ -60,7 +60,7 @@ class TestBuiltinTools:
     async def test_run_shell_success(self):
         """测试 run_shell - 成功情况"""
         logger.info("\n🧪 测试 run_shell 成功情况...")
-        from core.builtin_tools import run_shell
+        from src.builtin_tools import run_shell
         
         result = await run_shell("echo 'Hello World'")
         data = self._parse_json_response(result)
@@ -73,7 +73,7 @@ class TestBuiltinTools:
     async def test_run_shell_empty_command(self):
         """测试 run_shell - 空命令"""
         logger.info("\n🧪 测试 run_shell 空命令...")
-        from core.builtin_tools import run_shell
+        from src.builtin_tools import run_shell
         
         result = await run_shell("")
         data = self._parse_json_response(result)
@@ -85,7 +85,7 @@ class TestBuiltinTools:
     async def test_run_shell_with_pipe(self):
         """测试 run_shell - 复杂命令（管道）"""
         logger.info("\n🧪 测试 run_shell 管道命令...")
-        from core.builtin_tools import run_shell
+        from src.builtin_tools import run_shell
         
         result = await run_shell("echo '1\\n2\\n3' | wc -l")
         data = self._parse_json_response(result)
@@ -97,7 +97,7 @@ class TestBuiltinTools:
     async def test_read_file_success(self):
         """测试 read_file - 成功读取"""
         logger.info("\n🧪 测试 read_file 成功读取...")
-        from core.builtin_tools import read_file, write_file
+        from src.builtin_tools import read_file, write_file
         
         # 先写入测试文件
         test_file = Path(self.temp_dir.name) / "test.txt"
@@ -116,7 +116,7 @@ class TestBuiltinTools:
     async def test_read_file_not_found(self):
         """测试 read_file - 文件不存在"""
         logger.info("\n🧪 测试 read_file 文件不存在...")
-        from core.builtin_tools import read_file
+        from src.builtin_tools import read_file
         
         result = await read_file("/nonexistent/file.txt")
         data = self._parse_json_response(result)
@@ -128,7 +128,7 @@ class TestBuiltinTools:
     async def test_write_file_success(self):
         """测试 write_file - 成功写入"""
         logger.info("\n🧪 测试 write_file 成功写入...")
-        from core.builtin_tools import write_file
+        from src.builtin_tools import write_file
         
         test_file = Path(self.temp_dir.name) / "output.txt"
         content = "Test Content"
@@ -147,7 +147,7 @@ class TestBuiltinTools:
     async def test_write_file_create_parents(self):
         """测试 write_file - 自动创建父目录"""
         logger.info("\n🧪 测试 write_file 自动创建父目录...")
-        from core.builtin_tools import write_file
+        from src.builtin_tools import write_file
         
         test_file = Path(self.temp_dir.name) / "subdir" / "nested" / "file.txt"
         content = "Nested Content"
@@ -162,7 +162,7 @@ class TestBuiltinTools:
     async def test_list_dir_success(self):
         """测试 list_dir - 列出目录"""
         logger.info("\n🧪 测试 list_dir 列出目录...")
-        from core.builtin_tools import list_dir, write_file
+        from src.builtin_tools import list_dir, write_file
         
         # 创建测试文件
         (Path(self.temp_dir.name) / "file1.txt").write_text("content1")
@@ -181,7 +181,7 @@ class TestBuiltinTools:
     async def test_list_dir_not_found(self):
         """测试 list_dir - 目录不存在"""
         logger.info("\n🧪 测试 list_dir 目录不存在...")
-        from core.builtin_tools import list_dir
+        from src.builtin_tools import list_dir
         
         result = await list_dir("/nonexistent/directory")
         data = self._parse_json_response(result)
@@ -193,7 +193,7 @@ class TestBuiltinTools:
     async def test_delete_file_success(self):
         """测试 delete_file - 成功删除"""
         logger.info("\n🧪 测试 delete_file 成功删除...")
-        from core.builtin_tools import delete_file, write_file
+        from src.builtin_tools import delete_file, write_file
         
         test_file = Path(self.temp_dir.name) / "to_delete.txt"
         
@@ -212,7 +212,7 @@ class TestBuiltinTools:
     async def test_delete_file_not_found(self):
         """测试 delete_file - 文件不存在"""
         logger.info("\n🧪 测试 delete_file 文件不存在...")
-        from core.builtin_tools import delete_file
+        from src.builtin_tools import delete_file
         
         result = await delete_file("/nonexistent/file.txt")
         data = self._parse_json_response(result)
@@ -224,7 +224,7 @@ class TestBuiltinTools:
     async def test_file_exists_file(self):
         """测试 file_exists - 文件存在"""
         logger.info("\n🧪 测试 file_exists 文件存在...")
-        from core.builtin_tools import file_exists, write_file
+        from src.builtin_tools import file_exists, write_file
         
         test_file = Path(self.temp_dir.name) / "exists.txt"
         await write_file(str(test_file), "exists")
@@ -240,7 +240,7 @@ class TestBuiltinTools:
     async def test_file_exists_directory(self):
         """测试 file_exists - 目录存在"""
         logger.info("\n🧪 测试 file_exists 目录存在...")
-        from core.builtin_tools import file_exists
+        from src.builtin_tools import file_exists
         
         result = await file_exists(self.temp_dir.name)
         data = self._parse_json_response(result)
@@ -253,7 +253,7 @@ class TestBuiltinTools:
     async def test_file_exists_not_found(self):
         """测试 file_exists - 不存在"""
         logger.info("\n🧪 测试 file_exists 不存在...")
-        from core.builtin_tools import file_exists
+        from src.builtin_tools import file_exists
         
         result = await file_exists("/nonexistent/path")
         data = self._parse_json_response(result)
@@ -265,7 +265,7 @@ class TestBuiltinTools:
     async def test_edit_file_single_replacement(self):
         """测试 edit_file - 单次替换成功"""
         logger.info("\n🧪 测试 edit_file 单次替换...")
-        from core.builtin_tools import edit_file, write_file
+        from src.builtin_tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "edit_test.txt"
         original_content = "Hello World\nHello Again\n"
@@ -285,7 +285,7 @@ class TestBuiltinTools:
     async def test_edit_file_replace_all(self):
         """测试 edit_file - 全局替换"""
         logger.info("\n🧪 测试 edit_file 全局替换...")
-        from core.builtin_tools import edit_file, write_file
+        from src.builtin_tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "replace_all.txt"
         original_content = "old_value\nold_value\nold_value\n"
@@ -304,7 +304,7 @@ class TestBuiltinTools:
     async def test_edit_file_old_string_not_found(self):
         """测试 edit_file - 旧字符串未找到"""
         logger.info("\n🧪 测试 edit_file 旧字符串未找到...")
-        from core.builtin_tools import edit_file, write_file
+        from src.builtin_tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "not_found.txt"
         await write_file(str(test_file), "Some content here")
@@ -319,7 +319,7 @@ class TestBuiltinTools:
     async def test_edit_file_multiple_matches_without_replace_all(self):
         """测试 edit_file - 多个匹配但未启用 replaceAll"""
         logger.info("\n🧪 测试 edit_file 多个匹配但未启用 replaceAll...")
-        from core.builtin_tools import edit_file, write_file
+        from src.builtin_tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "multiple.txt"
         original_content = "repeat\nrepeat\nrepeat\n"
@@ -335,7 +335,7 @@ class TestBuiltinTools:
     async def test_edit_file_empty_old_string(self):
         """测试 edit_file - 空 oldString"""
         logger.info("\n🧪 测试 edit_file 空 oldString...")
-        from core.builtin_tools import edit_file
+        from src.builtin_tools import edit_file
         
         result = await edit_file("dummy.txt", "", "new_value")
         data = self._parse_json_response(result)
@@ -347,7 +347,7 @@ class TestBuiltinTools:
     async def test_edit_file_file_not_exists(self):
         """测试 edit_file - 文件不存在"""
         logger.info("\n🧪 测试 edit_file 文件不存在...")
-        from core.builtin_tools import edit_file
+        from src.builtin_tools import edit_file
         
         result = await edit_file("/nonexistent/file.txt", "old", "new")
         data = self._parse_json_response(result)

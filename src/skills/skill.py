@@ -20,6 +20,14 @@ from dataclasses import dataclass, field, asdict
 from utils.logger import logger
 
 
+class SkillType:
+    """Skill 类型常量"""
+    CODE = "code"
+    TOOL = "tool"
+    WORKFLOW = "workflow"
+    CUSTOM = "custom"
+
+
 @dataclass
 class Parameter:
     """参数定义"""
@@ -40,6 +48,7 @@ class SkillMetadata:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))  # 唯一ID
     name: str = ""  # Skill 名称
     description: str = ""  # 描述
+    skill_type: str = "code"  # Skill 类型（code, tool, workflow 等）
     version: str = "1.0.0"  # 版本号
     author: str = "IntelliAgent"  # 作者
     tags: List[str] = field(default_factory=list)  # 标签
