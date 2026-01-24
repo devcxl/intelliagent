@@ -9,7 +9,7 @@ IntelliAgent 提供两类工具，通过统一的 `ToolRegistry` 接口访问：
 1. **内置工具** (`core.builtin_tools`) 
    - 直接 Python 实现
    - 无需 MCP 依赖
-   - 6 个基础工具：文件、目录、命令执行等
+    - 7 个基础工具：文件、目录、命令执行等
    - 开箱即用，性能最优
 
 2. **外部工具** (MCP 服务) 
@@ -28,12 +28,13 @@ IntelliAgent 系统
            │
            ├─ 内置工具（直接 Python）
            │  └─ core.builtin_tools 模块
-           │     ├─ run_shell
-           │     ├─ read_file
-           │     ├─ write_file
-           │     ├─ list_dir
-           │     ├─ delete_file
-           │     └─ file_exists
+            │     ├─ run_shell
+            │     ├─ read_file
+            │     ├─ write_file
+            │     ├─ edit_file
+            │     ├─ list_dir
+            │     ├─ delete_file
+            │     └─ file_exists
            │
            └─ MCP 外部工具（可选）
               └─ mcp_config.json 配置
@@ -241,7 +242,89 @@ write_file("./data/output/result.txt", "Result content")
 
 ---
 
-### 4. list_dir - 列出目录内容
+### 4. edit_file - 编辑文件内容（精确替换）
+
+在文件中精确查找并替换指定的文本片段，支持单次替换或全局替换。
+
+**签名**:
+```python
+async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool = False) -> str
+```
+
+**参数**:
+| 参数 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| path | string | ✓ | 文件路径（绝对路径或相对路径） |
+| oldString | string | ✓ | 要替换的旧字符串 |
+| newString | string | ✓ | 新字符串 |
+| replaceAll | boolean | ✗ | 是否替换所有匹配项，默认 false（仅替换第一个） |
+
+**返回值**:
+
+成功响应:
+```json
+{
+  "status": "ok",
+  "message": "文件编辑成功",
+  "replacements": 1,
+  "content": "新内容预览（最多500字符）",
+  "path": "/absolute/path/to/file.txt",
+  "size": 2048
+}
+```
+
+错误响应:
+```json
+{
+  "status": "error",
+  "error": "错误描述",
+  "code": "ERROR_CODE"
+}
+```
+
+**可能的错误代码**:
+- `EMPTY_PATH` - 路径参数为空
+- `EMPTY_OLD_STRING` - oldString 参数为空
+- `FILE_NOT_FOUND` - 文件不存在
+- `IS_DIRECTORY` - 目标是目录而非文件
+- `OLD_STRING_NOT_FOUND` - oldString 在文件中未找到
+- `MULTIPLE_MATCHES` - 找到多个匹配但 replaceAll=false
+- `CONTENT_TOO_LARGE` - 编辑后内容超过 1MB 限制
+- `WRITE_ERROR` - 写入失败
+
+**约束条件**:
+- 编辑后内容限制：1,000,000 字符（1MB）
+- 默认仅替换第一个匹配项（确保精确性）
+- 使用 replaceAll=True 可替换所有匹配项
+- 使用 UTF-8 编码
+
+**使用示例**:
+```python
+# 单次替换（精确替换）
+edit_file("config.py", "DEBUG = True", "DEBUG = False")
+
+# 全局替换（替换所有匹配）
+edit_file("main.py", "old_function", "new_function", replaceAll=True)
+
+# 替换注释
+edit_file("README.md", "## Old Title", "## New Title")
+
+# 替换导入语句
+edit_file("utils.py", "from old_module import", "from new_module import")
+
+# 错误情况：多个匹配但未启用 replaceAll
+# edit_file("data.txt", "item", "value")  # 会返回 MULTIPLE_MATCHES 错误
+```
+
+**注意事项**:
+1. **oldString 必须精确匹配**: 替换是精确字符串匹配，支持但不建议使用短字符串（避免误替换）
+2. **推荐上下文**: 提供包含上下文的 oldString 以提高精确性（如包含缩进、前后代码）
+3. **多次匹配处理**: 如果有多个匹配但 replaceAll=false，工具会拒绝操作并提示
+4. **原子操作**: 替换是原子的，要么全部成功，要么失败回滚
+
+---
+
+### 5. list_dir - 列出目录内容
 
 列出指定目录中的文件和子目录。
 
@@ -313,7 +396,7 @@ for item in items["items"]:
 
 ---
 
-### 5. delete_file - 删除文件
+### 6. delete_file - 删除文件
 
 删除指定路径的文件。
 
@@ -372,7 +455,7 @@ delete_file("./output/result.txt")
 
 ---
 
-### 6. file_exists - 检查文件或目录是否存在
+### 7. file_exists - 检查文件或目录是否存在
 
 检查指定路径是否存在，并返回类型信息。
 

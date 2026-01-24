@@ -4,10 +4,19 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import type { Session } from '@/types';
+
+interface SidebarSession {
+  id: string;
+  title: string;
+  task: string;
+  logs: any[];
+  status: 'idle' | 'running' | 'completed' | 'error';
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface SidebarProps {
-  sessions: Session[];
+  sessions: SidebarSession[];
   currentSessionId: string | null;
   onCreateSession: () => void;
   onSelectSession: (id: string) => void;
@@ -23,7 +32,8 @@ export function Sidebar({
 }: SidebarProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
@@ -37,7 +47,7 @@ export function Sidebar({
     return date.toLocaleDateString('zh-CN');
   };
 
-  const getStatusBadge = (status: Session['status']) => {
+  const getStatusBadge = (status: SidebarSession['status']) => {
     switch (status) {
       case 'running':
         return <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />;
@@ -52,25 +62,25 @@ export function Sidebar({
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-card to-muted/20 border-r">
-      <div className="p-5 border-b bg-card/80 backdrop-blur-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold gradient-text">会话管理</h2>
-          <Button size="icon" variant="ghost" onClick={onCreateSession} className="hover:bg-primary/10 hover:text-primary">
-            <Plus className="h-4 w-4" />
+      <div className="p-3 border-b bg-card/80 backdrop-blur-sm">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-bold gradient-text">会话管理</h2>
+          <Button size="icon" variant="ghost" onClick={onCreateSession} className="hover:bg-primary/10 hover:text-primary h-7 w-7">
+            <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <div className="text-sm text-muted-foreground font-medium">
+        <div className="text-xs text-muted-foreground font-medium">
           共 {sessions.length} 个会话
         </div>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-2">
+        <div className="p-2 space-y-1.5">
           {sessions.map((session) => (
             <Card
               key={session.id}
               className={cn(
-                'p-4 cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5',
+                'p-3 cursor-pointer transition-all duration-200 hover:shadow-md',
                 currentSessionId === session.id
                   ? 'bg-primary/5 border-primary/30 shadow-sm'
                   : 'hover:bg-accent/70'
@@ -81,18 +91,18 @@ export function Sidebar({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-1.5 mb-1.5">
                     <div className="p-0.5 rounded-full bg-background/50">
                       {getStatusBadge(session.status)}
                     </div>
-                    <h3 className="text-sm font-semibold truncate">
+                    <h3 className="text-xs font-semibold truncate">
                       {session.title}
                     </h3>
                   </div>
                   <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                     {session.task || '无任务描述'}
                   </p>
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-1.5">
                     <p className="text-xs text-muted-foreground/70 font-medium">
                       {formatDate(session.updatedAt)}
                     </p>
@@ -104,18 +114,18 @@ export function Sidebar({
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                      className="h-6 w-6 hover:bg-primary/10 hover:text-primary"
                       onClick={(e) => {
                         e.stopPropagation();
                         onSelectSession(session.id);
                       }}
                     >
-                      <Play className="h-3.5 w-3.5" />
+                      <Play className="h-3 w-3" />
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+                      className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (window.confirm('确定要删除这个会话吗？')) {
@@ -123,7 +133,7 @@ export function Sidebar({
                         }
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
                 )}

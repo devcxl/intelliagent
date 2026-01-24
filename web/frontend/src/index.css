@@ -48,6 +48,42 @@
     --ring: 217 91% 60%;
   }
 
+  .dark .log-thought {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: rgb(219, 234, 254);
+  }
+
+  .dark .log-action {
+    background: rgba(251, 191, 36, 0.1);
+    border-color: rgba(251, 191, 36, 0.3);
+    color: rgb(254, 243, 199);
+  }
+
+  .dark .log-observation {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: rgb(220, 252, 231);
+  }
+
+  .dark .log-answer {
+    background: rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.3);
+    color: rgb(238, 221, 255);
+  }
+
+  .dark .log-error {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: rgb(254, 226, 226);
+  }
+
+  .dark .log-default {
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(148, 163, 184, 0.3);
+    color: rgb(241, 245, 249);
+  }
+
   * {
     border-color: hsl(var(--border));
   }

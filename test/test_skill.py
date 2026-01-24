@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""
+Code Skill 系统测试
+
+运行: pytest test/test_skill.py -v
+"""
+
+import pytest
+import json
+import tempfile
+from pathlib import Path
+
+from core.skill import CodeSkill, SkillType, Parameter, SkillMetadata
+from core.skill_manager import SkillManager
+from core.skill_integration import SkillIntegration, SkillRecommender, SkillExecutor
+
+
+class TestCodeSkill:
+    """CodeSkill 基本功能测试"""
+    
+    def test_create_skill(self):
+        """测试创建 Skill"""
+        code = """
+def execute(x, y):
+    return {'result': x + y}
+"""
+        skill = CodeSkill(
+            name="加法",
+            code=code,
+            description="两数相加"
+        )
+        
+        assert skill.name == "加法"
+        assert skill.metadata.description == "两数相加"
+        assert skill.metadata.skill_type == SkillType.CODE
+    
+    def test_skill_parameters(self):
+        """测试 Skill 参数设置"""
+        skill = CodeSkill(
+            name="测试",
+            code="def execute(**kwargs): return kwargs"
+        )
+        
+        skill.set_input_params([
+            Parameter("x", "int", "输入参数", required=True)
+        ])
+        
+        skill.set_output_params([
+            Parameter("result", "int", "结果", required=True)
+        ])
+        
+        assert len(skill.metadata.input_params) == 1
+        assert len(skill.metadata.output_params) == 1
+        assert skill.metadata.input_params[0].required is True
+    
+    def test_skill_tags_and_category(self):
+        """测试标签和分类"""
+        skill = CodeSkill(
+            name="测试",
+            code="def execute(): pass"
+        )
+        
+        skill.add_tag("math").add_tag("util").set_category("tools")
+        
+        assert "math" in skill.metadata.tags
+        assert "util" in skill.metadata.tags
+        assert skill.metadata.category == "tools"
+    
+    def test_skill_execution(self):
+        """测试 Skill 执行"""
+        code = """
+def execute(a, b):
+    return {'sum': a + b, 'product': a * b}
+"""
+        skill = CodeSkill(
+            name="计算",
+            code=code
+        )
+        
+        result = skill.execute(a=3, b=4)
+        
+        assert result['success'] is True
+        assert result['result']['sum'] == 7
+        assert result['result']['product'] == 12
+        assert result['time'] > 0
+    
+    def test_skill_execution_failure(self):
+        """测试 Skill 执行失败"""
+        code = """
+def execute(x):
+    raise ValueError("测试错误")
+"""
+        skill = CodeSkill(
+            name="失败测试",
+            code=code
+        )
+        
+        result = skill.execute(x=1)
+        
+        assert result['success'] is False
+        assert "测试错误" in result['error']
+    
+    def test_skill_metrics(self):
+        """测试性能指标"""
+        code = "def execute(): return {'result': 'ok'}"
+        skill = CodeSkill(name="测试", code=code)
+        
+        # 执行成功
+        skill.execute()
+        
+        assert skill.metrics.usage_count == 1
+        assert skill.metrics.success_count == 1
+        assert skill.metrics.failure_count == 0
+        assert skill.metrics.success_rate == 1.0
+        
+        # 执行失败
+        code_fail = "def execute(): raise Exception('fail')"
+        skill.implementation.code = code_fail
+        skill.execute()
+        
+        assert skill.metrics.usage_count == 2
+        assert skill.metrics.failure_count == 1
+        assert skill.metrics.success_rate == 0.5
+    
+    def test_skill_serialization(self):
+        """测试 Skill 序列化"""
+        skill = CodeSkill(
+            name="序列化测试",
+            code="def execute(): pass",
+            description="测试"
+        )
+        skill.add_tag("test")
+        
+        # 转换为字典
+        skill_dict = skill.to_dict()
+        assert skill_dict['metadata']['name'] == "序列化测试"
+        
+        # 转换为 JSON
+        json_str = skill.to_json()
+        assert "序列化测试" in json_str
+        
+        # 从 JSON 恢复
+        restored = CodeSkill.from_json(json_str)
+        assert restored.name == skill.name
+        assert restored.metadata.description == skill.metadata.description
+
+
+class TestSkillManager:
+    """SkillManager 测试"""
+    
+    def setup_method(self):
+        """测试前准备"""
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.manager = SkillManager(self.temp_dir.name)
+    
+    def teardown_method(self):
+        """测试后清理"""
+        self.temp_dir.cleanup()
+    
+    def test_register_skill(self):
+        """测试注册 Skill"""
+        skill = CodeSkill(
+            name="测试",
+            code="def execute(): pass"
+        )
+        
+        skill_id = self.manager.register(skill)
+        
+        assert skill_id in self.manager.skills
+        assert self.manager.skills[skill_id].name == "测试"
+    
+    def test_save_and_load_skill(self):
+        """测试保存和加载 Skill"""
+        skill = CodeSkill(
+            name="持久化测试",
+            code="def execute(): return {'result': 'ok'}"
+        )
+        
+        self.manager.register(skill)
+        self.manager.save(skill)
+        
+        # 清空内存
+        self.manager.skills.clear()
+        
+        # 加载
+        loaded = self.manager.load(skill.id)
+        assert loaded is not None
+        assert loaded.name == skill.name
+    
+    def test_search_skills(self):
+        """测试搜索 Skill"""
+        skill1 = CodeSkill(name="JSON处理", code="def execute(): pass")
+        skill1.add_tag("JSON").set_category("data")
+        
+        skill2 = CodeSkill(name="字符串处理", code="def execute(): pass")
+        skill2.add_tag("字符串").set_category("text")
+        
+        self.manager.register(skill1)
+        self.manager.register(skill2)
+        
+        # 按关键字搜索
+        results = self.manager.search(query="JSON")
+        assert len(results) == 1
+        assert results[0].name == "JSON处理"
+        
+        # 按标签搜索
+        results = self.manager.search(tags=["字符串"])
+        assert len(results) == 1
+        assert results[0].name == "字符串处理"
+        
+        # 按分类搜索
+        results = self.manager.search(category="data")
+        assert len(results) == 1
+    
+    def test_unregister_skill(self):
+        """测试注销 Skill"""
+        skill = CodeSkill(name="测试", code="def execute(): pass")
+        skill_id = self.manager.register(skill)
+        
+        assert skill_id in self.manager.skills
+        
+        self.manager.unregister(skill_id)
+        assert skill_id not in self.manager.skills
+
+
+class TestSkillIntegration:
+    """SkillIntegration 集成测试"""
+    
+    def setup_method(self):
+        """测试前准备"""
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.manager = SkillManager(self.temp_dir.name)
+        self.integration = SkillIntegration(self.manager)
+        
+        # 创建测试 Skill
+        skill = CodeSkill(
+            name="计算",
+            code="def execute(a, b): return {'sum': a + b}"
+        )
+        skill.add_tag("math").set_category("calculation")
+        self.manager.register(skill)
+    
+    def teardown_method(self):
+        """测试后清理"""
+        self.temp_dir.cleanup()
+    
+    def test_recommend_skills(self):
+        """测试推荐 Skill"""
+        recommendations = self.integration.suggest_skills_for_task("计算数字", top_k=5)
+        
+        assert len(recommendations) > 0
+        assert recommendations[0]['name'] == "计算"
+        assert 0 <= recommendations[0]['score'] <= 1
+    
+    def test_execute_skill(self):
+        """测试执行 Skill"""
+        skill = self.manager.list_all()[0]
+        
+        result = self.integration.executor.execute(skill.id, a=2, b=3)
+        
+        assert result['success'] is True
+        assert result['result']['sum'] == 5
+    
+    def test_execution_history(self):
+        """测试执行历史"""
+        skill = self.manager.list_all()[0]
+        
+        self.integration.executor.execute(skill.id, a=1, b=1)
+        self.integration.executor.execute(skill.id, a=2, b=2)
+        
+        history = self.integration.executor.get_execution_history()
+        assert len(history) == 2
+        assert history[0]['skill_name'] == "计算"
+    
+    def test_execution_stats(self):
+        """测试执行统计"""
+        skill = self.manager.list_all()[0]
+        
+        self.integration.executor.execute(skill.id, a=1, b=1)
+        self.integration.executor.execute(skill.id, a=2, b=2)
+        
+        stats = self.integration.executor.get_execution_stats()
+        assert stats['total_executions'] == 2
+        assert stats['successful'] == 2
+        assert stats['success_rate'] == 1.0
+
+
+class TestSkillRecommender:
+    """SkillRecommender 推荐测试"""
+    
+    def setup_method(self):
+        """测试前准备"""
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.manager = SkillManager(self.temp_dir.name)
+        
+        # 创建多个测试 Skill
+        skills = [
+            ("JSON处理", "处理 JSON 数据"),
+            ("字符串处理", "处理字符串"),
+            ("数据统计", "统计数据"),
+        ]
+        
+        for name, desc in skills:
+            skill = CodeSkill(
+                name=name,
+                code="def execute(): pass",
+                description=desc
+            )
+            self.manager.register(skill)
+        
+        self.recommender = SkillRecommender(self.manager)
+    
+    def teardown_method(self):
+        """测试后清理"""
+        self.temp_dir.cleanup()
+    
+    def test_recommend_by_task(self):
+        """测试按任务推荐"""
+        task = "我需要处理 JSON 数据"
+        recommendations = self.recommender.recommend(task)
+        
+        assert len(recommendations) > 0
+        # 第一个应该是 JSON 处理
+        assert recommendations[0][0].name == "JSON处理"
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

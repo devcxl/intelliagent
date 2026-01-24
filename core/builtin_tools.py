@@ -2,16 +2,17 @@
 """
 内置工具模块 - 纯 Python 实现
 
-提供 IntelliAgent 的 6 个内置工具，无需 MCP 依赖。
+提供 IntelliAgent 的 7 个内置工具，无需 MCP 依赖。
 这些工具可以直接在项目内部使用，也可以通过 MCP 暴露给外部。
 
 工具列表：
   1. run_shell - 执行终端命令
   2. read_file - 读取文件内容
   3. write_file - 写入文件内容
-  4. list_dir - 列出目录内容
-  5. delete_file - 删除文件
-  6. file_exists - 检查文件/目录存在性
+  4. edit_file - 编辑文件内容（精确替换）
+  5. list_dir - 列出目录内容
+  6. delete_file - 删除文件
+  7. file_exists - 检查文件/目录存在性
 """
 
 import asyncio
@@ -264,6 +265,125 @@ async def write_file(path: str, content: str) -> str:
         return error_response(f"写入文件失败: {str(e)}", "WRITE_ERROR")
 
 
+async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool = False) -> str:
+    """编辑文件内容（类似 git patch 的精确替换）
+    
+    在文件中精确查找并替换指定的文本片段。
+    支持 单次替换或全局替换模式。
+
+    Args:
+        path: 文件路径
+        oldString: 要替换的旧字符串
+        newString: 新字符串
+        replaceAll: 是否替换所有匹配项（默认 false，仅替换第一个）
+        
+    Returns:
+        {"status": "ok", "replacements": 1, "content": "...", "path": "..."}
+        {"status": "error", "error": "错误描述", "code": "ERROR_CODE"}
+        
+    Raises:
+        - EMPTY_PATH: 路径为空
+        - EMPTY_OLD_STRING: oldString 为空
+        - FILE_NOT_FOUND: 文件不存在
+        - IS_DIRECTORY: 路径是目录而非文件
+        - OLD_STRING_NOT_FOUND: oldString 在文件中未找到
+        - MULTIPLE_MATCHES: 找到多个匹配但 replaceAll=false
+        - WRITE_ERROR: 写入失败
+        
+    Examples:
+        - edit_file("test.txt", "Hello", "Hi")
+        - edit_file("test.py", "old_function", "new_function", replaceAll=True)
+    """
+    # 参数验证
+    if not path or not isinstance(path, str):
+        return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
+    
+    path = path.strip()
+    if not path:
+        return error_response("path 参数为空或仅包含空格", "EMPTY_PATH")
+    
+    if not oldString or not isinstance(oldString, str):
+        return error_response("oldString 参数为空或非字符串类型", "EMPTY_OLD_STRING")
+    
+    oldString = oldString.strip()
+    if not oldString:
+        return error_response("oldString 参数为空或仅包含空格", "EMPTY_OLD_STRING")
+    
+    if newString is None:
+        newString = ""
+    
+    try:
+        file_path = pathlib.Path(path).expanduser()
+        
+        # 检查文件是否存在
+        if not file_path.exists():
+            return error_response(f"文件不存在: {path}", "FILE_NOT_FOUND")
+        
+        # 检查是否是目录
+        if file_path.is_dir():
+            return error_response(f"路径是目录而非文件: {path}", "IS_DIRECTORY")
+        
+        # 读取文件内容
+        if HAS_AIOFILES:
+            async with aiofiles.open(file_path, mode='r', encoding='utf-8') as f:
+                content = await f.read()
+        else:
+            content = file_path.read_text(encoding='utf-8')
+        
+        # 查找 oldString 的出现次数
+        occurrence_count = content.count(oldString)
+        
+        if occurrence_count == 0:
+            return error_response(
+                f"未找到要替换的文本片段，请检查 oldString 是否正确",
+                "OLD_STRING_NOT_FOUND"
+            )
+        
+        # 如果有多个匹配但 replaceAll=False
+        if occurrence_count > 1 and not replaceAll:
+            return error_response(
+                f"找到 {occurrence_count} 处匹配，但 replaceAll=False，仅允许单次替换。请设置 replaceAll=True 或提供更精确的 oldString。",
+                "MULTIPLE_MATCHES"
+            )
+        
+        # 执行替换
+        if replaceAll:
+            new_content = content.replace(oldString, newString)
+        else:
+            new_content = content.replace(oldString, newString, 1)
+        
+        # 检查内容大小限制
+        if len(new_content) > FILE_WRITE_MAX_SIZE:
+            return error_response(
+                f"编辑后内容过大（{len(new_content)} > {FILE_WRITE_MAX_SIZE} 字符），超过 1MB 限制",
+                "CONTENT_TOO_LARGE"
+            )
+        
+        # 写回文件
+        if HAS_AIOFILES:
+            async with aiofiles.open(file_path, mode='w', encoding='utf-8') as f:
+                await f.write(new_content)
+        else:
+            file_path.write_text(new_content, encoding='utf-8')
+        
+        # 返回替换结果（最多返回 500 字符的内容片段）
+        preview_length = 500
+        content_preview = new_content[:preview_length]
+        if len(new_content) > preview_length:
+            content_preview += "..."
+        
+        return success_response({
+            "message": "文件编辑成功",
+            "replacements": occurrence_count if replaceAll else 1,
+            "content": content_preview,
+            "path": str(file_path),
+            "size": len(new_content)
+        })
+        
+    except Exception as e:
+        return error_response(f"编辑文件失败: {str(e)}", "WRITE_ERROR")
+
+
 async def list_dir(path: str = ".") -> str:
     """列出目录内容
     
@@ -499,6 +619,34 @@ BUILTIN_TOOLS = {
             }
         }
     },
+    "edit_file": {
+        "name": "edit_file",
+        "description": "编辑文件内容（精确替换旧字符串为新字符串）",
+        "function": edit_file,
+        "parameters": {
+            "path": {
+                "type": "string",
+                "description": "文件路径",
+                "required": True
+            },
+            "oldString": {
+                "type": "string",
+                "description": "要替换的旧字符串",
+                "required": True
+            },
+            "newString": {
+                "type": "string",
+                "description": "新字符串",
+                "required": True
+            },
+            "replaceAll": {
+                "type": "boolean",
+                "description": "是否替换所有匹配项（默认 false）",
+                "required": False,
+                "default": False
+            }
+        }
+    },
     "list_dir": {
         "name": "list_dir",
         "description": "列出目录内容",
@@ -579,6 +727,10 @@ if __name__ == "__main__":
         # 测试 read_file
         result = await read_file("/tmp/test_builtin.txt")
         print(f"read_file: {result}")
+        
+        # 测试 edit_file
+        result = await edit_file("/tmp/test_builtin.txt", "Test content", "Edited content")
+        print(f"edit_file: {result}")
         
         # 测试 file_exists
         result = await file_exists("/tmp/test_builtin.txt")

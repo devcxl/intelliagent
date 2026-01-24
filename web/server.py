@@ -6,7 +6,7 @@ FastAPI 后端服务器
 import sys
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent.parent
@@ -16,11 +16,13 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
+from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from utils.logger import logger
 
-# 导入 ReactEngine
+# 导入 ReactEngine 和 DatabaseManager
 from core.react_engine import ReactEngine
+from web.database import DatabaseManager
 
 
 class TaskRequest(BaseModel):
@@ -39,11 +41,50 @@ class TaskResponse(BaseModel):
     error: Optional[str] = None
 
 
-# 创建 FastAPI 应用
+class SessionCreate(BaseModel):
+    """创建会话请求"""
+    title: str
+    task: str = ""
+    status: str = "idle"
+
+
+class SessionUpdate(BaseModel):
+    """更新会话请求"""
+    title: Optional[str] = None
+    task: Optional[str] = None
+    status: Optional[str] = None
+    logs: Optional[List[Dict[str, Any]]] = None
+
+
+# 全局引擎实例（需要在启动时初始化）
+engine: Optional[ReactEngine] = None
+
+# 数据库管理器
+db: Optional[DatabaseManager] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    global db
+    
+    # 启动时初始化数据库
+    db = DatabaseManager()
+    await db.initialize()
+    logger.info("数据库初始化完成")
+    
+    yield
+    
+    # 关闭时的清理工作（如果有）
+    logger.info("应用关闭")
+
+
+# 创建 FastAPI 应用（使用 lifespan）
 app = FastAPI(
     title="IntelliAgent - ReAct Agent",
     description="基于 ReAct 循环的代码开发助手",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # 添加 CORS 中间件
@@ -76,9 +117,6 @@ else:
         logger.info(f"静态文件目录（开发）: {static_dir}")
     else:
         logger.warning(f"静态文件目录不存在: {static_dir}")
-
-# 全局引擎实例（需要在启动时初始化）
-engine: Optional[ReactEngine] = None
 
 
 def initialize_engine():
@@ -301,6 +339,89 @@ async def run_task_stream(engine: ReactEngine, task: str, max_iterations: int):
 async def health_check():
     """健康检查端点"""
     return {"status": "ok", "service": "intelliagent-web"}
+
+
+# ========== 会话管理 API ==========
+
+@app.get("/api/sessions")
+async def get_sessions():
+    """获取所有会话"""
+    global db
+    if db is None:
+        raise HTTPException(status_code=500, detail="数据库未初始化")
+    
+    sessions = await db.get_all_sessions()
+    return {"sessions": sessions}
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session(session_id: str):
+    """获取指定会话"""
+    global db
+    if db is None:
+        raise HTTPException(status_code=500, detail="数据库未初始化")
+    
+    session = await db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    return session
+
+
+@app.post("/api/sessions")
+async def create_session(request: SessionCreate):
+    """创建新会话"""
+    global db
+    if db is None:
+        raise HTTPException(status_code=500, detail="数据库未初始化")
+    
+    import uuid
+    session_id = str(uuid.uuid4())
+    
+    session = await db.create_session(
+        session_id=session_id,
+        title=request.title,
+        task=request.task,
+        status=request.status
+    )
+    
+    return session
+
+
+@app.put("/api/sessions/{session_id}")
+async def update_session(session_id: str, request: SessionUpdate):
+    """更新会话"""
+    global db
+    if db is None:
+        raise HTTPException(status_code=500, detail="数据库未初始化")
+    
+    success = await db.update_session(
+        session_id=session_id,
+        title=request.title,
+        task=request.task,
+        status=request.status,
+        logs=request.logs
+    )
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    session = await db.get_session(session_id)
+    return session
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str):
+    """删除会话"""
+    global db
+    if db is None:
+        raise HTTPException(status_code=500, detail="数据库未初始化")
+    
+    success = await db.delete_session(session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    
+    return {"message": "会话已删除"}
 
 
 if __name__ == "__main__":

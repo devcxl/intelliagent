@@ -22,17 +22,17 @@ export function LogViewer({ logs }: LogViewerProps) {
   const getLogStyle = (type: LogEntry['type']) => {
     switch (type) {
       case 'thought':
-        return 'bg-blue-50/80 border-blue-300 text-blue-900 hover-lift';
+        return 'log-thought bg-blue-50/80 border-blue-300 text-blue-900 hover-lift dark:border-blue-400';
       case 'action':
-        return 'bg-amber-50/80 border-amber-300 text-amber-900 hover-lift';
+        return 'log-action bg-amber-50/80 border-amber-300 text-amber-900 hover-lift dark:border-amber-400';
       case 'observation':
-        return 'bg-emerald-50/80 border-emerald-300 text-emerald-900 hover-lift';
+        return 'log-observation bg-emerald-50/80 border-emerald-300 text-emerald-900 hover-lift dark:border-emerald-400';
       case 'answer':
-        return 'bg-violet-50/80 border-violet-300 text-violet-900 hover-lift';
+        return 'log-answer bg-violet-50/80 border-violet-300 text-violet-900 hover-lift dark:border-violet-400';
       case 'error':
-        return 'bg-red-50/80 border-red-300 text-red-900 hover-lift';
+        return 'log-error bg-red-50/80 border-red-300 text-red-900 hover-lift dark:border-red-400';
       default:
-        return 'bg-slate-50/80 border-slate-300 text-slate-900 hover-lift';
+        return 'log-default bg-slate-50/80 border-slate-300 text-slate-900 hover-lift dark:border-slate-400';
     }
   };
 
@@ -59,7 +59,7 @@ export function LogViewer({ logs }: LogViewerProps) {
     switch (type) {
       case 'thought':
         return (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <p className="whitespace-pre-wrap">{data.reasoning}</p>
             {data.is_complete && (
               <Badge variant="default">已完成</Badge>
@@ -68,7 +68,7 @@ export function LogViewer({ logs }: LogViewerProps) {
         );
       case 'action':
         return (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="font-mono text-sm bg-white/50 p-2 rounded">
               <span className="font-bold">{data.tool}</span>
               {data.args && Object.keys(data.args).length > 0 && (
@@ -81,7 +81,7 @@ export function LogViewer({ logs }: LogViewerProps) {
         );
       case 'observation':
         return (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               {data.status === 'success' ? (
                 <Badge variant="default">成功</Badge>
@@ -124,37 +124,37 @@ export function LogViewer({ logs }: LogViewerProps) {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-background to-muted/30">
-      <div className="p-4 border-b flex items-center justify-between bg-card/50 backdrop-blur-sm">
+      <div className="p-3 border-b flex items-center justify-between bg-card/50 backdrop-blur-sm">
         <div>
-          <h2 className="text-lg font-semibold gradient-text">执行日志</h2>
+          <h2 className="text-sm font-semibold gradient-text">执行日志</h2>
           <p className="text-xs text-muted-foreground mt-0.5">实时追踪 ReAct 循环执行过程</p>
         </div>
-        <Badge variant="secondary" className="shadow-sm">{logs.length} 条记录</Badge>
+        <Badge variant="secondary" className="shadow-sm text-xs">{logs.length} 条记录</Badge>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-3">
+        <div className="p-3 space-y-1.5">
           {logs.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted/50 mb-4">
-                <Info className="h-10 w-10" />
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted/50 mb-4">
+                <Info className="h-8 w-8" />
               </div>
-              <p className="font-medium">暂无日志记录</p>
-              <p className="text-sm mt-2 opacity-70">输入任务并点击"运行任务"开始</p>
+              <p className="font-medium text-sm">暂无日志记录</p>
+              <p className="text-xs mt-2 opacity-70">输入任务并点击"运行任务"开始</p>
             </div>
           ) : (
             logs.map((entry, index) => (
               <div
                 key={index}
                 className={cn(
-                  'p-4 rounded-xl border-l-4 shadow-sm animate-in',
+                  'p-2.5 rounded-lg border-l-4 shadow-sm animate-in',
                   getLogStyle(entry.type)
                 )}
                 style={{ animationDelay: `${index * 30}ms` }}
               >
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-md bg-background/50">
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <div className="p-1 rounded-md bg-background/50">
                       {getIcon(entry.type)}
                     </div>
                     <span className="text-xs font-bold uppercase tracking-wider">
@@ -170,7 +170,7 @@ export function LogViewer({ logs }: LogViewerProps) {
                     {formatTimestamp(entry.timestamp)}
                   </span>
                 </div>
-                <div className="pl-10">
+                <div className="pl-7">
                   {formatContent(entry)}
                 </div>
               </div>

@@ -261,3 +261,97 @@ class TestBuiltinTools:
         assert data["status"] == "ok", "应该成功检查"
         assert data["exists"] == False, "路径应该不存在"
         logger.info(f"✅ 通过: file_exists 正确识别不存在的路径")
+    
+    async def test_edit_file_single_replacement(self):
+        """测试 edit_file - 单次替换成功"""
+        logger.info("\n🧪 测试 edit_file 单次替换...")
+        from core.builtin_tools import edit_file, write_file
+        
+        test_file = Path(self.temp_dir.name) / "edit_test.txt"
+        original_content = "Hello World\nHello Again\n"
+        await write_file(str(test_file), original_content)
+        
+        result = await edit_file(str(test_file), "Hello World", "Hi World")
+        data = self._parse_json_response(result)
+        
+        assert data["status"] == "ok", f"应该成功编辑，得到 {data['status']}"
+        assert data["replacements"] == 1, f"应该替换 1 处，得到 {data['replacements']}"
+        
+        actual_content = test_file.read_text()
+        assert "Hi World" in actual_content, "新内容应该存在"
+        assert "Hello Again" in actual_content, "未替换的内容应该保持不变"
+        logger.info(f"✅ 通过: edit_file 单次替换成功")
+    
+    async def test_edit_file_replace_all(self):
+        """测试 edit_file - 全局替换"""
+        logger.info("\n🧪 测试 edit_file 全局替换...")
+        from core.builtin_tools import edit_file, write_file
+        
+        test_file = Path(self.temp_dir.name) / "replace_all.txt"
+        original_content = "old_value\nold_value\nold_value\n"
+        await write_file(str(test_file), original_content)
+        
+        result = await edit_file(str(test_file), "old_value", "new_value", replaceAll=True)
+        data = self._parse_json_response(result)
+        
+        assert data["status"] == "ok", "应该成功编辑"
+        assert data["replacements"] == 3, f"应该替换 3 处，得到 {data['replacements']}"
+        
+        actual_content = test_file.read_text()
+        assert actual_content == "new_value\nnew_value\nnew_value\n", "所有匹配都应该被替换"
+        logger.info(f"✅ 通过: edit_file 全局替换成功（{data['replacements']} 处）")
+    
+    async def test_edit_file_old_string_not_found(self):
+        """测试 edit_file - 旧字符串未找到"""
+        logger.info("\n🧪 测试 edit_file 旧字符串未找到...")
+        from core.builtin_tools import edit_file, write_file
+        
+        test_file = Path(self.temp_dir.name) / "not_found.txt"
+        await write_file(str(test_file), "Some content here")
+        
+        result = await edit_file(str(test_file), "nonexistent", "replacement")
+        data = self._parse_json_response(result)
+        
+        assert data["status"] == "error", "应该返回错误"
+        assert data["code"] == "OLD_STRING_NOT_FOUND", f"错误代码应为 OLD_STRING_NOT_FOUND，得到 {data['code']}"
+        logger.info(f"✅ 通过: edit_file 正确处理未找到的旧字符串")
+    
+    async def test_edit_file_multiple_matches_without_replace_all(self):
+        """测试 edit_file - 多个匹配但未启用 replaceAll"""
+        logger.info("\n🧪 测试 edit_file 多个匹配但未启用 replaceAll...")
+        from core.builtin_tools import edit_file, write_file
+        
+        test_file = Path(self.temp_dir.name) / "multiple.txt"
+        original_content = "repeat\nrepeat\nrepeat\n"
+        await write_file(str(test_file), original_content)
+        
+        result = await edit_file(str(test_file), "repeat", "replaced", replaceAll=False)
+        data = self._parse_json_response(result)
+        
+        assert data["status"] == "error", "应该返回错误"
+        assert data["code"] == "MULTIPLE_MATCHES", f"错误代码应为 MULTIPLE_MATCHES，得到 {data['code']}"
+        logger.info(f"✅ 通过: edit_file 正确拒绝多匹配单次替换")
+    
+    async def test_edit_file_empty_old_string(self):
+        """测试 edit_file - 空 oldString"""
+        logger.info("\n🧪 测试 edit_file 空 oldString...")
+        from core.builtin_tools import edit_file
+        
+        result = await edit_file("dummy.txt", "", "new_value")
+        data = self._parse_json_response(result)
+        
+        assert data["status"] == "error", "应该返回错误"
+        assert data["code"] == "EMPTY_OLD_STRING", f"错误代码应为 EMPTY_OLD_STRING，得到 {data['code']}"
+        logger.info(f"✅ 通过: edit_file 正确拒绝空 oldString")
+    
+    async def test_edit_file_file_not_exists(self):
+        """测试 edit_file - 文件不存在"""
+        logger.info("\n🧪 测试 edit_file 文件不存在...")
+        from core.builtin_tools import edit_file
+        
+        result = await edit_file("/nonexistent/file.txt", "old", "new")
+        data = self._parse_json_response(result)
+        
+        assert data["status"] == "error", "应该返回错误"
+        assert data["code"] == "FILE_NOT_FOUND", f"错误代码应为 FILE_NOT_FOUND，得到 {data['code']}"
+        logger.info(f"✅ 通过: edit_file 正确处理不存在的文件")

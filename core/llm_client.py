@@ -322,7 +322,9 @@ class LLMClient:
         self,
         user_input: str,
         observations: List[Dict[str, Any]],
-        available_tools: List[str]
+        available_tools: List[str],
+        skills_context: str = "",
+        full_skills_context: str = ""
     ) -> Dict[str, Any]:
         """
         生成 ReAct 循环的思考（Thought）和行动（Action）
@@ -331,6 +333,7 @@ class LLMClient:
             user_input: 用户输入的任务描述
             observations: 历史观察结果列表
             available_tools: 可用工具列表
+            skills_context: Skill 可用描述（Markdown 格式）
         
         Returns:
             思考结果 {
@@ -353,7 +356,8 @@ class LLMClient:
             "write_file": "写入文件内容，参数 {\"path\": \"文件路径\", \"content\": \"内容\"}",
             "list_dir": "列出目录内容，参数 {\"path\": \"目录路径\"}",
             "delete_file": "删除文件，参数 {\"path\": \"文件路径\"}",
-            "file_exists": "检查文件是否存在，参数 {\"path\": \"文件路径\"}"
+            "file_exists": "检查文件是否存在，参数 {\"path\": \"文件路径\"}",
+            "invoke_skill": "调用已加载的 Skill，参数 {\"skill_id\": \"技能ID\", \"workflow\": \"可选工作流名称\", \"parameters\": {…}}"
         }
         description_lines = []
         for tool in available_tools:
@@ -362,6 +366,15 @@ class LLMClient:
             else:
                 description_lines.append(f"- {tool}: 外部 MCP 工具（请参考对应服务定义）")
         tool_desc_text = "\n".join(description_lines) if description_lines else "- 无可用工具"
+        
+        # 构建 Skill 描述部分
+        skills_section = ""
+        if skills_context:
+            skills_section = f"\n**可用的 Skill（摘要）：**\n\n{skills_context}\n"
+        # full_skills_context 仅在工具调用后追加到观察里，这里保持为空即可
+        full_skills_section = ""
+        if full_skills_context:
+            full_skills_section = f"\n**Skill 详细定义（本轮已提供）：**\n\n{full_skills_context}\n"
         
         # System Prompt - 针对 ReAct 循环模式
         system_prompt = f"""你是一个代码开发助手，使用 ReAct（Reason + Act）循环解决任务。
@@ -389,8 +402,7 @@ Answer: 最终答案
 {', '.join(available_tools) if available_tools else '无'}
 
 **工具说明：**
-{tool_desc_text}
-
+{tool_desc_text}{skills_section}{full_skills_section}
 **返回格式：**
 必须返回 JSON 格式：
 

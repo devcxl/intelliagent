@@ -10,6 +10,7 @@ from core.react_engine import ReactEngine
 from core.memory import Memory
 from core.context import ContextManager
 from core.tool_registry import ToolRegistry
+from core.skill_integration import SkillIntegration
 from utils.config import (
     OPENAI_API_KEY,
     OPENAI_MODEL,
@@ -73,14 +74,20 @@ class IntelliAgent:
             logger.info("初始化工具注册中心...")
             self.tools = ToolRegistry()
 
-            # 5. ReAct 循环引擎
+            # 5. Skill 集成
+            logger.info("初始化 Skill 集成...")
+            self.skill_integration = SkillIntegration()
+            self.skill_integration.initialize()
+
+            # 6. ReAct 循环引擎
             logger.info("初始化 ReAct 循环引擎...")
             self.react_engine = ReactEngine(
                 llm_client=self.llm_client,
                 tools=self.tools,
                 memory=self.memory,
                 context=self.context,
-                max_iterations=self.max_iterations
+                max_iterations=self.max_iterations,
+                skill_integration=self.skill_integration
             )
 
         except Exception as e:
