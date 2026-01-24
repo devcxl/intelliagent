@@ -7,16 +7,17 @@ import sys
 import os
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+# 添加项目根目录到 Python 路径
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from utils.logger import logger
-
-# 添加项目根目录到 Python 路径
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
 
 # 导入 ReactEngine
 from core.react_engine import ReactEngine
@@ -55,12 +56,26 @@ app.add_middleware(
 )
 
 # 挂载静态文件
+frontend_dist = project_root / "web" / "frontend" / "dist"
 static_dir = project_root / "web" / "static"
-if static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-    logger.info(f"静态文件目录: {static_dir}")
+
+if os.getenv("WEB_ENV") == "production":
+    # 生产环境：使用构建后的文件
+    if frontend_dist.exists():
+        # 先挂载 /static 路径（保留兼容性）
+        app.mount("/static", StaticFiles(directory=str(frontend_dist)), name="static")
+        # 挂载根路径（SPA 支持）
+        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+        logger.info(f"静态文件目录（生产）: {frontend_dist}")
+    else:
+        logger.warning(f"静态文件目录不存在: {frontend_dist}")
 else:
-    logger.warning(f"静态文件目录不存在: {static_dir}")
+    # 开发环境：使用旧的静态文件（向后兼容）
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        logger.info(f"静态文件目录（开发）: {static_dir}")
+    else:
+        logger.warning(f"静态文件目录不存在: {static_dir}")
 
 # 全局引擎实例（需要在启动时初始化）
 engine: Optional[ReactEngine] = None
@@ -104,13 +119,19 @@ def initialize_engine():
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     """返回主页面"""
-    index_path = static_dir / "index.html"
-    
-    if not index_path.exists():
-        raise HTTPException(status_code=404, detail="index.html not found")
-    
-    with open(index_path, "r", encoding="utf-8") as f:
-        return f.read()
+    if os.getenv("WEB_ENV") == "production":
+        # 生产环境：由 StaticFiles 处理
+        raise HTTPException(status_code=404, detail="Not Found in production mode")
+    else:
+        # 开发环境：使用旧的 index.html
+        static_dir = project_root / "web" / "static"
+        index_path = static_dir / "index.html"
+
+        if not index_path.exists():
+            raise HTTPException(status_code=404, detail="index.html not found")
+
+        with open(index_path, "r", encoding="utf-8") as f:
+            return f.read()
 
 
 @app.post("/api/run", response_model=TaskResponse)

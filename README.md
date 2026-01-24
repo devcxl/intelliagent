@@ -8,7 +8,7 @@
 - **⚙️ 自动执行**: 调用工具执行计划中的各个步骤
 - **🔍 质量检查**: LLM 评估每个步骤的执行质量，确保符合预期
 - **🧠 经验学习**: 保存成功和失败的经验，支持历史查询和学习
-- **🌐 Web UI**: 基于 FastAPI 的现代网页界面，支持实时交互
+- **🌐 Web UI**: 基于 React + shadcn/ui 的现代网页界面，三栏布局（侧边栏会话管理 + 主内容日志区 + 底部输入框）
 
 ## 🏗️ 系统架构
 
@@ -145,12 +145,38 @@ print(f"摘要: {result['summary']}")
 ```
 
 #### 方式二：启动 Web UI 服务器
+
+**快速启动（推荐）**:
 ```bash
-# 启动 Web UI（默认端口 8000）
-python main.py --web
+# 验证环境
+./verify-web.sh
+
+# 生产模式
+./start-web.sh
 ```
 
 浏览器访问 http://localhost:8000，在 Web 界面输入任务并运行。
+
+**手动启动**:
+```bash
+# 生产模式（使用 shadcn/ui 新界面）
+WEB_ENV=production python web/server.py
+
+# 开发模式（使用旧界面，向后兼容）
+python web/server.py
+```
+
+**前端开发模式（热更新）**:
+```bash
+# 终端 1：启动后端
+WEB_ENV=production python web/server.py
+
+# 终端 2：启动前端开发服务器
+cd web/frontend
+npm run dev
+```
+
+前端开发服务器运行在 http://localhost:5173。
 
 ## 🛠️ Tools - 工具系统
 

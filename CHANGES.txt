@@ -1,0 +1,111 @@
+Web UI 优化变更记录
+===================
+
+1. 新增文件
+-----------
+- web/frontend/               # 新的前端项目目录
+  - src/
+    - components/
+      - Sidebar.tsx           # 侧边栏会话管理组件
+      - LogViewer.tsx         # 日志查看器组件
+      - InputArea.tsx         # 底部输入框组件
+      - ui/                   # shadcn/ui 组件
+        - button.tsx
+        - card.tsx
+        - badge.tsx
+        - scroll-area.tsx
+        - separator.tsx
+        - textarea.tsx
+    - hooks/
+      - useWebSocket.ts       # WebSocket 自定义 Hook
+    - lib/
+      - utils.ts              # 工具函数
+    - App.tsx                 # 主应用组件
+    - types.ts                # TypeScript 类型定义
+    - index.css               # 全局样式
+  - dist/                     # 构建输出目录
+  - package.json              # 依赖配置
+  - vite.config.ts            # Vite 配置
+  - tailwind.config.js        # Tailwind CSS 配置
+  - postcss.config.js         # PostCSS 配置
+  - tsconfig.json             # TypeScript 配置
+
+- start-web.sh                # 生产模式启动脚本
+- start-web-dev.sh            # 开发模式启动脚本
+- web/WEB_UI.md              # Web UI 使用文档
+- web/SUMMARY.md             # 优化总结文档
+- QUICK_START_WEB.md         # 快速开始指南
+
+2. 修改文件
+-----------
+- web/server.py              # 更新静态文件挂载逻辑
+- README.md                  # 更新 Web UI 说明
+- web/static/index.html      # 保留（向后兼容）
+- web/static/js/app.js       # 保留（向后兼容）
+- web/static/css/styles.css  # 保留（向后兼容）
+
+3. 依赖变更
+-----------
+新增 npm 依赖：
+- react: ^19.2.0
+- react-dom: ^19.2.0
+- lucide-react: ^0.563.0
+- @radix-ui/react-slot: ^1.2.4
+- @radix-ui/react-scroll-area: ^1.2.10
+- @radix-ui/react-separator: ^1.1.8
+- class-variance-authority: ^0.7.1
+- clsx: ^2.1.1
+- tailwind-merge: ^3.4.0
+
+新增开发依赖：
+- vite: ^7.2.4
+- @vitejs/plugin-react: ^5.1.1
+- tailwindcss: ^4.1.18
+- @tailwindcss/postcss: ^4.1.18
+- autoprefixer: ^10.4.23
+- typescript: ~5.9.3
+- postcss: ^8.5.6
+
+4. 功能变更
+-----------
+- 界面布局：从单页面垂直布局改为三栏布局
+- 会话管理：新增会话创建、切换、删除功能
+- 实时通信：使用 WebSocket 进行实时日志推送
+- 组件化：使用 React + shadcn/ui 组件库
+- 样式管理：使用 Tailwind CSS 进行样式管理
+- 类型安全：全面使用 TypeScript
+- 开发体验：支持热更新（开发模式）
+
+5. 向后兼容
+-----------
+- 保留旧的静态文件在 web/static/ 目录
+- 通过 WEB_ENV 环境变量切换模式
+- 旧界面在开发模式下仍可使用
+
+6. 使用方式
+-----------
+验证环境：
+  ./verify-web.sh
+
+生产模式：
+  ./start-web.sh
+
+开发模式：
+  ./start-web-dev.sh
+
+手动启动：
+  WEB_ENV=production python web/server.py
+
+7. 环境变量
+-----------
+WEB_ENV: production / development
+WEB_HOST: 0.0.0.0 (默认)
+WEB_PORT: 8000 (默认)
+
+8. 验证状态
+-----------
+✅ 前端构建成功
+✅ 静态文件正常返回
+✅ Python 路径正确
+✅ 依赖安装完整
+✅ 服务器正常启动
