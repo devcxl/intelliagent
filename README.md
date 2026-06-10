@@ -1,385 +1,228 @@
-# 🤖 IntelliAgent - 基于 ReAct 循环的智能代理系统
+# 🤖 IntelliAgent
 
-> 一个使用 OpenAI LLM 驱动的代码开发助手，遵循 ReAct（Reason-Act-Observe）循环模式
-
-## ✨ 核心特性
-
-- **🎯 智能规划**: 使用 LLM 根据用户输入自动生成执行计划
-- **⚙️ 自动执行**: 调用工具执行计划中的各个步骤
-- **🔍 质量检查**: LLM 评估每个步骤的执行质量，确保符合预期
-- **🧠 经验学习**: 保存成功和失败的经验，支持历史查询和学习
-- **🌐 Web UI**: 基于 React + shadcn/ui 的现代网页界面，三栏布局（侧边栏会话管理 + 主内容日志区 + 底部输入框）
-
-## 🏗️ 系统架构
-
-基于 **ReAct 循环**设计：
-
-```
-┌─────────────────────────┐
-│    ReAct 循环       │
-│                     │
-│  Thought → Act → Observe → Repeat
-│                     │
-│    (迭代至完成)       │
-│                     │
-└─────────────────────────┘
-```
-
-**核心流程**：
-1. **Thought**: LLM 思考下一步行动
-2. **Act**: 执行工具
-3. **Observe**: 观察结果并更新上下文
-4. **Repeat**: 继续迭代直到任务完成
-┌─────────────────────────────────────────────────┐
-│                  PDCA 循环                       │
-│                                                 │
-│  ┌──────┐   ┌──────┐   ┌──────┐   ┌──────┐   │
-│  │ Plan │──▶│  Do  │──▶│Check │──▶│ Act  │   │
-│  └──────┘   └──────┘   └──────┘   └──────┘   │
-│      ▲                                  │       │
-│      └──────────────────────────────────┘       │
-│                 (循环重试/调整)                   │
-└─────────────────────────────────────────────────┘
-```
-
-### 各阶段说明
-
-| 阶段 | 模块 | 功能 |
-|------|------|------|
-| **Thought** | `react_engine.py` | LLM 思考下一步行动（Reasoning） |
-| **Act** | `react_engine.py` | 执行工具（Action） |
-| **Observe** | `react_engine.py` | 观察结果并更新上下文（Observation） |
-
-**ReAct 循环流程**：
-```
-Thought → Act → Observe → Repeat
-```
-
-1. **Thought**: LLM 分析任务和上下文，思考下一步行动
-2. **Act**: 选择并执行工具
-3. **Observe**: 观察结果，更新上下文
-4. **Repeat**: 继续迭代直到任务完成
-
-### 核心模块
-
-```
-src/
-├── agent/             # Agent 核心逻辑（ReAct 引擎、执行器）
-├── tools/             # 工具系统（内置工具、工具注册）
-├── llm/               # LLM 客户端封装
-├── memory/            # 记忆和上下文管理
-├── skills/            # 技能系统
-└── web/               # Web 后端服务
-```
-
-## 🚀 快速开始
-
-### 1. 安装依赖
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. 配置环境变量
-
-复制 `.env.example` 并重命名为 `.env`，填入你的 OpenAI API Key：
-```bash
-cp .env.example .env
-```
-
-编辑 `.env` 文件：
-```env
-OPENAI_API_KEY=sk-your-openai-api-key
-OPENAI_MODEL=gpt-4o-mini
-MAX_ITERATIONS=10
-MAX_RETRY_PER_STEP=3
-EXPERIENCE_FILE=experiences.json
-LOG_LEVEL=INFO
-```
-
-# 可选：配置外部 MCP 服务器（JSON 文件）
-MCP_CONFIG_FILE=mcp_config.json
-```
-
-**关于工具系统**:
-- 内置工具（7 个）无需配置，详见 [工具文档](docs/TOOLS.md)
-- 外部 MCP 服务器通过 `mcp_config.json` 配置，详见 [集成指南](docs/TOOL_INTEGRATION.md)
-- 使用与 Claude Code 兼容的 JSON 配置格式
-
-## 🚀 快速开始
-
-#### 方式一：命令行直接运行
-
-```bash
-python main.py "创建一个 Python 文件并写入 Hello World"
-```
-
-#### 方式二：运行交互式示例（如存在 example.py）
-
-```bash
-python example.py
-```
-
-如果仓库包含该示例文件，可选择示例：
-- 1. 简单文件操作
-- 2. 复杂代码生成
-- 3. Git 操作
-- 4. 查看历史经验
-- 5. 自定义配置
-
-#### 方式三：在代码中使用（ReAct 模式）
-```python
-from main import IntelliAgent
-
-# 创建智能代理
-agent = IntelliAgent()
-
-# 执行任务
-result = agent.run("创建一个 Python 文件并编写测试")
-
-# 查看结果
-print(f"执行状态: {result['success']}")
-print(f"迭代次数: {result.get('iterations', 0)}")
-print(f"摘要: {result['summary']}")
-
-# 注意：ReAct 模式专注于代码开发场景，迭代次数代替循环次数
-```
-
-#### 方式二：启动 Web UI 服务器
-
-**快速启动（推荐）**:
-```bash
-# 验证环境
-./verify-web.sh
-
-# 生产模式
-./start-web.sh
-```
-
-浏览器访问 http://localhost:8000，在 Web 界面输入任务并运行。
-
-**手动启动**:
-```bash
-# 生产模式（使用 shadcn/ui 新界面）
-WEB_ENV=production python web/server.py
-
-# 开发模式（使用旧界面，向后兼容）
-python web/server.py
-```
-
-**前端开发模式（热更新）**:
-```bash
-# 终端 1：启动后端
-WEB_ENV=production python web/server.py
-
-# 终端 2：启动前端开发服务器
-cd web/frontend
-npm run dev
-```
-
-前端开发服务器运行在 http://localhost:5173。
-
-## 🛠️ Tools - 工具系统
-
-IntelliAgent 提供强大的工具系统，包括**直接的内置工具**和**可扩展的外部工具**。
-
-### 内置工具 (7 个) - 直接 Python 实现
-
-开箱即用的基础工具，无需 MCP 依赖，直接调用：
-
-| 工具名 | 功能 | 参数 | 说明 |
-|-------|------|------|------|
-| `run_shell` | 执行终端命令 | cmd: 命令字符串 | 30秒超时，支持管道 |
-| `read_file` | 读取文件内容 | path: 文件路径 | 50KB 截断限制 |
-| `write_file` | 写入文件内容 | path, content | 1MB 大小限制，自动创建目录 |
-| `edit_file` | 编辑文件内容（精确替换） | path, oldString, newString, replaceAll | 支持 git patch 风格的精确编辑 |
-| `list_dir` | 列出目录内容 | path: 目录路径 | 返回 1000 项以内 |
-| `delete_file` | 删除文件 | path: 文件路径 | 仅支持文件，不支持目录 |
-| `file_exists` | 检查文件是否存在 | path: 文件路径 | 返回类型（file/directory） |
-
-**实现位置**: `core/builtin_tools.py`
-
-### 外部工具 (可配置) - MCP 协议
-
-通过 MCP 协议集成第三方服务（可选）。需要在 `mcp_config.json` 配置。
-
-**已支持的外部服务**:
-- `filesystem` - 高级文件操作
-- `github` - GitHub API 集成
-- `brave-search` - 互联网搜索
-- `context7` - 编程文档查询
-- `sequential-thinking` - 结构化思维
-
-### 📖 完整文档
-
-- **[快速入门指南](docs/QUICK_START.md)** - 工具系统使用快速入门（推荐首先阅读）
-- **[工具系统文档](docs/TOOLS.md)** - 内置工具详细说明和使用示例
-- **[MCP 集成指南](docs/TOOL_INTEGRATION.md)** - 如何配置和使用外部工具
-
-### 📚 示例代码
-
-- **[example.py](example.py)** - 交互式示例，展示 6 个工具的实际使用场景
-- **[core/builtin_tools.py](core/builtin_tools.py)** - 内置工具源代码
-
-## 🔧 配置说明
-
-### 环境变量
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `OPENAI_API_KEY` | OpenAI API 密钥 | 必填 |
-| `OPENAI_MODEL` | 使用的模型 | `gpt-4o-mini` |
-| `MAX_PDCA_CYCLES` | 最大 PDCA 循环次数 | `3` |
-| `MAX_RETRY_PER_STEP` | 单步骤最大重试次数 | `3` |
-| `EXPERIENCE_FILE` | 经验保存文件路径 | `experiences.json` |
-| `LOG_LEVEL` | 日志级别 | `INFO` |
-
-### 自定义配置
-
-```python
-agent = IntelliAgent(
-    api_key="your-key",
-    model="gpt-4o",        # 使用更强大的模型
-    max_cycles=5,          # 允许更多循环
-    max_retry=5            # 允许更多重试
-)
-```
-
-## 🧠 经验学习机制
-
-系统会自动保存每次任务执行的经验到 `experiences.json`：
-
-```json
-{
-  "task": "创建Python文件",
-  "plan": [...],
-  "execution_results": [...],
-  "check_results": [...],
-  "final_status": "success",
-  "total_steps": 3,
-  "passed_steps": 3,
-  "average_score": 0.95,
-  "timestamp": "2025-11-13T10:30:00"
-}
-```
-
-可以查询历史经验：
-
-```python
-# 查找相似任务的经验
-similar = agent.get_experiences(task="创建文件", top_k=3)
-
-# 查看所有经验
-all_exp = agent.memory.get_all_experiences()
-```
-
-## 📊 执行流程示例
-
-```
-🚀 开始 PDCA 循环 | 任务: 创建一个 Python 文件
-============================================================
-
-📍 PDCA 循环第 1/3 轮
-============================================================
-
-📝 [PLAN] 生成执行计划...
-✅ 计划生成完成 | 共 2 个步骤
-   步骤 1: 创建文件目录
-   步骤 2: 写入文件内容
-
-⚙️  [DO] 执行计划...
-➡️ 执行步骤 1: 创建文件目录
-🧩 调用工具: run_shell 参数: {'cmd': 'mkdir -p test'}
-✅ 工具执行成功
-➡️ 执行步骤 2: 写入文件内容
-🧩 调用工具: write_file 参数: {'path': 'test/hello.py', 'content': '...'}
-✅ 工具执行成功
-✅ 执行完成 | 完成 2 个步骤
-
-🔍 [CHECK] 检查执行结果...
-   ✅ 步骤 1: 通过 (得分: 1.00)
-   ✅ 步骤 2: 通过 (得分: 0.95)
-📊 整体检查: 完成 2/2 个步骤，平均得分 0.98
-
-🎯 [ACT] 决策改进行动...
-🎉 所有步骤执行成功！任务完成！
-
-============================================================
-📊 执行结果摘要
-============================================================
-状态: ✅ 成功
-PDCA 循环次数: 1
-总步骤数: 2
-摘要: 任务成功完成，经过 1 轮 PDCA 循环
-============================================================
-```
-
-## 🔬 工作原理
-
-### 重试机制
-
-当步骤执行失败时：
-1. **第1-3次失败**: 自动重试相同步骤
-2. **超过3次失败**: 调用 LLM 调整执行计划，开始新的 PDCA 循环
-3. **最多3轮循环**: 防止无限循环
-
-### 质量检查
-
-LLM 会根据以下内容评估质量：
-- 任务目标
-- 预期结果
-- 实际执行结果
-- 上下文信息
-
-返回评分（0-1）和通过/失败判定。
-
-## 🛠️ 扩展开发
-
-### 添加新工具
-
-在 `mcp_server.py` 中添加新工具：
-
-```python
-@mcp.tool()
-async def your_tool(param: str) -> str:
-    """工具描述"""
-    # 实现逻辑
-    return success_response({"result": "..."})
-```
-
-### 自定义 LLM 提示词
-
-修改 `llm_client.py` 中的 system_prompt 来调整 LLM 行为。
-
-## 📚 文档
-
-- 📖 [工具系统文档](docs/TOOLS.md) - 所有内置工具的详细说明
-- 🔗 [MCP 集成指南](docs/TOOL_INTEGRATION.md) - 如何配置外部工具
-- 🏗️ [架构设计文档](docs/ARCHITECTURE.md) - 深入了解系统设计原理（如存在）
-
-## 📝 开发计划
-
-- [ ] 支持更多 LLM 提供商（Claude, Gemini等）
-- [ ] 添加向量数据库支持经验相似度搜索
-- [ ] Web UI 界面
-- [ ] 并行执行多个独立步骤
-- [ ] 支持更复杂的工作流编排
-
-## 📄 许可证
-
-MIT License
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📞 支持
-
-如果你遇到问题或有建议，请：
-1. 查看 [快速开始指南](docs/QUICK_START.md) 的故障排除部分
-2. 查看 [架构文档](docs/ARCHITECTURE.md) 了解系统工作原理
-3. 提交 Issue 描述你的问题
+> 一个面向代码开发与任务执行的智能代理项目，目标是收敛为 **统一 CLI + Web 双入口、共享核心执行链、统一入库** 的架构。
 
 ---
 
-**注意**: 请确保在 `.env` 中配置有效的 OpenAI API Key 才能正常使用。
+## 当前状态
+
+> **状态说明**：仓库当前仍处于架构收敛阶段。  
+> 本 README 描述的是**当前统一方向与推荐理解方式**，不会把尚未完成的规划写成既成事实。  
+> 统一实施蓝图请看：[docs/plan.md](docs/plan.md)
+
+这意味着：
+
+- 你在仓库里仍可能看到旧路径、旧脚本和阶段性实现
+- 某些旧文档仍记录历史状态，但已补充“历史文档 / 过渡文档 / 规划对齐文档”标记
+- 对于架构、目录、入口和数据模型的最终方向，**统一以 `docs/plan.md` 为准**
+
+---
+
+## 项目目标
+
+IntelliAgent 的目标不是单纯的 Web 产品，也不是只做一个 CLI 工具，而是：
+
+- **统一入口，内部共享核心**
+- **CLI 与 Web 共用一套执行链路**
+- **核心执行链全面异步化**
+- **CLI 与 Web 统一入库**
+- **默认本地匿名可用，认证作为可选增强**
+- **消息与执行痕迹分离存储**
+
+---
+
+## 目标架构
+
+### 1. 入口层
+
+- **CLI**：子命令式接口，包命令为主，脚本兼容
+- **Web**：FastAPI + WebSocket，作为另一种入口模式
+
+### 2. 共享核心层
+
+CLI 与 Web 最终应共用：
+
+- `runtime`：共享重对象与运行时装配
+- `services`：共享执行服务层
+- `agent`：ReAct 执行核心
+- `tools`：工具系统
+- `llm`：LLM 客户端
+- `memory` / `context`：任务级状态对象
+
+### 3. 数据层
+
+统一入库，数据库通过 `DATABASE_URL` 可插拔，默认 SQLite。
+
+核心语义：
+
+- `conversation`：会话上下文
+- `run`：一次执行尝试
+- `message`：用户可见消息
+- `execution trace`：结构化执行痕迹（thought / action / observation / error / complete）
+
+### 4. 运行约束
+
+- 多会话可并发
+- 单会话单活跃 run
+- `rerun` 新建 run
+- `resume` 恢复旧 run
+- `cancel` 采用协作式取消
+
+---
+
+## 推荐理解方式
+
+如果你刚进入这个仓库，请按下面顺序理解项目：
+
+1. **先看统一蓝图**：[`docs/plan.md`](docs/plan.md)
+2. **再看目标目录**：[`docs/DIRECTORY_STRUCTURE.md`](docs/DIRECTORY_STRUCTURE.md)
+3. **再看统一快速入门**：[`docs/QUICK_START.md`](docs/QUICK_START.md)
+4. **如果关心 Web**：[`docs/WEB_UI.md`](docs/WEB_UI.md)
+5. **如果关心工具系统**：[`docs/TOOLS.md`](docs/TOOLS.md)
+
+---
+
+## 推荐入口（目标形态）
+
+以下是项目收敛后的推荐入口形态：
+
+> PR1 已固定长期入口路径：
+>
+> - CLI 根入口：`src/cli/main.py`
+> - Web 根入口：`src/app.py`
+> - 根目录 `main.py` 仅保留兼容转发角色
+
+### CLI
+
+```bash
+intelliagent run "你的任务"
+```
+
+预期特性：
+
+- 默认创建新会话
+- 支持显式续接会话
+- 默认输出人类可读内容
+- 支持 `--json` 供脚本集成（该能力计划在 PR5 完整落地，当前 PR1 仅固定 CLI 入口骨架）
+
+### Web
+
+```bash
+intelliagent web
+```
+
+或：
+
+```bash
+uvicorn src.app:app
+```
+
+预期特性：
+
+- 默认本地匿名可用
+- HTTP + WebSocket 双轨执行接口
+- 会话为主视图，执行痕迹侧展
+
+> 说明：上面是**目标入口契约**。当前仓库在完全收敛前，仍可能保留兼容性旧入口或阶段性实现。
+> 当前阶段建议优先使用 `uvicorn src.app:app` 启动 Web，CLI 则统一走 `src.cli.main` / `intelliagent`。
+
+当前阶段若需显式指定运行时路径，可通过环境变量覆盖：
+
+- `DATABASE_URL`：统一数据库配置字段；**当前 PR1 / 现有数据层仅验证 SQLite 文件 URL**，正式可插拔能力在后续阶段落地
+- `WEB_FRONTEND_DIST`：前端构建产物目录
+- `WEB_STATIC_DIR`：开发态静态资源目录
+
+---
+
+## 当前仓库里哪些东西不要再当作长期标准
+
+以下内容在仓库中可能仍能看到，但**不再代表统一方向**：
+
+- `core/` 作为核心长期目录
+- `src/web/server.py` 作为长期 Web 主入口
+- `src/web/database.py` 作为正式数据层实现
+- `web/frontend/` 作为长期前端根目录
+- `MAX_PDCA_CYCLES`、PDCA 主循环表述
+- 把项目默认理解为 Web-only
+- 把认证当作本地 Web 启动前置条件
+
+---
+
+## 文档地图
+
+### 核心文档
+
+- [`docs/plan.md`](docs/plan.md)：统一实施蓝图
+- [`docs/PROJECT_DOCUMENTATION.md`](docs/PROJECT_DOCUMENTATION.md)：项目总览
+- [`docs/DIRECTORY_STRUCTURE.md`](docs/DIRECTORY_STRUCTURE.md)：目标目录结构与边界
+- [`docs/QUICK_START.md`](docs/QUICK_START.md)：统一快速入门
+- [`docs/VERIFICATION.md`](docs/VERIFICATION.md)：统一验证口径
+
+### Web 相关
+
+- [`docs/WEB_UI.md`](docs/WEB_UI.md)：Web 模式目标形态
+- [`docs/QUICK_START_WEB.md`](docs/QUICK_START_WEB.md)：Web 模式快速开始
+
+### 工具系统
+
+- [`docs/TOOLS.md`](docs/TOOLS.md)：工具系统说明
+- [`docs/TOOL_INTEGRATION.md`](docs/TOOL_INTEGRATION.md)：MCP 工具集成
+
+### 历史文档
+
+以下文档保留用于回溯历史阶段问题，不作为当前架构依据：
+
+- [`docs/ANALYSIS_SUMMARY.md`](docs/ANALYSIS_SUMMARY.md)
+- [`docs/PDCA_OPTIMIZATION_PLAN.md`](docs/PDCA_OPTIMIZATION_PLAN.md)
+
+---
+
+## 路线图概览
+
+统一收敛按以下主线推进：
+
+`PR1 → PR2 → PR3 → PR4 → (PR5 与 PR6 可并行) → PR7`
+
+对应阶段：
+
+1. **统一骨架与配置**
+2. **抽共享 runtime/service 层**
+3. **数据层 + Alembic 基线**
+4. **核心全面异步化 + run 生命周期**
+5. **新 CLI**
+6. **Web 外壳 + HTTP/WS 双轨**
+7. **前端路由壳 + 对话主视图**
+
+详情见 [`docs/plan.md`](docs/plan.md)。
+
+---
+
+## 最小成型标准
+
+第一阶段最小竖切片完成后，应至少满足：
+
+- `intelliagent run "任务"` 可执行
+- `uvicorn src.app:app` 可启动
+- HTTP 可创建会话与 run
+- WebSocket 可实时推送事件
+- SQLite 默认可用
+- 支持 cancel / rerun / resume
+
+---
+
+## 开发约束
+
+后续开发请遵守这些方向性约束：
+
+1. 不要让 CLI 和 Web 各维护一套执行逻辑
+2. 不要把 Web 理解为唯一产品形态
+3. 不要让认证成为本地使用前置条件
+4. 不要把消息与执行痕迹混存
+5. 不要跳过正式 migration 机制
+6. 不要继续依赖旧目录和旧入口作为长期标准
+
+---
+
+## 许可证
+
+MIT License
