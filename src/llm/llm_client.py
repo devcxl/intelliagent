@@ -3,6 +3,7 @@
 LLM 客户端模块
 封装 OpenAI API 调用
 """
+import asyncio
 import os
 import json
 from typing import List, Dict, Any, Optional
@@ -70,6 +71,22 @@ class LLMClient:
         except Exception as e:
             logger.error(f"LLM 调用失败 | error={e}")
             raise
+
+    async def chat_async(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        response_format: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """异步调用 Chat API。"""
+        return await asyncio.to_thread(
+            self.chat,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
 
     def generate_plan(self, user_input: str, available_tools: List[str], context: str = "") -> List[Dict[str, Any]]:
         """
@@ -478,6 +495,24 @@ Answer: 最终答案
                 "is_complete": False,
                 "action": {"tool": "", "args": {}}
             }
+
+    async def generate_react_thought_async(
+        self,
+        user_input: str,
+        observations: List[Dict[str, Any]],
+        available_tools: List[str],
+        skills_context: str = "",
+        full_skills_context: str = "",
+    ) -> Dict[str, Any]:
+        """异步生成 ReAct 思考。"""
+        return await asyncio.to_thread(
+            self.generate_react_thought,
+            user_input=user_input,
+            observations=observations,
+            available_tools=available_tools,
+            skills_context=skills_context,
+            full_skills_context=full_skills_context,
+        )
     
     def _format_observations(self, observations: List[Dict[str, Any]]) -> str:
         """

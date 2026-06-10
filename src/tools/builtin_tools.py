@@ -19,6 +19,7 @@ import asyncio
 import json
 import os
 import pathlib
+import shutil
 from typing import Dict, Any, List
 
 # 尝试导入 aiofiles（可选，用于异步文件操作）
@@ -92,12 +93,22 @@ async def run_shell(cmd: str) -> str:
         return error_response("cmd 参数为空或仅包含空格", "EMPTY_COMMAND")
 
     try:
-        # 使用超时创建子进程
-        process = await asyncio.create_subprocess_shell(
-            cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        # 优先使用 bash，保证管道和转义行为更稳定；缺失时再回退到默认 shell
+        bash_path = shutil.which("bash")
+        if bash_path:
+            process = await asyncio.create_subprocess_exec(
+                bash_path,
+                "-lc",
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+        else:
+            process = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
         
         try:
             stdout, stderr = await asyncio.wait_for(

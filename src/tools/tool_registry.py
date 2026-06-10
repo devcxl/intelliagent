@@ -21,7 +21,7 @@ from utils.logger import logger
 from utils.config import  MCP_CONFIG_FILE
 
 # 导入内置工具
-from src.builtin_tools import (
+from src.tools.builtin_tools import (
     BUILTIN_TOOLS,
     call_tool as call_builtin_tool
 )
@@ -357,6 +357,10 @@ class ToolRegistry:
             logger.error(f"❌ 调用 MCP 工具 '{name}' 失败: {e}")
             raise
 
+    async def call_tool_async(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """新的异步工具调用入口，供异步执行链直接使用。"""
+        return await self._call_tool_async(name, arguments)
+
     def get_tool(self, name: str):
         """获取工具的包装器"""
         if not self._initialized:
@@ -520,4 +524,3 @@ class ToolRegistry:
         # 简单标记为未初始化，避免跨事件循环上下文问题
         self._initialized = False
         logger.info("✅ MCP 资源已释放")
-
