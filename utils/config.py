@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 """
-配置管理模块
-加载环境变量（日志、MCP服务、OpenAI等配置）
+兼容配置模块。
+
+历史代码仍会从 `utils.config` 读取常量，PR1 先保留兼容层，统一配置来源改为
+`src.config.settings.Settings`。
 """
-import os
-from dotenv import load_dotenv
 
-load_dotenv()
+from src.config import get_settings
 
-# 日志配置
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
-# MCP 服务配置（默认内置服务器）
+settings = get_settings()
 
-# MCP 服务器配置文件路径（JSON 格式）
-MCP_CONFIG_FILE = os.getenv("MCP_CONFIG_FILE", "mcp_config.json")
+LOG_LEVEL = settings.LOG_LEVEL
+MCP_CONFIG_FILE = settings.MCP_CONFIG_FILE
 
-# OpenAI 配置
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_API_KEY = settings.OPENAI_API_KEY
+OPENAI_API_BASE = settings.OPENAI_API_BASE
+OPENAI_MODEL = settings.OPENAI_MODEL
 
-# PDCA 配置
-MAX_PDCA_CYCLES = int(os.getenv("MAX_PDCA_CYCLES", "3"))
-MAX_RETRY_PER_STEP = int(os.getenv("MAX_RETRY_PER_STEP", "3"))
+MAX_PDCA_CYCLES = settings.MAX_PDCA_CYCLES
+MAX_RETRY_PER_STEP = settings.MAX_RETRY_PER_STEP
 
-# 经验保存配置
-EXPERIENCE_FILE = os.getenv("EXPERIENCE_FILE", "experiences.json")
+EXPERIENCE_FILE = settings.EXPERIENCE_FILE
 
-# 预留：未来可添加更多可配置项
+WEB_HOST = settings.WEB_HOST
+WEB_PORT = settings.WEB_PORT
+WEB_ENV = settings.WEB_ENV
+
+DATABASE_URL = settings.DATABASE_URL
