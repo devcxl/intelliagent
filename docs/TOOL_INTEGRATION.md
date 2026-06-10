@@ -1,5 +1,9 @@
 # MCP 工具集成指南
 
+> **文档状态**：过渡文档  
+> 本文保留 MCP 工具集成细节，但统一规划与入口边界请以 [plan.md](./plan.md) 为准。  
+> 若正文中出现旧 CLI 入口或阶段性示例，请优先理解为历史兼容路径，而不是长期推荐实现。
+
 本文档说明如何在 IntelliAgent 中集成和使用外部 MCP（Model Context Protocol）服务。
 
 ## 概览
@@ -18,7 +22,7 @@ IntelliAgent 工具系统分为两类：
              │                              │
     ┌────────▼──────────┐          ┌────────▼──────────────┐
     │  内置工具（直接）  │          │  MCP 外部工具（远程） │
-    │ (core.builtin_tools)│        │  (mcp_config.json)   │
+    │ (src/tools/builtin_tools.py)│ │  (mcp_config.json)   │
     └────────────────────┘          └─────────────────────┘
          6 个工具:                    可选的外部服务:
     - run_shell                   - filesystem
@@ -416,7 +420,7 @@ CONTEXT7_API_KEY=your_api_key_here
 ```bash
 export GITHUB_TOKEN=ghp_xxxx
 export BRAVE_API_KEY=xxxx
-python main.py "your task"
+intelliagent run "your task"
 ```
 
 ---
@@ -430,7 +434,7 @@ python main.py "your task"
 python -m json.tool mcp_config.json
 
 # 查看 IntelliAgent 初始化日志
-python main.py "test" 2>&1 | head -50
+intelliagent run "test"
 ```
 
 ### 常见问题
@@ -531,7 +535,7 @@ A: 注意事项：
 ```bash
 # ✓ 安全做法
 export GITHUB_TOKEN=ghp_xxxx
-python main.py "task"
+intelliagent run "task"
 
 # ✗ 不安全：直接在配置文件中存储
 # "GITHUB_TOKEN": "ghp_xxxx"  # 不要这样做

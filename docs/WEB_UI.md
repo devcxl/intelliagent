@@ -1,173 +1,89 @@
-# Web UI 使用说明
+# Web UI 说明（统一规划版）
 
-## 架构
+> **文档状态**：规划对齐文档  
+> 本文描述的是 Web 模式的**目标形态**。  
+> 旧的 `src/web/server.py`、`web/frontend/`、单纯日志主视图等内容不再作为统一方向依据，统一以 [plan.md](./plan.md) 为准。
 
-新的 Web UI 采用现代化的技术栈：
+---
 
-- **前端**: Vite + React + TypeScript + Tailwind CSS + shadcn/ui
-- **后端**: FastAPI (Python) + WebSocket
-- **构建**: Vite 生产构建
+## Web 模式定位
 
-## 布局
+Web 不是项目的唯一形态，而是与 CLI 并列的一种入口模式。
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      头部 (Header)                           │
-│  IntelliAgent  |  连接状态                                   │
-├──────────┬──────────────────────────────────────────────────┤
-│          │                                                 │
-│  侧边栏   │            主内容区                             │
-│          │                                                 │
-│ 会话列表  │  执行日志                                        │
-│          │                                                 │
-│          │  - 日志条目                                       │
-│          │  - 实时更新                                       │
-│          │                                                 │
-├──────────┴──────────────────────────────────────────────────┤
-│                                                          │
-│          底部输入框                                          │
-│  任务输入 | 运行任务 | 停止任务 | 清空日志                      │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
+统一目标：
 
-## 启动方式
+- 与 CLI 共用一套核心执行链
+- 默认本地匿名可用
+- 认证能力预留，但默认关闭
+- 会话主视图优先，执行痕迹可追踪
 
-### 方式 1: 生产模式（推荐）
+---
 
-使用构建后的静态文件，性能最佳：
+## 目标架构
 
-```bash
-./start-web.sh
-```
+### 后端
 
-访问: http://localhost:8000
+- `src/app.py`：FastAPI 主入口
+- `src/api/v1/*`：HTTP / WebSocket API
+- `src/services/*`：共享运行服务
+- `src/runtime/*`：共享重对象装配
 
-### 方式 2: 开发模式
+### 前端
 
-前端支持热更新，适合开发调试：
+- `frontend/`：前端项目根目录
+- 路由壳结构
+- 匿名模式默认直达主页面
 
-```bash
-./start-web-dev.sh
-```
+---
 
-访问:
-- 前端开发服务器: http://localhost:5173
-- 后端 FastAPI: http://localhost:8000
+## 目标交互模型
 
-### 方式 3: 手动启动
+### 主视图
 
-**后端**:
-```bash
-WEB_ENV=production python web/server.py
-```
+- 左侧：会话列表
+- 中间：对话主视图
+- 侧展/抽屉：执行痕迹（thought / action / observation / error / complete）
 
-**前端开发** (可选):
-```bash
-cd web/frontend
-npm run dev
-```
+### 执行接口
 
-## 功能特性
+- HTTP：创建会话、创建 run、查询状态、取消、重跑、续跑
+- WebSocket：实时推送执行事件
 
-### 会话管理
+### 数据语义
 
-- ✅ 创建新会话
-- ✅ 切换会话
-- ✅ 删除会话
-- ✅ 实时显示会话状态（运行中、完成、错误）
-- ✅ 显示会话创建/更新时间
+- `conversation` 承载会话上下文
+- `run` 承载一次执行尝试
+- `message` 承载用户可见消息
+- `execution trace` 承载结构化执行痕迹
 
-### 日志查看
+---
 
-- 💭 Thought: LLM 思考过程
-- 🔧 Action: 工具调用信息
-- 👁 Observation: 执行结果
-- 🎉 Answer: 最终答案
-- ❌ Error: 错误信息
+## 目标运行方式
 
-### 任务控制
+### 本地开发
 
-- 🚀 运行任务: 提交新的任务
-- ⏹️ 停止任务: 中断当前执行
-- 🗑️ 清空日志: 清除日志显示
-- ⌨️ 快捷键: Ctrl + Enter 快速提交
-
-### WebSocket 实时通信
-
-- 实时接收执行日志
-- 自动重连机制
-- 连接状态指示
-
-## 文件结构
-
-```
-web/
-├── server.py                    # FastAPI 后端服务器
-├── frontend/                    # 前端项目
-│   ├── src/
-│   │   ├── components/          # React 组件
-│   │   │   ├── ui/              # shadcn/ui 组件
-│   │   │   ├── Sidebar.tsx      # 侧边栏
-│   │   │   ├── LogViewer.tsx    # 日志查看器
-│   │   │   └── InputArea.tsx    # 输入框
-│   │   ├── hooks/               # React Hooks
-│   │   │   └── useWebSocket.ts  # WebSocket Hook
-│   │   ├── lib/                 # 工具函数
-│   │   │   └── utils.ts         # cn 函数
-│   │   ├── App.tsx              # 主应用组件
-│   │   ├── main.tsx             # 入口文件
-│   │   └── index.css            # 全局样式
-│   ├── dist/                    # 构建输出（生产模式）
-│   └── package.json             # 依赖配置
-└── static/                      # 旧静态文件（向后兼容）
-    ├── index.html
-    ├── js/
-    └── css/
-```
-
-## 环境变量
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `WEB_ENV` | 运行环境 (`production` / `development`) | `development` |
-| `WEB_HOST` | 后端监听地址 | `0.0.0.0` |
-| `WEB_PORT` | 后端监听端口 | `8000` |
-
-## 开发指南
-
-### 安装前端依赖
+规划目标：
 
 ```bash
-cd web/frontend
-npm install
+uvicorn src.app:app --reload
 ```
 
-### 构建前端
+前端开发模式将继续保留独立构建与热更新能力，但统一路径以 `frontend/` 为准，而不是旧的 `web/frontend/`。
 
-```bash
-npm run build
-```
+### 生产部署
 
-### 前端开发
+规划目标：
 
-```bash
-npm run dev
-```
+- 后端托管构建后的前端静态资源
+- API 与静态托管共用统一应用入口
 
-### 添加新的 shadcn/ui 组件
+---
 
-```bash
-npx shadcn@latest add [component-name]
-```
+## 非目标
 
-## 向后兼容
+以下不再视为统一规划目标：
 
-旧的静态文件仍保留在 `web/static/` 目录下，通过 `WEB_ENV=development` 可以继续使用旧界面。
-
-## 注意事项
-
-1. 首次运行生产模式需要先构建前端（启动脚本会自动处理）
-2. 前端开发服务器默认运行在 `http://localhost:5173`
-3. 后端 FastAPI 默认运行在 `http://localhost:8000`
-4. WebSocket 地址会根据当前协议自动选择 `ws://` 或 `wss://`
+- 把 Web 视为项目唯一入口
+- 继续以 `src/web/server.py` 作为长期主入口
+- 把执行日志当作唯一主视图
+- 默认强制登录后才能使用本地 Web

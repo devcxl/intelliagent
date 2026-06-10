@@ -1,12 +1,15 @@
 # Code Skill 系统实现总结
 
+> **文档状态**：过渡文档  
+> 本文总结 Skill 系统的阶段性实现。若正文仍出现 `core/skill*.py` 等旧路径，请按当前 `src/skills/*` 理解，并以 [plan.md](./plan.md) 的统一边界为准。
+
 ## 📋 项目完成情况
 
 本次任务为 IntelliAgent 项目实现了一个**完整的 Code Skill 系统**，灵感来自 Claude Code 的 Skill 功能。这是一个企业级、生产就绪的实现。
 
 ### ✅ 已完成的功能
 
-#### 1. **核心数据模型** (`core/skill.py`)
+#### 1. **核心数据模型** (`src/skills/skill.py`)
 - ✅ `CodeSkill` 类 - 基础 Skill 定义
 - ✅ `SkillMetadata` 类 - 元数据管理（名称、描述、版本、标签等）
 - ✅ `SkillImplementation` 类 - 代码实现存储
@@ -20,7 +23,7 @@
 - 自动指标跟踪：使用次数、成功率、执行时间等
 - JSON 序列化/反序列化：支持完整的 Skill 导出导入
 
-#### 2. **Skill 管理系统** (`core/skill_manager.py`)
+#### 2. **Skill 管理系统** (`src/skills/skill_manager.py`)
 - ✅ 创建、注册、删除 Skill
 - ✅ 持久化存储（JSON 格式）
 - ✅ 灵活的搜索和过滤
@@ -39,7 +42,7 @@ skills/
 │   └── {skill_name}.json    # 完整 Skill 定义
 ```
 
-#### 3. **智能推荐引擎** (`core/skill_integration.py`)
+#### 3. **智能推荐引擎** (`src/skills/skill_integration.py`)
 
 **SkillRecommender 类：**
 - ✅ 多维度相似度计算
@@ -70,9 +73,9 @@ skills/
 ### 核心模块
 | 文件 | 行数 | 功能 |
 |------|------|------|
-| `core/skill.py` | 450+ | Skill 数据模型和基础类 |
-| `core/skill_manager.py` | 380+ | Skill 管理和持久化存储 |
-| `core/skill_integration.py` | 380+ | 推荐、执行和集成 |
+| `src/skills/skill.py` | 450+ | Skill 数据模型和基础类 |
+| `src/skills/skill_manager.py` | 380+ | Skill 管理和持久化存储 |
+| `src/skills/skill_integration.py` | 380+ | 推荐、执行和集成 |
 
 ### 测试和示例
 | 文件 | 用途 |

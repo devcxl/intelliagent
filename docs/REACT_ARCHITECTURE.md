@@ -1,5 +1,9 @@
 # ReAct 架构文档
 
+> **文档状态**：阶段性架构文档  
+> 本文记录的是项目从旧 PDCA 形态迁移到 ReAct 形态时的阶段性说明。  
+> 当前统一方向已进一步收敛为“统一 CLI + Web、共享核心、异步执行链”，请以 [plan.md](./plan.md) 为准。
+
 ## 📖 概述
 
 IntelliAgent 2.0 使用 **ReAct（Reason-Act-Observe）循环**替代了原有的 PDCA 循环架构。

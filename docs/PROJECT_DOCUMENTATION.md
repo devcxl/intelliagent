@@ -1,40 +1,58 @@
 # IntelliAgent 项目文档
 
+> **文档状态**：总览文档  
+> 本文提供项目概览与文档导航。统一规划与实施顺序以 [plan.md](./plan.md) 为准。
+
+---
+
 ## 1. 项目概述
-IntelliAgent 是一个基于 ReAct 架构的智能代理系统，旨在通过 Reason → Act → Observe 循环实现高效、可追溯的代码开发流程。系统结合 LLM 思考能力与工具执行能力，支持动态任务分解和自动化操作。
 
-## 2. 核心架构
-- **ReAct 循环引擎**：负责驱动整个任务流程，包括思考、行动、观察和迭代。
-- **工具注册中心**：管理所有可用工具（如 `run_shell`, `read_file`, `write_file` 等），支持动态调用。
-- **记忆管理器**：记录历史观察结果，确保任务连续性和上下文一致性。
-- **上下文管理器**：维护当前任务的输入、状态和环境信息。
+IntelliAgent 是一个面向代码开发与任务执行的智能代理项目，目标是收敛为：
 
-## 3. 关键组件
-### Core 模块
-- `react_engine.py`：实现 ReAct 循环核心逻辑，包括思考、行动、观察与迭代控制。
-- `tool_registry.py`：工具注册与管理。
-- `skill.py` 和 `skill_manager.py`：技能定义与调度。
+- 统一入口
+- CLI 与 Web 共享核心执行链
+- ReAct 异步执行模型
+- 统一入库与可审计运行记录
 
-### Skills 目录
-当前存在两个技能目录：
-- `84446078-98c0-4e3a-87b0-8026aec1dd83`
-- `b7cc20a7-a1e2-4377-87ee-69ba88593e3d`
+---
 
-这些技能目录可能包含具体功能的实现，例如文件操作、代码生成等。
+## 2. 目标架构
 
-## 4. 已有文档列表
-以下文档已存在于 `docs/` 目录中：
-- `ANALYSIS_SUMMARY.md`
-- `PDCA_OPTIMIZATION_PLAN.md`
-- `QUICK_START.md`
-- `REACT_ARCHITECTURE.md`
-- `SKILL_GUIDE.md`
-- `SKILL_IMPLEMENTATION_SUMMARY.md`
-- `TOOLS.md`
-- `TOOL_INTEGRATION.md`
-- `WEB_UI.md`
+核心组成：
 
-## 5. 下一步建议
-- 建议为每个技能目录添加具体功能说明文档。
-- 可扩展 ReAct 引擎以支持更复杂的文档生成逻辑（如基于 LLM 自动生成内容）。
-- 提供自动化文档生成脚本，用于在项目开发过程中持续更新文档。
+- **CLI 入口**：子命令式接口，包命令为主，脚本兼容
+- **Web 入口**：`src/app.py + src/api/v1/*`
+- **共享运行时**：`src/runtime/*`
+- **共享服务层**：`src/services/*`
+- **执行核心**：`src/agent/react_engine.py`
+- **工具系统**：`src/tools/*`
+- **数据层**：`src/db/*` + Alembic
+
+---
+
+## 3. 关键运行原则
+
+- Web 不是唯一入口模式
+- 认证默认关闭，本地匿名模式可直接使用
+- 消息与执行痕迹分离存储
+- 多会话可并发，单会话单活跃 run
+
+---
+
+## 4. 推荐阅读
+
+- [plan.md](./plan.md)
+- [DIRECTORY_STRUCTURE.md](./DIRECTORY_STRUCTURE.md)
+- [QUICK_START.md](./QUICK_START.md)
+- [WEB_UI.md](./WEB_UI.md)
+- [TOOLS.md](./TOOLS.md)
+- [TOOL_INTEGRATION.md](./TOOL_INTEGRATION.md)
+
+---
+
+## 5. 历史文档
+
+以下文档保留用于回溯历史问题与旧方案，不作为当前统一规划依据：
+
+- [ANALYSIS_SUMMARY.md](./ANALYSIS_SUMMARY.md)
+- [PDCA_OPTIMIZATION_PLAN.md](./PDCA_OPTIMIZATION_PLAN.md)

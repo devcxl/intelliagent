@@ -1,12 +1,16 @@
 # IntelliAgent 工具系统文档
 
+> **文档状态**：过渡文档  
+> 本文保留大量工具细节，但统一规划与目录边界请以 [plan.md](./plan.md) 为准。  
+> 若正文中出现旧路径、旧入口或历史阶段描述，应以 `src/tools/*`、共享 runtime/service、统一 CLI + Web 方向为准。
+
 本文档详细说明 IntelliAgent 中所有可用的工具及其使用方法。
 
 ## 概览
 
 IntelliAgent 提供两类工具，通过统一的 `ToolRegistry` 接口访问：
 
-1. **内置工具** (`core.builtin_tools`) 
+1. **内置工具** (`src/tools/builtin_tools.py`) 
    - 直接 Python 实现
    - 无需 MCP 依赖
     - 7 个基础工具：文件、目录、命令执行等
@@ -27,7 +31,7 @@ IntelliAgent 系统
     └─ ToolRegistry (工具注册中心)
            │
            ├─ 内置工具（直接 Python）
-           │  └─ core.builtin_tools 模块
+           │  └─ src/tools/builtin_tools.py
             │     ├─ run_shell
             │     ├─ read_file
             │     ├─ write_file
@@ -709,4 +713,3 @@ if file_exists(path)["exists"]:
 - [MCP 集成指南](docs/TOOL_INTEGRATION.md) - 如何配置和使用外部 MCP 服务
 - [README.md](README.md) - 项目主文档
 - [配置说明](.env.example) - 工具相关的环境变量
-
