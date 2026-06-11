@@ -5,16 +5,16 @@ from src.db.session import (
     Base,
     DatabaseSessionManager,
     build_async_database_url,
-    build_sync_database_url,
-    clear_session_manager_cache,
     get_session_manager,
+    clear_session_manager_cache,
+    utcnow,
 )
 
 __all__ = [
     "Base",
     "DatabaseSessionManager",
     "build_async_database_url",
-    "build_sync_database_url",
     "get_session_manager",
     "clear_session_manager_cache",
+    "utcnow",
 ]

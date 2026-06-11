@@ -28,7 +28,7 @@ async def test_database_manager_creates_pr3_core_tables(tmp_path):
         ).fetchall()
 
     table_names = {row[0] for row in table_rows}
-    assert {"users", "conversations", "runs", "messages", "execution_traces", "alembic_version"}.issubset(
+    assert {"users", "conversations", "runs", "messages", "execution_traces"}.issubset(
         table_names
     )
 

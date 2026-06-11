@@ -14,9 +14,6 @@ import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from alembic import command
-from alembic.config import Config
-
 from src.db import DatabaseSessionManager
 from src.db.models import Conversation
 from src.db.repositories import ConversationRepository, UserRepository
@@ -63,16 +60,10 @@ class DatabaseManager:
             return
 
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        await asyncio.to_thread(self._run_migrations)
+        await self.session_manager.create_all()
         await self.user_repository.get_or_create_local_user()
         logger.info(f"数据库初始化完成 | path={self.db_path}")
         self._initialized = True
-
-    def _run_migrations(self) -> None:
-        config = Config(str(PROJECT_ROOT / "alembic.ini"))
-        config.set_main_option("script_location", str(PROJECT_ROOT / "alembic"))
-        config.set_main_option("sqlalchemy.url", self.database_url)
-        command.upgrade(config, "head")
 
     @staticmethod
     def _serialize_session(conversation: Conversation) -> Dict[str, Any]:

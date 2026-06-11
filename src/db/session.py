@@ -19,15 +19,6 @@ from src.config import get_settings
 
 
 def build_async_database_url(database_url: str) -> str:
-    """将同步 URL 转成 SQLAlchemy 异步 URL。"""
-    if database_url.startswith("sqlite+aiosqlite:///"):
-        return database_url
-    if database_url.startswith("sqlite:///"):
-        return database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
-    return database_url
-
-
-def build_sync_database_url(database_url: str) -> str:
     """将异步 URL 转成 Alembic 可用的同步 URL。"""
     if database_url.startswith("sqlite+aiosqlite:///"):
         return database_url.replace("sqlite+aiosqlite:///", "sqlite:///", 1)
