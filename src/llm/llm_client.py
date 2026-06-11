@@ -193,11 +193,9 @@ class LLMClient:
 
         except json.JSONDecodeError as e:
             logger.error(f"解析计划JSON失败 | error={e}")
-            # 返回空列表，让 Planner 和 PDCA 循环处理错误
             return []
         except Exception as e:
             logger.error(f"生成计划失败 | error={e}")
-            # 返回空列表，让 Planner 和 PDCA 循环处理错误
             return []
 
     def check_result(

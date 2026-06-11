@@ -34,8 +34,7 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: str | None = None
     OPENAI_MODEL: str = "gpt-4o-mini"
 
-    MAX_PDCA_CYCLES: int = 3
-    MAX_RETRY_PER_STEP: int = 3
+    MAX_REACT_ITERATIONS: int = 3
     EXPERIENCE_FILE: str = "experiences.json"
 
     WEB_HOST: str = "0.0.0.0"

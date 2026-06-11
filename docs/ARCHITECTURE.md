@@ -61,7 +61,7 @@ API 层
 - **导出**：`get_settings()` (lru_cache 单例)
 - **关键字段**：
   - `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_API_BASE`
-  - `MAX_PDCA_CYCLES` (默认 3，实际用作 max_iterations)
+  - `MAX_REACT_ITERATIONS` (默认 3)
   - `WEB_HOST` / `WEB_PORT` / `WEB_ENV`
   - `DATABASE_URL` (默认 `sqlite:///intelliagent.db`)
 - **被引用**：runtime, web/server, web/database, utils/config, alembic
@@ -72,7 +72,7 @@ API 层
 - **核心方法**：
   - `chat()` / `chat_async()` -- 基础 OpenAI Chat
   - `generate_react_thought()` / `generate_react_thought_async()` -- ReAct 思考生成
-  - `generate_plan()` / `check_result()` / `adjust_plan()` -- PDCA 遗留方法
+  - `generate_plan()` / `check_result()` / `adjust_plan()` -- 遗留方法
 - **依赖**：openai
 - **被引用**：runtime（通过 AgentRuntime 工厂创建）
 
@@ -303,11 +303,7 @@ RunService.run_task_async() / run_task_stream()
 
 `src/web/server.py` 使用模块级全局变量 `db`, `session_service`, `run_service`，而非通过 FastAPI 的 `app.state` 或依赖注入管理。
 
-#### 8. PDCA 命名残留
-
-`MAX_PDCA_CYCLES` 配置项名称仍保留 PDCA 痕迹，实际已用作 ReAct 的 `max_iterations`。
-
-#### 9. ToolRegistry 事件循环 hack
+#### 8. ToolRegistry 事件循环 hack
 
 `get_tool()` 在已有运行中的事件循环时，使用 `threading.Thread` + 新事件循环的 hack 方式调用 MCP 工具。
 

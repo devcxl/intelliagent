@@ -46,7 +46,7 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
         OPENAI_API_KEY="test-key",
         OPENAI_API_BASE=None,
         OPENAI_MODEL="test-model",
-        MAX_PDCA_CYCLES=3,
+        MAX_REACT_ITERATIONS=3,
         EXPERIENCE_FILE="experiences.json",
     )
     runtime = AgentRuntime(settings=settings)

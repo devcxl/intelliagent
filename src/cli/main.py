@@ -37,7 +37,7 @@ class IntelliAgent:
 
         self.api_key = api_key or settings.OPENAI_API_KEY
         self.model = model or settings.OPENAI_MODEL
-        self.max_iterations = max_iterations or settings.MAX_PDCA_CYCLES
+        self.max_iterations = max_iterations or settings.MAX_REACT_ITERATIONS
         self.runtime = get_runtime()
         self.run_service = RunService(self.runtime)
         self.db_manager = DatabaseManager(

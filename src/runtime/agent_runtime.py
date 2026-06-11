@@ -75,7 +75,7 @@ class AgentRuntime:
             llm_client=self.get_llm_client(api_key=api_key, model=model),
             tools=self.create_tool_registry(),
             memory=self.create_memory(),
-            max_iterations=max_iterations or self.settings.MAX_PDCA_CYCLES,
+            max_iterations=max_iterations or self.settings.MAX_REACT_ITERATIONS,
         )
 
     def warm_up(
