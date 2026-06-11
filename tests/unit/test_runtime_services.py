@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock
 
 import src.runtime.agent_runtime as agent_runtime_module
 from src.runtime import AgentRuntime
-from src.services import RunService, SessionService
+from src.services import RunService
 
 
 def test_agent_runtime_reuses_shared_components(monkeypatch):
@@ -65,15 +65,6 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
     assert first_engine.llm_client is second_engine.llm_client
 
 
-async def test_session_service_delegates_to_database_manager():
-    db_manager = Mock()
-    db_manager.get_all_sessions = AsyncMock(return_value=[{"id": "s1"}])
-    service = SessionService(db_manager)
-
-    result = await service.get_all_sessions()
-
-    assert result == [{"id": "s1"}]
-    db_manager.get_all_sessions.assert_awaited_once()
 
 
 def test_run_service_sync_wrapper_uses_async_entry(monkeypatch):

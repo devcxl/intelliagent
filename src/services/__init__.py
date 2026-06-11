@@ -3,7 +3,6 @@
 
 from src.services.run_service import RunService
 from src.services.run_service import RunConflictError, RunNotFoundError, RunServiceError, RunValidationError
-from src.services.session_service import SessionService
 
 __all__ = [
     "RunService",
@@ -11,5 +10,4 @@ __all__ = [
     "RunConflictError",
     "RunNotFoundError",
     "RunValidationError",
-    "SessionService",
 ]

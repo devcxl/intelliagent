@@ -37,12 +37,6 @@ class Settings(BaseSettings):
     MAX_REACT_ITERATIONS: int = 3
     EXPERIENCE_FILE: str = "experiences.json"
 
-    WEB_HOST: str = "0.0.0.0"
-    WEB_PORT: int = 8000
-    WEB_ENV: str = "development"
-    WEB_FRONTEND_DIST: str | None = None
-    WEB_STATIC_DIR: str | None = None
-
     DATABASE_URL: str = Field(default=DEFAULT_DATABASE_URL)
 
     if SettingsConfigDict is not None:
