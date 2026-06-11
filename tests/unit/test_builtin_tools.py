@@ -17,7 +17,7 @@ from typing import Dict, Any
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from utils.logger import logger
+from src.utils.logger import logger
 
 
 def load_tool_from_mcp_server():

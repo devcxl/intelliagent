@@ -15,7 +15,7 @@
 import json
 import asyncio
 from typing import Dict, Any, Optional, List, Tuple
-from utils.logger import logger
+from src.utils.logger import logger
 from src.config import get_settings
 
 MCP_CONFIG_FILE = get_settings().MCP_CONFIG_FILE

@@ -15,7 +15,7 @@ from typing import Sequence
 from src.config import get_settings
 from src.runtime import get_runtime
 from src.services import RunService
-from utils.logger import logger
+from src.utils.logger import logger
 
 
 class IntelliAgent:

@@ -10,7 +10,7 @@ from src.config import get_settings
 from src.llm.llm_client import LLMClient
 from src.memory.memory import Memory
 from src.tools.tool_registry import ToolRegistry
-from utils.logger import logger
+from src.utils.logger import logger
 
 
 class AgentRuntime:

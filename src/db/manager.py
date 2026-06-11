@@ -17,7 +17,7 @@ from typing import Optional, List, Dict, Any
 from src.db import DatabaseSessionManager
 from src.db.models import Conversation
 from src.db.repositories import ConversationRepository, UserRepository
-from utils.logger import logger
+from src.utils.logger import logger
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

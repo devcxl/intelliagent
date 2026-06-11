@@ -8,7 +8,7 @@ import inspect
 import time
 from functools import partial
 from typing import AsyncGenerator, Awaitable, Callable, Dict, Any, List, Optional
-from utils.logger import logger
+from src.utils.logger import logger
 
 
 class ReactEngine:

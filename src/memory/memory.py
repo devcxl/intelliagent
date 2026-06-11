@@ -6,7 +6,7 @@
 import json
 import os
 from typing import List, Dict, Any
-from utils.logger import logger
+from src.utils.logger import logger
 
 
 class Memory:
