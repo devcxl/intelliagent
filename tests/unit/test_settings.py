@@ -11,13 +11,13 @@ from src.db.manager import resolve_sqlite_database_path
 
 def test_settings_reads_env(monkeypatch):
     monkeypatch.setenv("OPENAI_MODEL", "test-model")
-    monkeypatch.setenv("WEB_PORT", "9001")
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
     clear_settings_cache()
 
     settings = get_settings()
 
     assert settings.OPENAI_MODEL == "test-model"
-    assert settings.WEB_PORT == 9001
+    assert settings.LOG_LEVEL == "DEBUG"
 
     clear_settings_cache()
 

@@ -20,21 +20,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.utils.logger import logger
 
 
-def load_tool_from_mcp_server():
-    """从 mcp_server.py 加载工具函数
-    
-    由于 mcp 框架的特殊性，直接导入工具函数可能有问题，
-    因此这里通过执行子进程的方式测试，或直接导入模块
-    """
-    try:
-        # 尝试导入 mcp_server 模块
-        import mcp_server
-        return mcp_server
-    except ImportError as e:
-        logger.warning(f"无法导入 mcp_server: {e}")
-        return None
-
-
 @pytest.mark.asyncio
 class TestBuiltinTools:
     """内置工具测试类"""
@@ -60,7 +45,7 @@ class TestBuiltinTools:
     async def test_run_shell_success(self):
         """测试 run_shell - 成功情况"""
         logger.info("\n🧪 测试 run_shell 成功情况...")
-        from src.tools.builtin_tools import run_shell
+        from src.tools import run_shell
         
         result = await run_shell("echo 'Hello World'")
         data = self._parse_json_response(result)
@@ -73,7 +58,7 @@ class TestBuiltinTools:
     async def test_run_shell_empty_command(self):
         """测试 run_shell - 空命令"""
         logger.info("\n🧪 测试 run_shell 空命令...")
-        from src.tools.builtin_tools import run_shell
+        from src.tools import run_shell
         
         result = await run_shell("")
         data = self._parse_json_response(result)
@@ -85,7 +70,7 @@ class TestBuiltinTools:
     async def test_run_shell_with_pipe(self):
         """测试 run_shell - 复杂命令（管道）"""
         logger.info("\n🧪 测试 run_shell 管道命令...")
-        from src.tools.builtin_tools import run_shell
+        from src.tools import run_shell
         
         result = await run_shell("printf '1\\n2\\n3\\n' | wc -l")
         data = self._parse_json_response(result)
@@ -97,7 +82,7 @@ class TestBuiltinTools:
     async def test_read_file_success(self):
         """测试 read_file - 成功读取"""
         logger.info("\n🧪 测试 read_file 成功读取...")
-        from src.tools.builtin_tools import read_file, write_file
+        from src.tools import read_file, write_file
         
         # 先写入测试文件
         test_file = Path(self.temp_dir.name) / "test.txt"
@@ -116,7 +101,7 @@ class TestBuiltinTools:
     async def test_read_file_not_found(self):
         """测试 read_file - 文件不存在"""
         logger.info("\n🧪 测试 read_file 文件不存在...")
-        from src.tools.builtin_tools import read_file
+        from src.tools import read_file
         
         result = await read_file("/nonexistent/file.txt")
         data = self._parse_json_response(result)
@@ -128,7 +113,7 @@ class TestBuiltinTools:
     async def test_write_file_success(self):
         """测试 write_file - 成功写入"""
         logger.info("\n🧪 测试 write_file 成功写入...")
-        from src.tools.builtin_tools import write_file
+        from src.tools import write_file
         
         test_file = Path(self.temp_dir.name) / "output.txt"
         content = "Test Content"
@@ -147,7 +132,7 @@ class TestBuiltinTools:
     async def test_write_file_create_parents(self):
         """测试 write_file - 自动创建父目录"""
         logger.info("\n🧪 测试 write_file 自动创建父目录...")
-        from src.tools.builtin_tools import write_file
+        from src.tools import write_file
         
         test_file = Path(self.temp_dir.name) / "subdir" / "nested" / "file.txt"
         content = "Nested Content"
@@ -159,113 +144,10 @@ class TestBuiltinTools:
         assert test_file.exists(), "文件应该被创建，包括父目录"
         logger.info(f"✅ 通过: write_file 自动创建父目录")
     
-    async def test_list_dir_success(self):
-        """测试 list_dir - 列出目录"""
-        logger.info("\n🧪 测试 list_dir 列出目录...")
-        from src.tools.builtin_tools import list_dir, write_file
-        
-        # 创建测试文件
-        (Path(self.temp_dir.name) / "file1.txt").write_text("content1")
-        (Path(self.temp_dir.name) / "file2.txt").write_text("content2")
-        (Path(self.temp_dir.name) / "subdir").mkdir()
-        
-        result = await list_dir(self.temp_dir.name)
-        data = self._parse_json_response(result)
-        
-        assert data["status"] == "ok", "应该成功列出目录"
-        assert data["count"] >= 3, f"应该至少有 3 个项目，得到 {data['count']}"
-        assert any(item["name"] == "file1.txt" for item in data["items"]), "应该包含 file1.txt"
-        assert any(item["name"] == "subdir" for item in data["items"]), "应该包含 subdir"
-        logger.info(f"✅ 通过: list_dir 成功列出目录（{data['count']} 项）")
-    
-    async def test_list_dir_not_found(self):
-        """测试 list_dir - 目录不存在"""
-        logger.info("\n🧪 测试 list_dir 目录不存在...")
-        from src.tools.builtin_tools import list_dir
-        
-        result = await list_dir("/nonexistent/directory")
-        data = self._parse_json_response(result)
-        
-        assert data["status"] == "error", "应该返回错误"
-        assert data["code"] == "NOT_FOUND", f"应该是 NOT_FOUND，得到 {data['code']}"
-        logger.info(f"✅ 通过: list_dir 正确处理不存在的目录")
-    
-    async def test_delete_file_success(self):
-        """测试 delete_file - 成功删除"""
-        logger.info("\n🧪 测试 delete_file 成功删除...")
-        from src.tools.builtin_tools import delete_file, write_file
-        
-        test_file = Path(self.temp_dir.name) / "to_delete.txt"
-        
-        # 先创建文件
-        await write_file(str(test_file), "to be deleted")
-        assert test_file.exists(), "文件应该被创建"
-        
-        # 删除文件
-        result = await delete_file(str(test_file))
-        data = self._parse_json_response(result)
-        
-        assert data["status"] == "ok", "应该成功删除"
-        assert not test_file.exists(), "文件应该被删除"
-        logger.info(f"✅ 通过: delete_file 成功删除文件")
-    
-    async def test_delete_file_not_found(self):
-        """测试 delete_file - 文件不存在"""
-        logger.info("\n🧪 测试 delete_file 文件不存在...")
-        from src.tools.builtin_tools import delete_file
-        
-        result = await delete_file("/nonexistent/file.txt")
-        data = self._parse_json_response(result)
-        
-        assert data["status"] == "error", "应该返回错误"
-        assert data["code"] == "FILE_NOT_FOUND", f"应该是 FILE_NOT_FOUND，得到 {data['code']}"
-        logger.info(f"✅ 通过: delete_file 正确处理不存在的文件")
-    
-    async def test_file_exists_file(self):
-        """测试 file_exists - 文件存在"""
-        logger.info("\n🧪 测试 file_exists 文件存在...")
-        from src.tools.builtin_tools import file_exists, write_file
-        
-        test_file = Path(self.temp_dir.name) / "exists.txt"
-        await write_file(str(test_file), "exists")
-        
-        result = await file_exists(str(test_file))
-        data = self._parse_json_response(result)
-        
-        assert data["status"] == "ok", "应该成功检查"
-        assert data["exists"] == True, "文件应该存在"
-        assert data["type"] == "file", f"类型应该是 file，得到 {data['type']}"
-        logger.info(f"✅ 通过: file_exists 正确识别存在的文件")
-    
-    async def test_file_exists_directory(self):
-        """测试 file_exists - 目录存在"""
-        logger.info("\n🧪 测试 file_exists 目录存在...")
-        from src.tools.builtin_tools import file_exists
-        
-        result = await file_exists(self.temp_dir.name)
-        data = self._parse_json_response(result)
-        
-        assert data["status"] == "ok", "应该成功检查"
-        assert data["exists"] == True, "目录应该存在"
-        assert data["type"] == "directory", f"类型应该是 directory，得到 {data['type']}"
-        logger.info(f"✅ 通过: file_exists 正确识别目录")
-    
-    async def test_file_exists_not_found(self):
-        """测试 file_exists - 不存在"""
-        logger.info("\n🧪 测试 file_exists 不存在...")
-        from src.tools.builtin_tools import file_exists
-        
-        result = await file_exists("/nonexistent/path")
-        data = self._parse_json_response(result)
-        
-        assert data["status"] == "ok", "应该成功检查"
-        assert data["exists"] == False, "路径应该不存在"
-        logger.info(f"✅ 通过: file_exists 正确识别不存在的路径")
-    
     async def test_edit_file_single_replacement(self):
         """测试 edit_file - 单次替换成功"""
         logger.info("\n🧪 测试 edit_file 单次替换...")
-        from src.tools.builtin_tools import edit_file, write_file
+        from src.tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "edit_test.txt"
         original_content = "Hello World\nHello Again\n"
@@ -285,7 +167,7 @@ class TestBuiltinTools:
     async def test_edit_file_replace_all(self):
         """测试 edit_file - 全局替换"""
         logger.info("\n🧪 测试 edit_file 全局替换...")
-        from src.tools.builtin_tools import edit_file, write_file
+        from src.tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "replace_all.txt"
         original_content = "old_value\nold_value\nold_value\n"
@@ -304,7 +186,7 @@ class TestBuiltinTools:
     async def test_edit_file_old_string_not_found(self):
         """测试 edit_file - 旧字符串未找到"""
         logger.info("\n🧪 测试 edit_file 旧字符串未找到...")
-        from src.tools.builtin_tools import edit_file, write_file
+        from src.tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "not_found.txt"
         await write_file(str(test_file), "Some content here")
@@ -319,7 +201,7 @@ class TestBuiltinTools:
     async def test_edit_file_multiple_matches_without_replace_all(self):
         """测试 edit_file - 多个匹配但未启用 replaceAll"""
         logger.info("\n🧪 测试 edit_file 多个匹配但未启用 replaceAll...")
-        from src.tools.builtin_tools import edit_file, write_file
+        from src.tools import edit_file, write_file
         
         test_file = Path(self.temp_dir.name) / "multiple.txt"
         original_content = "repeat\nrepeat\nrepeat\n"
@@ -335,7 +217,7 @@ class TestBuiltinTools:
     async def test_edit_file_empty_old_string(self):
         """测试 edit_file - 空 oldString"""
         logger.info("\n🧪 测试 edit_file 空 oldString...")
-        from src.tools.builtin_tools import edit_file
+        from src.tools import edit_file
         
         result = await edit_file("dummy.txt", "", "new_value")
         data = self._parse_json_response(result)
@@ -347,7 +229,7 @@ class TestBuiltinTools:
     async def test_edit_file_file_not_exists(self):
         """测试 edit_file - 文件不存在"""
         logger.info("\n🧪 测试 edit_file 文件不存在...")
-        from src.tools.builtin_tools import edit_file
+        from src.tools import edit_file
         
         result = await edit_file("/nonexistent/file.txt", "old", "new")
         data = self._parse_json_response(result)

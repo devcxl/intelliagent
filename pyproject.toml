@@ -17,9 +17,6 @@ dependencies = [
     "sqlalchemy>=2.0.36",
 ]
 
-[project.scripts]
-intelliagent = "src.cli.main:main"
-
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*", "utils*"]
+include = ["src*"]
