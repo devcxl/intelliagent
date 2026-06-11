@@ -29,22 +29,17 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
         def __init__(self, experience_file=None):
             self.experience_file = experience_file
 
-    class FakeContextManager:
-        pass
-
     class FakeReactEngine:
-        def __init__(self, llm_client, tools, memory, context, max_iterations):
+        def __init__(self, llm_client, tools, memory, max_iterations):
             self.llm_client = llm_client
             self.tools = tools
             self.memory = memory
-            self.context = context
             self.max_iterations = max_iterations
             created_engines.append(self)
 
     monkeypatch.setattr(agent_runtime_module, "LLMClient", FakeLLMClient)
     monkeypatch.setattr(agent_runtime_module, "ToolRegistry", FakeToolRegistry)
     monkeypatch.setattr(agent_runtime_module, "Memory", FakeMemory)
-    monkeypatch.setattr(agent_runtime_module, "ContextManager", FakeContextManager)
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
 
     settings = SimpleNamespace(
@@ -67,7 +62,6 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
     assert len(created_engines) == 2
     assert first_engine.tools is not second_engine.tools
     assert first_engine.memory is not second_engine.memory
-    assert first_engine.context is not second_engine.context
     assert first_engine.llm_client is second_engine.llm_client
 
 

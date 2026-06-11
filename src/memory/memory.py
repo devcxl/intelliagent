@@ -11,55 +11,31 @@ from utils.logger import logger
 
 
 class Memory:
-    """增强型记忆管理器 - 支持观察结果和经验保存"""
+    """增强型记忆管理器 - 支持观察结果、上下文历史和经验保存"""
 
     def __init__(self, experience_file: str = "experiences.json"):
-        """
-        初始化记忆管理器
-
-        Args:
-            experience_file: 经验保存文件路径
-        """
         self.observations = []
+        self.history = []
         self.experience_file = experience_file
         self.experiences = self._load_experiences()
 
     def add_observation(self, obs):
-        """
-        添加观察结果
-
-        Args:
-            obs: 观察结果（字典或字符串）
-        """
         self.observations.append(obs)
         logger.debug(f"添加观察结果 | total={len(self.observations)}")
 
-    def get_recent_context(self, n: int = 5) -> str:
-        """
-        获取最近的观察结果
+    def add_context(self, msg):
+        self.history.append(msg)
 
-        Args:
-            n: 返回最后n条记录
+    def get_context(self) -> str:
+        return "\n".join(self.history[-10:])
 
-        Returns:
-            格式化的上下文字符串
-        """
-        recent = self.observations[-n:] if len(self.observations) > n else self.observations
-        return "\n".join(str(o) for o in recent)
-
-    def get_all_observations(self) -> List[Any]:
-        """
-        获取所有观察结果
-
-        Returns:
-            观察结果列表
-        """
-        return self.observations
+    def clear_context(self):
+        self.history.clear()
 
     def clear_memory(self):
-        """清空观察结果（不清空经验库）"""
         self.observations.clear()
-        logger.debug("观察结果已清空")
+        self.history.clear()
+        logger.debug("记忆已清空")
 
     # ============ 经验管理功能 ============
 

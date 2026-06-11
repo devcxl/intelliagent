@@ -27,7 +27,6 @@ class ReactEngine:
         llm_client,
         tools,
         memory,
-        context,
         max_iterations: int = 10
     ):
         """
@@ -37,13 +36,11 @@ class ReactEngine:
             llm_client: LLM 客户端实例
             tools: 工具注册中心
             memory: 记忆管理器
-            context: 上下文管理器
             max_iterations: 最大迭代次数
         """
         self.llm_client = llm_client
         self.tools = tools
         self.memory = memory
-        self.context = context
         self.max_iterations = max_iterations
         
         logger.info("ReAct 引擎已初始化")
@@ -265,18 +262,15 @@ class ReactEngine:
     ) -> None:
         if reset_state:
             self.memory.clear_memory()
-            if hasattr(self.context, "clear_context"):
-                self.context.clear_context()
-
-            self.context.add_context(f"用户任务: {user_input}")
+            self.memory.add_context(f"用户任务: {user_input}")
             return
 
         for observation in seed_observations or []:
             self.memory.add_observation(observation)
 
-        history = getattr(self.context, "history", None)
+        history = getattr(self.memory, "history", None)
         if not history:
-            self.context.add_context(f"用户任务: {user_input}")
+            self.memory.add_context(f"用户任务: {user_input}")
 
     async def _should_cancel(
         self,

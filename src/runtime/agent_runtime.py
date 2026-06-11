@@ -8,7 +8,6 @@ from functools import lru_cache
 from src.agent.react_engine import ReactEngine
 from src.config import get_settings
 from src.llm.llm_client import LLMClient
-from src.memory.context import ContextManager
 from src.memory.memory import Memory
 from src.tools.tool_registry import ToolRegistry
 from utils.logger import logger
@@ -61,12 +60,8 @@ class AgentRuntime:
         return ToolRegistry()
 
     def create_memory(self) -> Memory:
-        """创建任务级 Memory。"""
+        """创建任务级 Memory（含上下文历史）。"""
         return Memory(experience_file=self.settings.EXPERIENCE_FILE)
-
-    def create_context(self) -> ContextManager:
-        """创建任务级 ContextManager。"""
-        return ContextManager()
 
     def create_engine(
         self,
@@ -80,7 +75,6 @@ class AgentRuntime:
             llm_client=self.get_llm_client(api_key=api_key, model=model),
             tools=self.create_tool_registry(),
             memory=self.create_memory(),
-            context=self.create_context(),
             max_iterations=max_iterations or self.settings.MAX_PDCA_CYCLES,
         )
 
