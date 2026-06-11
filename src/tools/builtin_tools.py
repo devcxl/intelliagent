@@ -17,10 +17,9 @@
 
 import asyncio
 import json
-import os
 import pathlib
 import shutil
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 # 尝试导入 aiofiles（可选，用于异步文件操作）
 try:
