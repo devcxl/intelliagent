@@ -4,13 +4,14 @@
 提供统一的日志记录功能
 """
 import logging
+import os
 import sys
 from typing import Optional
 
 
 def setup_logger(
     name: str = "intelliagent",
-    level: int = logging.INFO,
+    level: int | None = None,
     format_string: Optional[str] = None
 ) -> logging.Logger:
     """
@@ -26,6 +27,10 @@ def setup_logger(
     """
     if format_string is None:
         format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+    if level is None:
+        level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+        level = getattr(logging, level_name, logging.INFO)
 
     # 创建日志记录器
     logger = logging.getLogger(name)
