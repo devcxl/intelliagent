@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 from src.db import DatabaseSessionManager
 from src.services import RunService
-from src.web.database import DatabaseManager
+from src.db.manager import DatabaseManager
 
 
 class FakeSuccessfulEngine:

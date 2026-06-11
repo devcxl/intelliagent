@@ -3,7 +3,7 @@
 
 import sqlite3
 
-from src.web.database import DatabaseManager
+from src.db.manager import DatabaseManager
 
 
 async def test_database_manager_creates_parent_directory(tmp_path):

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from src.config import clear_settings_cache, get_settings
-from src.web.database import resolve_sqlite_database_path
+from src.db.manager import resolve_sqlite_database_path
 
 
 def test_settings_reads_env(monkeypatch):

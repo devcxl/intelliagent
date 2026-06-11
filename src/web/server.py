@@ -18,7 +18,7 @@ from src.runtime import get_runtime
 from src.services import RunService, RunServiceError, SessionService
 from utils.logger import logger
 
-from src.web.database import DatabaseManager, resolve_sqlite_database_path
+from src.db.manager import DatabaseManager, resolve_sqlite_database_path
 
 
 project_root = Path(__file__).resolve().parents[2]

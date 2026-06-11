@@ -16,7 +16,7 @@ from typing import Sequence
 from src.config import get_settings
 from src.runtime import get_runtime
 from src.services import RunService, SessionService
-from src.web.database import DatabaseManager, resolve_sqlite_database_path
+from src.db.manager import DatabaseManager, resolve_sqlite_database_path
 from utils.logger import logger
 
 
