@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SQLite 数据库管理器 — 负责会话、消息、运行记录的持久化。"""
+"""SQLite 数据库管理器 — 负责 Conversation、Message、Run、Trace 持久化。"""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ class DatabaseManager:
 
     管理核心表：
     - users: 用户信息
-    - conversations: 会话（session）信息
-    - runs: 运行记录（一次 run = 一次 agent 执行）
-    - messages: 消息历史
-    - execution_traces: 执行轨迹（thought/action/observation/answer）
+    - conversations: Conversation 信息
+    - runs: Run 记录（一次 run = 一次 agent 执行）
+    - messages: Message 历史
+    - execution_traces: Trace 轨迹（thought/action/observation/answer）
     """
 
     def __init__(self, db_path: str) -> None:
@@ -40,31 +40,31 @@ class DatabaseManager:
             conn.executescript(_SCHEMA_SQL)
 
     # ------------------------------------------------------------------
-    # 会话（Conversation）CRUD
+    # Conversation CRUD
     # ------------------------------------------------------------------
-    async def create_session(
+    async def create_conversation(
         self,
-        session_id: str,
+        conversation_id: str,
         title: str = "",
         task: str = "",
         status: str = "idle",
     ) -> dict[str, Any]:
-        """创建新会话。"""
+        """创建新 Conversation。"""
         now = _now()
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """INSERT INTO conversations (id, title, task, status, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (session_id, title, task, status, now, now),
+                (conversation_id, title, task, status, now, now),
             )
-        return {"id": session_id, "logs": []}
+        return {"id": conversation_id, "logs": []}
 
-    async def get_session(self, session_id: str) -> dict[str, Any] | None:
-        """获取单个会话。"""
+    async def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
+        """获取单个 Conversation。"""
         with sqlite3.connect(self.db_path) as conn:
             row = conn.execute(
                 "SELECT id, title, task, status, created_at, updated_at FROM conversations WHERE id = ?",
-                (session_id,),
+                (conversation_id,),
             ).fetchone()
         if row is None:
             return None
@@ -78,14 +78,14 @@ class DatabaseManager:
             "logs": [],
         }
 
-    async def update_session(
+    async def update_conversation(
         self,
-        session_id: str,
+        conversation_id: str,
         title: str | None = None,
         status: str | None = None,
         logs: list[dict[str, Any]] | None = None,
     ) -> bool:
-        """更新会话信息。"""
+        """更新 Conversation 信息。"""
         now = _now()
         fields = []
         values: list[Any] = []
@@ -99,7 +99,7 @@ class DatabaseManager:
 
         fields.append("updated_at = ?")
         values.append(now)
-        values.append(session_id)
+        values.append(conversation_id)
 
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -108,15 +108,22 @@ class DatabaseManager:
             )
         return True
 
-    async def delete_session(self, session_id: str) -> bool:
-        """删除会话及关联数据。"""
+    async def delete_conversation(self, conversation_id: str) -> bool:
+        """删除 Conversation 及关联数据。"""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM conversations WHERE id = ?", (session_id,))
-            conn.execute("DELETE FROM messages WHERE conversation_id = ?", (session_id,))
+            run_rows = conn.execute(
+                "SELECT id FROM runs WHERE conversation_id = ?",
+                (conversation_id,),
+            ).fetchall()
+            for (run_id,) in run_rows:
+                conn.execute("DELETE FROM execution_traces WHERE run_id = ?", (run_id,))
+            conn.execute("DELETE FROM runs WHERE conversation_id = ?", (conversation_id,))
+            conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+            conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
         return True
 
-    async def get_all_sessions(self) -> list[dict[str, Any]]:
-        """获取所有会话列表。"""
+    async def list_conversations(self) -> list[dict[str, Any]]:
+        """获取所有 Conversation 列表。"""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute(
                 "SELECT id, title, task, status, created_at, updated_at FROM conversations ORDER BY updated_at DESC"
@@ -154,7 +161,7 @@ class DatabaseManager:
         return msg_id
 
     async def get_messages(self, conversation_id: str) -> list[dict[str, Any]]:
-        """获取某个会话的所有消息，按创建时间升序。"""
+        """获取某个 Conversation 的所有消息，按创建时间升序。"""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute(
                 "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
@@ -244,7 +251,7 @@ class DatabaseManager:
         return True
 
     async def list_runs_by_conversation(self, conversation_id: str) -> list[dict[str, Any]]:
-        """获取某个会话的所有运行记录。"""
+        """获取某个 Conversation 的所有 Run 记录。"""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute(
                 """SELECT id, conversation_id, task_snapshot, status, max_iterations,
@@ -311,10 +318,10 @@ class DatabaseManager:
     # ------------------------------------------------------------------
     # 便捷查询
     # ------------------------------------------------------------------
-    async def get_latest_session(self) -> dict[str, Any] | None:
-        """获取最近更新的会话。"""
-        all_sessions = await self.get_all_sessions()
-        return all_sessions[0] if all_sessions else None
+    async def get_latest_conversation(self) -> dict[str, Any] | None:
+        """获取最近更新的 Conversation。"""
+        conversations = await self.list_conversations()
+        return conversations[0] if conversations else None
 
 
 # ======================================================================

@@ -33,14 +33,14 @@ async def test_database_manager_creates_pr3_core_tables(tmp_path):
     )
 
 
-async def test_database_manager_session_crud_uses_conversations(tmp_path):
+async def test_database_manager_conversation_crud(tmp_path):
     db_path = tmp_path / "crud" / "intelliagent.db"
     manager = DatabaseManager(str(db_path))
     await manager.initialize()
 
-    created = await manager.create_session(
-        session_id="conversation-1",
-        title="测试会话",
+    created = await manager.create_conversation(
+        conversation_id="conversation-1",
+        title="测试 Conversation",
         task="测试任务",
         status="idle",
     )
@@ -48,11 +48,11 @@ async def test_database_manager_session_crud_uses_conversations(tmp_path):
     assert created["id"] == "conversation-1"
     assert created["logs"] == []
 
-    fetched = await manager.get_session("conversation-1")
+    fetched = await manager.get_conversation("conversation-1")
     assert fetched is not None
-    assert fetched["title"] == "测试会话"
+    assert fetched["title"] == "测试 Conversation"
 
-    updated = await manager.update_session(
+    updated = await manager.update_conversation(
         "conversation-1",
         title="已更新",
         status="running",
@@ -60,15 +60,32 @@ async def test_database_manager_session_crud_uses_conversations(tmp_path):
     )
     assert updated is True
 
-    fetched_after_update = await manager.get_session("conversation-1")
+    fetched_after_update = await manager.get_conversation("conversation-1")
     assert fetched_after_update is not None
     assert fetched_after_update["title"] == "已更新"
     assert fetched_after_update["status"] == "running"
     assert fetched_after_update["logs"] == []
 
-    sessions = await manager.get_all_sessions()
-    assert len(sessions) == 1
+    conversations = await manager.list_conversations()
+    assert len(conversations) == 1
 
-    deleted = await manager.delete_session("conversation-1")
+    await manager.save_message("conversation-1", "user", "hello")
+    await manager.create_run(
+        run_id="run-1",
+        conversation_id="conversation-1",
+        task_snapshot="测试任务",
+    )
+    await manager.save_trace(
+        trace_id="trace-1",
+        run_id="run-1",
+        iteration=1,
+        trace_type="answer",
+        data={"answer": "done"},
+    )
+
+    deleted = await manager.delete_conversation("conversation-1")
     assert deleted is True
-    assert await manager.get_session("conversation-1") is None
+    assert await manager.get_conversation("conversation-1") is None
+    assert await manager.get_messages("conversation-1") == []
+    assert await manager.get_run("run-1") is None
+    assert await manager.list_traces_by_run("run-1") == []
