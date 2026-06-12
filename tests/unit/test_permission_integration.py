@@ -5,8 +5,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.core.permission_engine import CliCallback, PermissionEngine
+from src.core.permission_engine import PermissionEngine
 from src.core.react_engine import ReactEngine
+from src.runtime.permission_callback import CliCallback
 
 
 class MockLLMClient:

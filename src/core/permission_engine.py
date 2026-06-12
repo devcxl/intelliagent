@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from pathlib import Path
 from typing import Any
 
-from src.types.permission import Decision, PermissionAction, PermissionCallback, Rule
+from src.types.permission import Decision, PermissionAction, Rule
 
 _SHELL_DELIMITERS = re.compile(r"[;&|\n]")
 _CMD_SUBSTITUTION = re.compile(r"\$\(|`")
@@ -142,29 +141,6 @@ class PermissionEngine:
     @staticmethod
     def _reason(rule: Rule) -> str:
         return f"匹配规则: tool={rule.tool}, action={rule.action.value}, conditions={rule.conditions}"
-
-
-class CliCallback(PermissionCallback):
-    def __init__(self, timeout: float = 120.0) -> None:
-        self._timeout = timeout
-
-    async def on_prompt(self, tool_name: str, args: dict[str, Any], reason: str) -> bool:
-        loop = asyncio.get_event_loop()
-        try:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(None, self._prompt, tool_name, args, reason),
-                timeout=self._timeout,
-            )
-            return result
-        except asyncio.TimeoutError:
-            print(f"\n⏰ 确认超时（{self._timeout}s），自动拒绝")
-            return False
-
-    def _prompt(self, tool_name: str, args: dict[str, Any], reason: str) -> bool:
-        args_str = json.dumps(args, ensure_ascii=False)
-        print(f"\n⚠️  权限确认 [{tool_name}] {args_str}")
-        print(f"   原因: {reason}")
-        return input("   允许执行？[y/N] ").strip().lower() == "y"
 
 
 def load_permission_engine(config_path: str, workspace: Path | None = None) -> PermissionEngine:

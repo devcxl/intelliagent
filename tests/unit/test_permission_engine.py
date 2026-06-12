@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 
 from src.core.permission_engine import (
-    CliCallback,
     PermissionEngine,
     _is_dangerous_cmd,
     _is_path_in_workspace,
     _is_path_sensitive,
     load_permission_engine,
 )
+from src.runtime.permission_callback import CliCallback
 
 
 # ============================================================================
