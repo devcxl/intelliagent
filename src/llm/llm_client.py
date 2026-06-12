@@ -5,10 +5,17 @@ LLM 客户端模块
 """
 import asyncio
 import os
+from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
-from openai.types.chat import ChatCompletionMessage
 from src.utils.logger import logger
+
+
+@dataclass(frozen=True)
+class LLMResponse:
+    content: str | None
+    tool_calls: list[Any]
+    usage: Any = None
 
 
 class LLMClient:
@@ -30,7 +37,7 @@ class LLMClient:
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, str]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
-    ) -> ChatCompletionMessage:
+    ) -> LLMResponse:
         try:
             kwargs: Dict[str, Any] = {
                 "model": self.model,
@@ -49,7 +56,11 @@ class LLMClient:
             message = response.choices[0].message
 
             logger.debug(f"LLM 响应成功 | tokens={response.usage.total_tokens if response.usage else 'N/A'}")
-            return message
+            return LLMResponse(
+                content=message.content,
+                tool_calls=getattr(message, "tool_calls", None) or [],
+                usage=response.usage,
+            )
 
         except Exception as e:
             logger.error(f"LLM 调用失败 | error={e}")
@@ -62,7 +73,7 @@ class LLMClient:
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, str]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
-    ) -> ChatCompletionMessage:
+    ) -> LLMResponse:
         return await asyncio.to_thread(
             self.chat,
             messages=messages,
@@ -71,5 +82,4 @@ class LLMClient:
             response_format=response_format,
             tools=tools,
         )
-
 
