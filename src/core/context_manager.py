@@ -54,6 +54,18 @@ MESSAGE_OVERHEAD_TOKENS = 4
 TOOL_CALL_OVERHEAD_TOKENS = 10
 
 
+def estimate_tokens(messages: list[dict[str, Any]]) -> int:
+    total = 0
+    for msg in messages:
+        total += MESSAGE_OVERHEAD_TOKENS
+        content = msg.get("content", "")
+        if content:
+            total += int(len(str(content)) * TOKEN_PER_CHAR)
+        if "tool_calls" in msg:
+            total += TOOL_CALL_OVERHEAD_TOKENS * len(msg["tool_calls"])
+    return total
+
+
 # ===================================================================
 # 上下文快照
 # ===================================================================
@@ -207,17 +219,7 @@ class SlidingWindowStrategy(WindowStrategy):
 
     @staticmethod
     def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
-        """估算消息列表的 token 数。"""
-        total = 0
-        for msg in messages:
-            total += MESSAGE_OVERHEAD_TOKENS
-            content = msg.get("content", "")
-            if content:
-                total += int(len(str(content)) * TOKEN_PER_CHAR)
-            # 工具调用额外开销
-            if "tool_calls" in msg:
-                total += TOOL_CALL_OVERHEAD_TOKENS * len(msg["tool_calls"])
-        return total
+        return estimate_tokens(messages)
 
 
 # ===================================================================
@@ -631,16 +633,7 @@ class ContextManager:
 
     @staticmethod
     def _estimate_tokens(messages: list[dict[str, Any]]) -> int:
-        """估算消息列表的 token 数。"""
-        total = 0
-        for msg in messages:
-            total += MESSAGE_OVERHEAD_TOKENS
-            content = msg.get("content", "")
-            if content:
-                total += int(len(str(content)) * TOKEN_PER_CHAR)
-            if "tool_calls" in msg:
-                total += TOOL_CALL_OVERHEAD_TOKENS * len(msg["tool_calls"])
-        return total
+        return estimate_tokens(messages)
 
     def should_truncate(
         self,
