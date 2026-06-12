@@ -7,8 +7,6 @@ LLMClient.chat() DEBUG 日志测试
 import logging
 from types import SimpleNamespace
 
-import pytest
-
 import src.llm.llm_client as llm_module
 from src.llm.llm_client import LLMClient
 

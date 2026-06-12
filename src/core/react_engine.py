@@ -3,16 +3,15 @@ from __future__ import annotations
 import json
 from typing import Any, AsyncGenerator
 
+from src.core.context_manager import DEFAULT_SYSTEM_PROMPT, ContextManager
 from src.tools.registry import _default_registry
-from src.core.context_manager import ContextManager, DEFAULT_SYSTEM_PROMPT
 from src.types.permission import (
     LLMClientProtocol,
     MemoryProtocol,
-    PermissionEngineProtocol,
     PermissionCallbackProtocol,
+    PermissionEngineProtocol,
 )
 from src.utils.logger import logger
-
 
 SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
@@ -96,7 +95,7 @@ class ReactEngine:
 
         while True:
             if iter_limit is not None and num_turns >= iter_limit:
-                logger.debug(f"ReactEngine - 循环退出 | reason=max_iterations")
+                logger.debug("ReactEngine - 循环退出 | reason=max_iterations")
                 logger.warning(f"安全网触发终止 | turns={num_turns} max_iterations={iter_limit}")
                 state = {
                     "success": False, "answer": "",
@@ -119,7 +118,7 @@ class ReactEngine:
                 f"tokens={total_tokens} repeats={consecutive_repeats}"
             )
             if safety == "stop":
-                logger.debug(f"ReactEngine - 循环退出 | reason=safety_stop")
+                logger.debug("ReactEngine - 循环退出 | reason=safety_stop")
                 logger.warning(f"安全网触发终止 | turns={num_turns} tokens={total_tokens}")
                 state = {
                     "success": False, "answer": "",
@@ -173,7 +172,7 @@ class ReactEngine:
             )
 
             if not response.tool_calls:
-                logger.debug(f"ReactEngine - 循环退出 | reason=agent_finished")
+                logger.debug("ReactEngine - 循环退出 | reason=agent_finished")
 
             state = {
                 "num_turns": num_turns,
@@ -393,7 +392,8 @@ class ReactEngine:
                     if not approved:
                         return json.dumps({"status": "error", "error": "用户拒绝执行"}, ensure_ascii=False)
                 else:
-                    return json.dumps({"status": "error", "error": f"需要确认但无回调: {decision.reason}"}, ensure_ascii=False)
+                    err = f"需要确认但无回调: {decision.reason}"
+                    return json.dumps({"status": "error", "error": err}, ensure_ascii=False)
 
         fn = self._registry.get_tool_fn(name)
         if fn is None:

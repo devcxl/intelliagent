@@ -5,8 +5,9 @@ ReactEngine._loop() DEBUG 日志测试
 使用 caplog fixture 验证 DEBUG 级别日志输出。
 """
 import logging
-import pytest
 from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from src.core.react_engine import ReactEngine
 

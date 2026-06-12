@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-import src.main as main_module
 import src.cli.orchestrator as orchestrator_module
+import src.main as main_module
 
 
 class FakeDatabaseManager:

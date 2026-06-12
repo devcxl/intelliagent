@@ -314,10 +314,11 @@ class TraceRepository:
     async def list_by_run(self, run_id: str) -> list[dict[str, Any]]:
         """获取某个运行记录的所有执行轨迹，按创建时间升序。"""
         with sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT id, run_id, iteration, trace_type, data, created_at FROM execution_traces WHERE run_id = ? ORDER BY created_at ASC",
-                (run_id,),
-            ).fetchall()
+            sql = (
+                "SELECT id, run_id, iteration, trace_type, data, created_at"
+                " FROM execution_traces WHERE run_id = ? ORDER BY created_at ASC"
+            )
+            rows = conn.execute(sql, (run_id,)).fetchall()
         return [
             {
                 "id": r[0],

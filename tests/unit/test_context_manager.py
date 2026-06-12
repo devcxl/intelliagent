@@ -59,7 +59,13 @@ def test_compact_summary_contains_tool_observation_without_tool_role_message():
     ctx.initialize("读取配置")
     ctx.add_assistant_message(
         None,
-        [{"id": "call-1", "type": "function", "function": {"name": "read_file", "arguments": '{"path":"pyproject.toml"}'}}],
+        [
+            {
+                "id": "call-1",
+                "type": "function",
+                "function": {"name": "read_file", "arguments": '{"path":"pyproject.toml"}'},
+            }
+        ],
     )
     ctx.add_tool_message("call-1", '{"status":"ok","result":"project=intelliagent"}')
 
@@ -102,7 +108,13 @@ def test_compact_summary_keeps_assistant_content_when_tool_calls_exist():
     ctx.initialize("读取配置")
     ctx.add_assistant_message(
         "我需要先读取项目配置",
-        [{"id": "call-1", "type": "function", "function": {"name": "read_file", "arguments": '{"path":"pyproject.toml"}'}}],
+        [
+            {
+                "id": "call-1",
+                "type": "function",
+                "function": {"name": "read_file", "arguments": '{"path":"pyproject.toml"}'},
+            }
+        ],
     )
 
     ctx.compact_to_summary()

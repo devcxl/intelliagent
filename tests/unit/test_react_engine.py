@@ -2,9 +2,10 @@
 """
 ReAct 循环引擎单元测试 — function calling 模式 + 双层安全网
 """
-import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from src.core.context_manager import ContextManager
 from src.core.react_engine import ReactEngine
@@ -152,9 +153,11 @@ class TestReactEngineToolCalls:
             nonlocal call_count
             call_count += 1
             if call_count < 5:
-                return _make_response(
-                    tool_calls=[_make_tool_call(f"call_{call_count}", "read_file", f'{{"path": "file_{call_count}.txt"}}')]
+                tc = _make_tool_call(
+                    f"call_{call_count}", "read_file",
+                    f'{{"path": "file_{call_count}.txt"}}',
                 )
+                return _make_response(tool_calls=[tc])
             else:
                 return _make_response(content="所有文件已处理")
 

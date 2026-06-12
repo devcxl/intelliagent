@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import asyncio
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -14,7 +12,6 @@ from src.core.permission_engine import (
     load_permission_engine,
 )
 from src.runtime.permission_callback import CliCallback
-
 
 # ============================================================================
 # 2.1 — PermissionEngine.check() 测试

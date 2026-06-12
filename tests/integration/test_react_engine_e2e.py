@@ -9,8 +9,8 @@ ReactEngine 端到端测试 — 使用真实 LLM（需要 OPENAI_API_KEY）。
 """
 import pytest
 
-from src.llm.llm_client import LLMClient
 from src.core.react_engine import ReactEngine
+from src.llm.llm_client import LLMClient
 
 
 @pytest.fixture(scope="module")

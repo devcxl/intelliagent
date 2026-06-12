@@ -1,6 +1,8 @@
 import pathlib
-from .response import success_response, error_response
+
 from src.utils.logger import logger
+
+from .response import error_response, success_response
 
 try:
     import aiofiles
@@ -132,15 +134,16 @@ async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool 
 
         if occurrence_count == 0:
             return error_response(
-                f"未找到要替换的文本片段，请检查 oldString 是否正确",
+                "未找到要替换的文本片段，请检查 oldString 是否正确",
                 "OLD_STRING_NOT_FOUND"
             )
 
         if occurrence_count > 1 and not replaceAll:
-            return error_response(
-                f"找到 {occurrence_count} 处匹配，但 replaceAll=False，仅允许单次替换。请设置 replaceAll=True 或提供更精确的 oldString。",
-                "MULTIPLE_MATCHES"
+            msg = (
+                f"找到 {occurrence_count} 处匹配，但 replaceAll=False，"
+                "仅允许单次替换。请设置 replaceAll=True 或提供更精确的 oldString。"
             )
+            return error_response(msg, "MULTIPLE_MATCHES")
 
         if replaceAll:
             new_content = content.replace(oldString, newString)
