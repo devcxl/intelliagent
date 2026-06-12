@@ -46,10 +46,12 @@ async def main(
         return
 
     conversation_id, history_context = await orchestrator.setup_conversation(task, session_id, resume)
+    for warning in orchestrator.warnings:
+        print(f"⚠️  {warning}")
     await orchestrator.save_message("user", task)
     await orchestrator.create_run(task)
 
-    history_count = await orchestrator.get_history_message_count(conversation_id)
+    history_count = await orchestrator.get_message_count(conversation_id)
     format_conversation_header(task, history_count, conversation_id, orchestrator.is_new)
 
     assistant_content = ""

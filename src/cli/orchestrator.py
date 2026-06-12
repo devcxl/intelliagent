@@ -23,6 +23,7 @@ class ConversationOrchestrator:
         self._run_id: str | None = None
         self._is_new: bool = True
         self._last_iteration: int = 0
+        self._warnings: list[str] = []
 
     @property
     def conversation_id(self) -> str | None:
@@ -36,6 +37,10 @@ class ConversationOrchestrator:
     def is_new(self) -> bool:
         return self._is_new
 
+    @property
+    def warnings(self) -> list[str]:
+        return self._warnings
+
     async def initialize(self) -> None:
         """初始化数据库。"""
         await self._db.initialize()
@@ -47,12 +52,13 @@ class ConversationOrchestrator:
         resume: bool = False,
     ) -> tuple[str, str | None]:
         """创建或恢复 Conversation，返回 (conversation_id, history_context)。"""
+        self._warnings = []
         conversation_id: str
 
         if session_id:
             existing = await self._db.get_conversation(session_id)
             if existing is None:
-                print(f"⚠️  Conversation {session_id} 不存在，将创建新 Conversation。")
+                self._warnings.append(f"Conversation {session_id} 不存在，将创建新 Conversation。")
                 conversation_id = session_id
                 await self._db.create_conversation(conversation_id, title=task[:80], task=task)
                 self._is_new = True
@@ -65,10 +71,9 @@ class ConversationOrchestrator:
             if latest:
                 conversation_id = latest["id"]
                 await self._db.update_conversation(conversation_id, status="running")
-                print(f"📋 继续 Conversation: {conversation_id} ({latest['title']})")
                 self._is_new = False
             else:
-                print("⚠️  没有历史 Conversation，将创建新 Conversation。")
+                self._warnings.append("没有历史 Conversation，将创建新 Conversation。")
                 conversation_id = f"conv-{int(time.time() * 1000)}"
                 await self._db.create_conversation(conversation_id, title=task[:80], task=task)
                 self._is_new = True
@@ -136,10 +141,6 @@ class ConversationOrchestrator:
 
     async def get_message_count(self, conversation_id: str) -> int:
         """获取 Conversation 的消息数。"""
-        return len(await self._db.get_messages(conversation_id))
-
-    async def get_history_message_count(self, conversation_id: str) -> int:
-        """获取 Conversation 的历史消息数（不含当前用户消息）。"""
         return len(await self._db.get_messages(conversation_id))
 
     async def save_event_trace(self, seq: int, event: dict[str, Any]) -> str | None:
