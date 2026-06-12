@@ -1,5 +1,6 @@
 import pathlib
 from .response import success_response, error_response
+from src.utils.logger import logger
 
 try:
     import aiofiles
@@ -38,6 +39,8 @@ async def read_file(path: str) -> str:
         if len(content) > FILE_READ_MAX_SIZE:
             content = content[:FILE_READ_MAX_SIZE]
             truncated = True
+
+        logger.debug("FileTools - 读取文件 | path=%s size=%d", str(file_path), len(content))
 
         return success_response({
             "content": content,
@@ -79,6 +82,8 @@ async def write_file(path: str, content: str) -> str:
                 await f.write(content)
         else:
             file_path.write_text(content, encoding='utf-8')
+
+        logger.debug("FileTools - 写入文件 | path=%s size=%d", str(file_path), len(content))
 
         return success_response({
             "message": "文件已创建",
@@ -159,9 +164,12 @@ async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool 
         if len(new_content) > preview_length:
             content_preview += "..."
 
+        replacements = occurrence_count if replaceAll else 1
+        logger.debug("FileTools - 编辑文件 | path=%s replacements=%d", str(file_path), replacements)
+
         return success_response({
             "message": "文件编辑成功",
-            "replacements": occurrence_count if replaceAll else 1,
+            "replacements": replacements,
             "content": content_preview,
             "path": str(file_path),
             "size": len(new_content)
