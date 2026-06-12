@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import src.main as main_module
+import src.cli.orchestrator as orchestrator_module
 
 
 class FakeDatabaseManager:
@@ -83,7 +84,8 @@ class FakeAgentRuntime:
         return FakeEngine()
 
 
-def _patch_main_dependencies(monkeypatch, fake_db, created=None):
+def _patch_orchestrator_dependencies(monkeypatch, fake_db, created=None):
+    """Patch orchestrator 模块中的依赖，使其使用 fake 实现。"""
     settings = SimpleNamespace(DATABASE_URL=":memory:")
 
     class RecordingAgentRuntime(FakeAgentRuntime):
@@ -98,9 +100,9 @@ def _patch_main_dependencies(monkeypatch, fake_db, created=None):
                 return FakeEngine(created.setdefault("engine_calls", []))
             return FakeEngine()
 
-    monkeypatch.setattr(main_module, "get_settings", lambda: settings)
-    monkeypatch.setattr(main_module, "DatabaseManager", lambda _: fake_db)
-    monkeypatch.setattr(main_module, "AgentRuntime", RecordingAgentRuntime, raising=False)
+    monkeypatch.setattr(orchestrator_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(orchestrator_module, "DatabaseManager", lambda _: fake_db)
+    monkeypatch.setattr(orchestrator_module, "AgentRuntime", RecordingAgentRuntime)
     return settings
 
 
@@ -112,8 +114,8 @@ async def test_main_creates_engine_through_agent_runtime(monkeypatch):
     def fail_if_direct_llm_is_used(*args, **kwargs):
         raise AssertionError("main.py must create engines through AgentRuntime")
 
-    settings = _patch_main_dependencies(monkeypatch, fake_db, created)
-    monkeypatch.setattr(main_module, "LLMClient", fail_if_direct_llm_is_used, raising=False)
+    settings = _patch_orchestrator_dependencies(monkeypatch, fake_db, created)
+    monkeypatch.setattr(orchestrator_module, "LLMClient", fail_if_direct_llm_is_used, raising=False)
 
     await main_module.main(task="测试任务")
 
@@ -125,7 +127,7 @@ async def test_main_creates_engine_through_agent_runtime(monkeypatch):
 async def test_main_passes_history_context_to_engine(monkeypatch):
     created = {}
     fake_db = FakeDatabaseManager(messages=[{"role": "assistant", "content": "之前的答案"}])
-    _patch_main_dependencies(monkeypatch, fake_db, created)
+    _patch_orchestrator_dependencies(monkeypatch, fake_db, created)
 
     await main_module.main(task="测试任务")
 
@@ -137,7 +139,7 @@ async def test_main_passes_history_context_to_engine(monkeypatch):
 @pytest.mark.asyncio
 async def test_main_session_alias_updates_existing_conversation(monkeypatch):
     fake_db = FakeDatabaseManager(existing_conversation={"id": "conversation-1", "title": "旧"})
-    _patch_main_dependencies(monkeypatch, fake_db)
+    _patch_orchestrator_dependencies(monkeypatch, fake_db)
 
     await main_module.main(task="测试任务", session_id="conversation-1")
 
@@ -148,7 +150,7 @@ async def test_main_session_alias_updates_existing_conversation(monkeypatch):
 @pytest.mark.asyncio
 async def test_main_session_alias_creates_missing_conversation(monkeypatch):
     fake_db = FakeDatabaseManager(existing_conversation=None)
-    _patch_main_dependencies(monkeypatch, fake_db)
+    _patch_orchestrator_dependencies(monkeypatch, fake_db)
 
     await main_module.main(task="测试任务", session_id="conversation-new")
 
@@ -159,7 +161,7 @@ async def test_main_session_alias_creates_missing_conversation(monkeypatch):
 @pytest.mark.asyncio
 async def test_main_resume_uses_latest_conversation(monkeypatch):
     fake_db = FakeDatabaseManager(latest_conversation={"id": "conversation-latest", "title": "最近"})
-    _patch_main_dependencies(monkeypatch, fake_db)
+    _patch_orchestrator_dependencies(monkeypatch, fake_db)
 
     await main_module.main(task="测试任务", resume=True)
 
@@ -175,7 +177,7 @@ async def test_main_history_lists_conversations(monkeypatch):
         "status": "finished",
         "updated_at": "now",
     }])
-    _patch_main_dependencies(monkeypatch, fake_db)
+    _patch_orchestrator_dependencies(monkeypatch, fake_db)
 
     await main_module.main(task="", list_history=True)
 
