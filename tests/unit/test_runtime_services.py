@@ -28,7 +28,6 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
             self.max_tokens = max_tokens
             created_engines.append(self)
 
-    monkeypatch.setattr(agent_runtime_module, "LLMClient", FakeLLMClient)
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
 
     settings = SimpleNamespace(
@@ -36,7 +35,12 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
         OPENAI_API_BASE=None,
         OPENAI_MODEL="test-model",
     )
-    runtime = AgentRuntime(settings=settings)
+    runtime = AgentRuntime(
+        settings=settings,
+        llm_client_factory=lambda: FakeLLMClient(
+            api_key="test-key", model="test-model",
+        ),
+    )
 
     first_llm = runtime.get_llm_client()
     second_llm = runtime.get_llm_client()
@@ -94,6 +98,12 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
         def __init__(self, api_key=None, base_url=None, model=None):
             pass
 
+    class FakePermissionEngine:
+        pass
+
+    class FakePermissionCallback:
+        pass
+
     class FakeReactEngine:
         def __init__(self, llm_client=None, max_tokens=128000, **kwargs):
             self.max_tokens = max_tokens
@@ -102,7 +112,6 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
             self.permission_callback = kwargs.get("permission_callback")
             created_engines.append(self)
 
-    monkeypatch.setattr(agent_runtime_module, "LLMClient", FakeLLMClient)
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
 
     settings = SimpleNamespace(
@@ -111,7 +120,12 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
         OPENAI_MODEL="test-model",
     )
 
-    engine = AgentRuntime(settings=settings).create_engine(max_iterations=3)
+    engine = AgentRuntime(
+        settings=settings,
+        llm_client_factory=FakeLLMClient,
+        permission_engine_factory=FakePermissionEngine,
+        permission_callback_factory=FakePermissionCallback,
+    ).create_engine(max_iterations=3)
 
     assert created_engines == [engine]
     assert engine.max_tokens == 128000
