@@ -11,6 +11,14 @@ from unittest.mock import AsyncMock, Mock
 from src.core.react_engine import ReactEngine
 
 
+@pytest.fixture(autouse=True)
+def _enable_debug_logging():
+    """确保 intelliagent logger 在测试期间输出 DEBUG 级别日志。"""
+    import src.utils.logger as logger_mod
+    logger_mod.logger.setLevel(logging.DEBUG)
+    logging.getLogger("intelliagent").setLevel(logging.DEBUG)
+
+
 def _make_tool_call(id: str, name: str, arguments: str):
     tc = Mock()
     tc.id = id
