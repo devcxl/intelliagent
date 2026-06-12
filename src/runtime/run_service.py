@@ -77,21 +77,12 @@ class RunService:
             if existing_run["id"] != run_id and existing_run["status"] in ("running", "pending"):
                 return {"success": False, "error": f"Conversation 已存在其他活跃 run: {existing_run['id']}"}
 
-        engine = self._runtime.create_engine(max_iterations=run.get("max_iterations", 10))
-        max_iterations = run.get("max_iterations", 10)
-        history_context = await self._build_history_context(run["conversation_id"])
-        result = await engine.run(
-            run.get("task_snapshot", ""),
-            max_iterations=max_iterations,
-            history_context=history_context,
+        result = await self._execute_run(
+            run_id=run_id,
+            conversation_id=run["conversation_id"],
+            task=run.get("task_snapshot", ""),
+            max_iterations=run.get("max_iterations", 10),
         )
-
-        await self._db.update_run(
-            run_id,
-            status="completed" if result["success"] else "failed",
-            current_iteration=result.get("num_turns", 0),
-        )
-        result["run_id"] = run_id
         return result
 
     async def rerun(
@@ -118,23 +109,34 @@ class RunService:
             source_run_id=source_run_id,
         )
 
+        result = await self._execute_run(
+            run_id=run_id,
+            conversation_id=conversation_id,
+            task=task,
+            max_iterations=max_iterations,
+        )
+
+        if result.get("answer"):
+            await self._db.save_message(conversation_id, "assistant", result["answer"])
+
+        return result
+
+    async def _execute_run(
+        self,
+        run_id: str,
+        conversation_id: str,
+        task: str,
+        max_iterations: int,
+    ) -> dict[str, Any]:
         engine = self._runtime.create_engine(max_iterations=max_iterations)
         history_context = await self._build_history_context(conversation_id)
-        result = await engine.run(
-            task,
-            max_iterations=max_iterations,
-            history_context=history_context,
-        )
+        result = await engine.run(task, max_iterations=max_iterations, history_context=history_context)
 
         await self._db.update_run(
             run_id,
             status="completed" if result["success"] else "failed",
             current_iteration=result.get("num_turns", 0),
         )
-
-        if result.get("answer"):
-            await self._db.save_message(conversation_id, "assistant", result["answer"])
-
         result["run_id"] = run_id
         return result
 
