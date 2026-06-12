@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from src.types.permission import Decision, PermissionAction, Rule
 
@@ -103,6 +103,24 @@ def _is_path_in_workspace(path: str, workspace: Path) -> bool:
         return False
 
 
+class ConditionStrategy(Protocol):
+    """条件评估策略协议 — 每种条件类型对应一个实现。"""
+
+    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool: ...
+
+
+class DangerousConditionStrategy:
+    """危险命令条件策略 — 复用 _is_dangerous_cmd 逻辑。"""
+
+    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool:
+        return _is_dangerous_cmd(args.get("cmd", ""))
+
+
+_STRATEGIES: dict[str, ConditionStrategy] = {
+    "dangerous": DangerousConditionStrategy(),
+}
+
+
 class PermissionEngine:
     def __init__(self, rules: list[dict[str, Any]], workspace: Path | None = None) -> None:
         self._rules = [Rule(**r) for r in rules]
@@ -124,18 +142,17 @@ class PermissionEngine:
         if not conditions:
             return True
         for key, expected in conditions.items():
-            if key == "dangerous":
-                actual = _is_dangerous_cmd(args.get("cmd", ""))
-                if actual != expected:
-                    return False
+            strategy = _STRATEGIES.get(key)
+            if strategy is not None:
+                actual = strategy.evaluate(args, self._workspace)
             elif key == "path_in_workspace":
                 actual = _is_path_in_workspace(args.get("path", ""), self._workspace)
-                if actual != expected:
-                    return False
             elif key == "path_sensitive":
                 actual = _is_path_sensitive(args.get("cmd", ""))
-                if actual != expected:
-                    return False
+            else:
+                return False
+            if actual != expected:
+                return False
         return True
 
     @staticmethod
