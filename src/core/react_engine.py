@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, AsyncGenerator
 
-import src.tools.registry as _default_registry
+from src.tools.registry import _default_registry
 from src.core.context_manager import ContextManager, DEFAULT_SYSTEM_PROMPT
 from src.types.permission import (
     LLMClientProtocol,
