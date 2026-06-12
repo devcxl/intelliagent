@@ -52,14 +52,27 @@ class LLMClient:
             if tools:
                 kwargs["tools"] = tools
 
+            logger.debug(
+                f"LLMClient - 调用开始 | model={self.model} "
+                f"msg_count={len(messages)} tool_count={len(tools) if tools else 0}"
+            )
+
             response = self.client.chat.completions.create(**kwargs)
             message = response.choices[0].message
 
-            logger.debug(f"LLM 响应成功 | tokens={response.usage.total_tokens if response.usage else 'N/A'}")
+            usage = response.usage
+            tool_calls = getattr(message, "tool_calls", None) or []
+            logger.debug(
+                f"LLMClient - 调用成功 | "
+                f"prompt_tokens={getattr(usage, 'prompt_tokens', 'N/A') if usage else 'N/A'} "
+                f"completion_tokens={getattr(usage, 'completion_tokens', 'N/A') if usage else 'N/A'} "
+                f"total_tokens={getattr(usage, 'total_tokens', 'N/A') if usage else 'N/A'} "
+                f"has_tool_calls={bool(tool_calls)}"
+            )
             return LLMResponse(
                 content=message.content,
-                tool_calls=getattr(message, "tool_calls", None) or [],
-                usage=response.usage,
+                tool_calls=tool_calls,
+                usage=usage,
             )
 
         except Exception as e:

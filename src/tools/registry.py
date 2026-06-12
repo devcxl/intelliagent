@@ -6,6 +6,7 @@ from typing import Any, Callable, Coroutine
 from .shell_tool import run_shell
 from .file_tools import read_file, write_file, edit_file
 from .response import error_response, success_response
+from src.utils.logger import logger
 
 ToolFn = Callable[..., Coroutine[Any, Any, str]]
 
@@ -119,6 +120,8 @@ def list_tool_names() -> list[str]:
 async def call_tool(name: str, **kwargs) -> str:
     if name not in BUILTIN_TOOLS:
         return error_response(f"未知工具: {name}", "UNKNOWN_TOOL")
+
+    logger.debug("ToolRegistry - 调用工具 | tool=%s args_len=%d", name, len(kwargs))
 
     tool = BUILTIN_TOOLS[name]
     try:

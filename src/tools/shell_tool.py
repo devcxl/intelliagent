@@ -1,6 +1,8 @@
 import asyncio
 import shutil
+import time
 from .response import success_response, error_response
+from src.utils.logger import logger
 
 SHELL_COMMAND_TIMEOUT = 30
 
@@ -14,6 +16,7 @@ async def run_shell(cmd: str) -> str:
         return error_response("cmd 参数为空或仅包含空格", "EMPTY_COMMAND")
 
     try:
+        start_time = time.monotonic()
         bash_path = shutil.which("bash")
         if bash_path:
             process = await asyncio.create_subprocess_exec(
@@ -41,6 +44,12 @@ async def run_shell(cmd: str) -> str:
                 f"命令执行超时（>{SHELL_COMMAND_TIMEOUT}秒）",
                 "TIMEOUT"
             )
+
+        elapsed_ms = int((time.monotonic() - start_time) * 1000)
+        logger.debug(
+            "ShellTool - 执行命令 | cmd=%s time_ms=%d returncode=%d",
+            cmd, elapsed_ms, process.returncode
+        )
 
         output = stdout.decode('utf-8', errors='replace').strip()
         error_output = stderr.decode('utf-8', errors='replace').strip()

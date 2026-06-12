@@ -379,7 +379,13 @@ class ContextManager:
     ) -> bool:
         """上下文达到阈值时自动压缩。"""
         limit = max_tokens if max_tokens is not None else self._max_tokens
-        if self.estimate_tokens() + extra_tokens < limit * ratio:
+        current_tokens = self.estimate_tokens()
+        triggered = current_tokens + extra_tokens >= limit * ratio
+        logger.debug(
+            "ContextManager - 压缩检查 | current_tokens=%d limit=%d ratio=%.2f triggered=%s",
+            current_tokens, limit, ratio, str(triggered).lower(),
+        )
+        if not triggered:
             return False
         self.compact_to_summary()
         return True
@@ -401,6 +407,11 @@ class ContextManager:
         )
         self._messages = instruction_messages + [{"role": "user", "content": summary_content}]
         self._instruction_count = len(instruction_messages)
+        logger.debug(
+            "ContextManager - 压缩摘要 | source_msg_count=%d compression_count=%d",
+            self._summary.source_message_count,
+            self._summary.compression_count,
+        )
         return self._summary
 
     def _instruction_messages(self) -> list[dict[str, Any]]:
@@ -532,6 +543,10 @@ class ContextManager:
         if tool_calls:
             msg["tool_calls"] = tool_calls
         self._messages.append(msg)
+        logger.debug(
+            "ContextManager - 添加消息 | role=assistant content_len=%d",
+            len(content or ""),
+        )
         return len(self._messages) - 1
 
     def add_tool_message(
@@ -554,6 +569,10 @@ class ContextManager:
             "content": content,
         }
         self._messages.append(msg)
+        logger.debug(
+            "ContextManager - 添加消息 | role=tool content_len=%d",
+            len(content or ""),
+        )
         return len(self._messages) - 1
 
     def add_user_message(self, content: str) -> int:
@@ -567,6 +586,10 @@ class ContextManager:
         """
         msg: dict[str, Any] = {"role": "user", "content": content}
         self._messages.append(msg)
+        logger.debug(
+            "ContextManager - 添加消息 | role=user content_len=%d",
+            len(content or ""),
+        )
         return len(self._messages) - 1
 
     def add_system_message(self, content: str) -> int:
@@ -663,8 +686,14 @@ class ContextManager:
             截断后的消息列表
         """
         limit = max_tokens if max_tokens is not None else self._max_tokens
+        before_msgs = len(self._messages)
+        tokens_before = self.estimate_tokens()
         self._messages = self._window_strategy.apply(
             self._messages, limit, self._system_prompt,
+        )
+        logger.debug(
+            "ContextManager - 截断 | before_msgs=%d after_msgs=%d tokens_before=%d tokens_after=%d",
+            before_msgs, len(self._messages), tokens_before, self.estimate_tokens(),
         )
         return self._messages
 
