@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, AsyncGenerator
 
 import src.tools.registry as _default_registry
@@ -12,6 +13,8 @@ from src.types.permission import (
     PermissionCallbackProtocol,
 )
 from src.utils.logger import logger
+
+_debug_logger = logging.getLogger("ReactEngine")
 
 
 SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
@@ -81,6 +84,11 @@ class ReactEngine:
         rep_limit = repeat_limit if repeat_limit is not None else self.max_consecutive_repeats
         iter_limit = iteration_limit if iteration_limit is not None else self.max_iterations
 
+        _debug_logger.debug(
+            f"ReactEngine - 循环开始 | task={task} token_limit={tok_limit} "
+            f"repeat_limit={rep_limit} iteration_limit={iter_limit}"
+        )
+
         num_turns = 0
         total_tokens = 0
         total_prompt_tokens = 0
@@ -91,6 +99,7 @@ class ReactEngine:
 
         while True:
             if iter_limit is not None and num_turns >= iter_limit:
+                _debug_logger.debug(f"ReactEngine - 循环退出 | reason=max_iterations")
                 logger.warning(f"安全网触发终止 | turns={num_turns} max_iterations={iter_limit}")
                 state = {
                     "success": False, "answer": "",
@@ -105,9 +114,15 @@ class ReactEngine:
                 return
 
             num_turns += 1
+            _debug_logger.debug(f"ReactEngine - 第 {num_turns} 轮开始 | total_tokens={total_tokens}")
 
             safety = self._check_safety(total_tokens, consecutive_repeats, tok_limit, rep_limit)
+            _debug_logger.debug(
+                f"ReactEngine - 安全网检查 | result={safety} "
+                f"tokens={total_tokens} repeats={consecutive_repeats}"
+            )
             if safety == "stop":
+                _debug_logger.debug(f"ReactEngine - 循环退出 | reason=safety_stop")
                 logger.warning(f"安全网触发终止 | turns={num_turns} tokens={total_tokens}")
                 state = {
                     "success": False, "answer": "",
@@ -123,11 +138,21 @@ class ReactEngine:
             elif safety == "warn":
                 self._ctx.add_user_message("⚠️ 系统提醒：请尽快总结当前进展并完成任务。")
 
-            self._ctx.compact_if_needed(
+            _debug_logger.debug(
+                f"ReactEngine - 压缩上下文前 | msg_count={len(self._ctx.get_messages())}"
+            )
+            compacted = self._ctx.compact_if_needed(
                 max_tokens=tok_limit,
                 extra_tokens=tool_tokens_estimate,
             )
+            _debug_logger.debug(
+                f"ReactEngine - 压缩上下文后 | compacted={compacted}"
+            )
 
+            _debug_logger.debug(
+                f"ReactEngine - LLM 调用前 | msg_count={len(self._ctx.get_messages())} "
+                f"token_estimate={self._ctx.estimate_tokens() + tool_tokens_estimate}"
+            )
             response = await self.llm_client.chat_async(
                 messages=self._ctx.get_messages(),
                 temperature=0.3,
@@ -143,6 +168,15 @@ class ReactEngine:
                 cached_tokens = getattr(details, "cached_tokens", 0) if details else 0
                 if cached_tokens:
                     total_cached_tokens += cached_tokens
+
+            _debug_logger.debug(
+                f"ReactEngine - LLM 调用后 | "
+                f"total_tokens={total_tokens} prompt_tokens={total_prompt_tokens} "
+                f"completion_tokens={total_completion_tokens}"
+            )
+
+            if not response.tool_calls:
+                _debug_logger.debug(f"ReactEngine - 循环退出 | reason=agent_finished")
 
             state = {
                 "num_turns": num_turns,
@@ -175,7 +209,13 @@ class ReactEngine:
                     except json.JSONDecodeError:
                         tool_args = {}
 
+                    _debug_logger.debug(
+                        f"ReactEngine - 执行工具 | tool={tool_name} args_len={len(tool_args_str)}"
+                    )
                     result = await self._execute_tool(tool_name, tool_args)
+                    _debug_logger.debug(
+                        f"ReactEngine - 工具结果 | tool={tool_name} result_len={len(result)}"
+                    )
                     self._ctx.add_tool_message(tc.id, result)
 
                     if self.memory:
