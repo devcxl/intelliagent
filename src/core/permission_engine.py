@@ -116,8 +116,24 @@ class DangerousConditionStrategy:
         return _is_dangerous_cmd(args.get("cmd", ""))
 
 
+class PathInWorkspaceConditionStrategy:
+    """工作区路径条件策略 — 复用 _is_path_in_workspace 逻辑。"""
+
+    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool:
+        return _is_path_in_workspace(args.get("path", ""), workspace)
+
+
+class PathSensitiveConditionStrategy:
+    """路径敏感命令条件策略 — 复用 _is_path_sensitive 逻辑。"""
+
+    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool:
+        return _is_path_sensitive(args.get("cmd", ""))
+
+
 _STRATEGIES: dict[str, ConditionStrategy] = {
     "dangerous": DangerousConditionStrategy(),
+    "path_in_workspace": PathInWorkspaceConditionStrategy(),
+    "path_sensitive": PathSensitiveConditionStrategy(),
 }
 
 
@@ -143,14 +159,9 @@ class PermissionEngine:
             return True
         for key, expected in conditions.items():
             strategy = _STRATEGIES.get(key)
-            if strategy is not None:
-                actual = strategy.evaluate(args, self._workspace)
-            elif key == "path_in_workspace":
-                actual = _is_path_in_workspace(args.get("path", ""), self._workspace)
-            elif key == "path_sensitive":
-                actual = _is_path_sensitive(args.get("cmd", ""))
-            else:
+            if strategy is None:
                 return False
+            actual = strategy.evaluate(args, self._workspace)
             if actual != expected:
                 return False
         return True
