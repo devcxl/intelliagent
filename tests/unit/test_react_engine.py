@@ -3,9 +3,12 @@
 ReAct 循环引擎单元测试 — function calling 模式 + 双层安全网
 """
 import pytest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+from src.core.context_manager import ContextManager
 from src.core.react_engine import ReactEngine
+from src.llm.llm_client import LLMResponse
 
 
 def _make_tool_call(id: str, name: str, arguments: str):
@@ -65,6 +68,27 @@ class TestReactEngineBasicRun:
         assert "cached_tokens" in result
 
     @pytest.mark.asyncio
+    async def test_counts_usage_from_llm_response(self, mock_engine):
+        usage = SimpleNamespace(
+            total_tokens=120,
+            prompt_tokens=90,
+            completion_tokens=30,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=12),
+        )
+        mock_engine.llm_client.chat_async.return_value = LLMResponse(
+            content="完成",
+            tool_calls=[],
+            usage=usage,
+        )
+
+        result = await mock_engine.run("测试任务")
+
+        assert result["total_tokens"] == 120
+        assert result["prompt_tokens"] == 90
+        assert result["completion_tokens"] == 30
+        assert result["cached_tokens"] == 12
+
+    @pytest.mark.asyncio
     async def test_token_limit_stops(self, mock_engine):
         mock_engine.llm_client.chat_async.return_value = _make_response(
             tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')],
@@ -88,6 +112,19 @@ class TestReactEngineBasicRun:
         assert result["success"] is False
         assert "安全网触发" in result["summary"]
         assert mock_engine.llm_client.chat_async.call_count == 5
+
+    @pytest.mark.asyncio
+    async def test_max_iterations_stops_before_extra_llm_call(self, mock_engine):
+        mock_engine.llm_client.chat_async.return_value = _make_response(
+            tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "same.txt"}')],
+            total_tokens=10,
+        )
+
+        result = await mock_engine.run("测试任务", max_iterations=2)
+
+        assert result["success"] is False
+        assert "最大轮数" in result["summary"]
+        assert mock_engine.llm_client.chat_async.call_count == 2
 
 
 class TestReactEngineToolCalls:
@@ -163,6 +200,35 @@ class TestReactEngineContext:
 
         mock_engine.context.add_context.assert_called_once_with("用户任务: 测试任务")
 
+    @pytest.mark.asyncio
+    async def test_compacts_context_before_llm_call(self):
+        llm = AsyncMock()
+        llm.chat_async.return_value = _make_response(content="完成")
+        ctx = ContextManager(
+            system_prompt="system prompt",
+            agent_prompt="agent prompt",
+            tools_instruction="tools instruction",
+            max_tokens=80,
+        )
+        engine = ReactEngine(
+            llm_client=llm,
+            context_manager=ctx,
+            max_tokens=80,
+        )
+
+        await engine.run("当前任务" + "x" * 120)
+
+        messages = llm.chat_async.call_args.kwargs["messages"]
+        assert messages[:3] == [
+            {"role": "system", "content": "system prompt"},
+            {"role": "system", "content": "agent prompt"},
+            {"role": "system", "content": "tools instruction"},
+        ]
+        assert len(messages) == 4
+        assert messages[3]["role"] == "user"
+        assert messages[3]["content"].startswith("以下是已压缩的上下文摘要")
+        assert "当前任务" in messages[3]["content"]
+
 
 class TestReactEngineIterSteps:
 
@@ -196,3 +262,18 @@ class TestReactEngineIterSteps:
         types = [e["type"] for e in events]
         assert types == ["thought", "action", "observation", "answer"]
         assert "安全网触发" in events[-1]["data"]["answer"]
+
+    @pytest.mark.asyncio
+    async def test_iter_steps_max_iterations_reports_limit_iteration(self, mock_engine):
+        mock_engine.llm_client.chat_async.return_value = _make_response(
+            tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')],
+            total_tokens=10,
+        )
+
+        events = []
+        async for event in mock_engine.iter_steps("测试任务", max_iterations=1):
+            events.append(event)
+
+        assert [e["type"] for e in events] == ["thought", "action", "observation", "answer"]
+        assert events[-1]["iteration"] == 1
+        assert "最大轮数" in events[-1]["data"]["answer"]
