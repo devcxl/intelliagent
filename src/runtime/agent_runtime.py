@@ -32,7 +32,8 @@ class AgentRuntime:
         model: str | None = None,
         max_iterations: int | None = None,
     ) -> Any:
-        from src.core.permission_engine import CliCallback, load_permission_engine
+        from src.core.permission_engine import load_permission_engine
+        from src.runtime.permission_callback import CliCallback
 
         llm = self.get_llm_client()
 
@@ -43,7 +44,7 @@ class AgentRuntime:
 
         return ReactEngine(
             llm_client=llm,
-            max_tokens=max_iterations or 10,
+            max_iterations=max_iterations,
             permission_engine=permission_engine,
             permission_callback=permission_callback,
         )

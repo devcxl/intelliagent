@@ -5,8 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import src.runtime.agent_runtime as agent_runtime_module
-from src.runtime import AgentRuntime
-from src.services import RunService
+from src.runtime import AgentRuntime, RunService
 
 
 def test_agent_runtime_reuses_shared_components(monkeypatch):
@@ -65,9 +64,9 @@ def test_run_service_sync_wrapper_uses_async_entry(monkeypatch):
     assert result["iterations"] == 3
 
 
-async def test_run_service_run_task_async_uses_engine_run_async():
-    engine = Mock()
-    engine.run_async = AsyncMock(return_value={"success": True, "summary": "ok", "iterations": 1})
+async def test_run_service_run_task_async_uses_engine_run():
+    engine = Mock(spec=["run", "iter_steps"])
+    engine.run = AsyncMock(return_value={"success": True, "summary": "ok", "num_turns": 1})
 
     runtime = Mock()
     runtime.create_engine.return_value = engine
@@ -81,12 +80,50 @@ async def test_run_service_run_task_async_uses_engine_run_async():
         model=None,
         max_iterations=3,
     )
-    engine.run_async.assert_awaited_once_with("测试任务", max_iterations=3)
+    engine.run.assert_awaited_once_with(
+        "测试任务",
+        max_iterations=3,
+        history_context=None,
+    )
+
+
+def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
+    created_engines = []
+
+    class FakeLLMClient:
+        def __init__(self, api_key=None, base_url=None, model=None):
+            pass
+
+    class FakeReactEngine:
+        def __init__(self, llm_client=None, max_tokens=128000, **kwargs):
+            self.max_tokens = max_tokens
+            self.max_iterations = kwargs.get("max_iterations")
+            self.permission_engine = kwargs.get("permission_engine")
+            self.permission_callback = kwargs.get("permission_callback")
+            created_engines.append(self)
+
+    monkeypatch.setattr(agent_runtime_module, "LLMClient", FakeLLMClient)
+    monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
+
+    settings = SimpleNamespace(
+        OPENAI_API_KEY="test-key",
+        OPENAI_API_BASE=None,
+        OPENAI_MODEL="test-model",
+    )
+
+    engine = AgentRuntime(settings=settings).create_engine(max_iterations=3)
+
+    assert created_engines == [engine]
+    assert engine.max_tokens == 128000
+    assert engine.max_iterations == 3
+    assert engine.permission_engine is not None
+    assert engine.permission_callback is not None
 
 
 async def test_run_service_streams_steps_from_engine():
     class FakeEngine:
         async def iter_steps(self, task, max_iterations=None, **kwargs):
+            assert max_iterations == 2
             yield {
                 "type": "thought",
                 "iteration": 1,
