@@ -34,9 +34,9 @@ def format_event(event: dict[str, Any]) -> None:
 
     elif t == "answer":
         answer = data["answer"]
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"答案: {answer}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
 
 def format_conversation_header(
@@ -51,11 +51,11 @@ def format_conversation_header(
     else:
         print(f"📋 继续 Conversation: {conversation_id}")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"任务: {task}")
     if history_count > 0:
         print(f"（已加载 {history_count} 条历史消息作为上下文）")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
 
 def format_history_conversation(conversation: dict[str, Any], msg_count: int) -> None:
@@ -65,7 +65,7 @@ def format_history_conversation(conversation: dict[str, Any], msg_count: int) ->
     print(f"  状态:   {conversation['status']}")
     print(f"  消息数: {msg_count}")
     print(f"  更新:   {conversation['updated_at']}")
-    print(f"  {'─'*40}")
+    print(f"  {'─' * 40}")
 
 
 async def show_history(
@@ -77,9 +77,9 @@ async def show_history(
         print("📭 没有历史 Conversation。")
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"📋 历史 Conversation 列表（共 {len(conversations)} 个）")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     for conversation in conversations:
         msg_count = await get_msg_count(conversation["id"])
@@ -89,4 +89,4 @@ async def show_history(
 def show_save_info(conversation_id: str) -> None:
     """打印保存信息。"""
     print(f"💾 已保存到 Conversation: {conversation_id}")
-    print(f"💡 下次继续请使用: python -m src.main --session {conversation_id} \"新任务\"")
+    print(f'💡 下次继续请使用: python -m src.main --session {conversation_id} "新任务"')

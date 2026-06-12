@@ -82,9 +82,11 @@ if __name__ == "__main__":
         print("\n❌ 请提供任务描述，或使用 --history 查看历史 Conversation。")
         sys.exit(1)
 
-    asyncio.run(main(
-        task=task_text,
-        session_id=args.session,
-        resume=args.resume,
-        list_history=args.history,
-    ))
+    asyncio.run(
+        main(
+            task=task_text,
+            session_id=args.session,
+            resume=args.resume,
+            list_history=args.history,
+        )
+    )

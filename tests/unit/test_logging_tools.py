@@ -4,6 +4,7 @@
 
 使用 caplog fixture 验证工具层的 DEBUG 级别日志输出。
 """
+
 import logging
 import tempfile
 from pathlib import Path
@@ -16,7 +17,6 @@ from src.tools.shell_tool import run_shell
 
 
 class TestToolRegistryDebugLogs:
-
     @pytest.mark.asyncio
     async def test_call_tool_logs_tool_name_and_args_len(self, caplog):
         """ToolRegistry.call_tool() 输出 tool_name 和 args_len"""
@@ -29,7 +29,6 @@ class TestToolRegistryDebugLogs:
 
 
 class TestShellToolDebugLogs:
-
     @pytest.mark.asyncio
     async def test_run_shell_logs_command_and_returncode(self, caplog):
         """ShellTool.run_shell() 输出命令、执行时间、返回码"""
@@ -43,7 +42,6 @@ class TestShellToolDebugLogs:
 
 
 class TestFileToolsDebugLogs:
-
     @pytest.fixture(autouse=True)
     def setup_teardown(self):
         self.temp_dir = tempfile.TemporaryDirectory()

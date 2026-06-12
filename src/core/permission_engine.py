@@ -14,16 +14,39 @@ _XARGS_DANGER = re.compile(r"\bxargs\s+(rm|mv|dd|chmod|chown)\b")
 _SUDO_PATTERN = re.compile(r"\b(sudo|su)\b")
 
 DANGEROUS_COMMANDS: set[str] = {
-    "rm", "mv", "dd", "mkfs", "mkswap", "swapon",
-    "shutdown", "reboot", "halt", "poweroff",
-    "chmod", "chown", "chgrp",
-    "kill", "pkill", "killall",
-    "fdisk", "parted", "wipefs",
-    "iptables", "nft", "ufw",
+    "rm",
+    "mv",
+    "dd",
+    "mkfs",
+    "mkswap",
+    "swapon",
+    "shutdown",
+    "reboot",
+    "halt",
+    "poweroff",
+    "chmod",
+    "chown",
+    "chgrp",
+    "kill",
+    "pkill",
+    "killall",
+    "fdisk",
+    "parted",
+    "wipefs",
+    "iptables",
+    "nft",
+    "ufw",
 }
 
 PATH_SENSITIVE_COMMANDS: set[str] = {
-    "ln", "cp", "mv", "rsync", "curl", "wget", "scp", "find",
+    "ln",
+    "cp",
+    "mv",
+    "rsync",
+    "curl",
+    "wget",
+    "scp",
+    "find",
 }
 
 DEFAULT_RULES: list[dict[str, Any]] = [

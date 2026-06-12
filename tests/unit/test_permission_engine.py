@@ -17,26 +17,33 @@ from src.runtime.permission_callback import CliCallback
 # 2.1 — PermissionEngine.check() 测试
 # ============================================================================
 
+
 def test_check_allow():
-    engine = PermissionEngine(rules=[
-        {"tool": "todo_write", "action": "allow", "conditions": {}},
-    ])
+    engine = PermissionEngine(
+        rules=[
+            {"tool": "todo_write", "action": "allow", "conditions": {}},
+        ]
+    )
     d = engine.check("todo_write", {"todos": "[]"})
     assert d.action.value == "allow"
 
 
 def test_check_deny():
-    engine = PermissionEngine(rules=[
-        {"tool": "run_shell", "action": "deny", "conditions": {"dangerous": True}},
-    ])
+    engine = PermissionEngine(
+        rules=[
+            {"tool": "run_shell", "action": "deny", "conditions": {"dangerous": True}},
+        ]
+    )
     d = engine.check("run_shell", {"cmd": "rm -rf /"})
     assert d.action.value == "deny"
 
 
 def test_check_prompt():
-    engine = PermissionEngine(rules=[
-        {"tool": "read_file", "action": "prompt", "conditions": {"path_in_workspace": False}},
-    ])
+    engine = PermissionEngine(
+        rules=[
+            {"tool": "read_file", "action": "prompt", "conditions": {"path_in_workspace": False}},
+        ]
+    )
     d = engine.check("read_file", {"path": "/etc/passwd"})
     assert d.action.value == "prompt"
 
@@ -49,27 +56,33 @@ def test_check_default_prompt_when_no_match():
 
 
 def test_check_condition_mismatch_skips_rule():
-    engine = PermissionEngine(rules=[
-        {"tool": "read_file", "action": "deny", "conditions": {"path_in_workspace": False}},
-        {"tool": "read_file", "action": "allow", "conditions": {"path_in_workspace": True}},
-    ])
+    engine = PermissionEngine(
+        rules=[
+            {"tool": "read_file", "action": "deny", "conditions": {"path_in_workspace": False}},
+            {"tool": "read_file", "action": "allow", "conditions": {"path_in_workspace": True}},
+        ]
+    )
     d = engine.check("read_file", {"path": str(Path.cwd() / "src" / "test.py")})
     assert d.action.value == "allow"
 
 
 def test_check_rule_order_matters_first_match_wins():
-    engine = PermissionEngine(rules=[
-        {"tool": "run_shell", "action": "allow", "conditions": {}},
-        {"tool": "run_shell", "action": "deny", "conditions": {"dangerous": True}},
-    ])
+    engine = PermissionEngine(
+        rules=[
+            {"tool": "run_shell", "action": "allow", "conditions": {}},
+            {"tool": "run_shell", "action": "deny", "conditions": {"dangerous": True}},
+        ]
+    )
     d = engine.check("run_shell", {"cmd": "rm -rf /"})
     assert d.action.value == "allow"
 
 
 def test_check_wildcard_tool():
-    engine = PermissionEngine(rules=[
-        {"tool": "*", "action": "deny", "conditions": {}},
-    ])
+    engine = PermissionEngine(
+        rules=[
+            {"tool": "*", "action": "deny", "conditions": {}},
+        ]
+    )
     d = engine.check("some_tool", {})
     assert d.action.value == "deny"
 
@@ -77,6 +90,7 @@ def test_check_wildcard_tool():
 # ============================================================================
 # 2.2 — _is_path_in_workspace 测试
 # ============================================================================
+
 
 def test_path_in_workspace():
     ws = Path("/tmp/test-ws")
@@ -106,6 +120,7 @@ def test_path_symlink_resolved():
 # ============================================================================
 # 2.3 — _is_dangerous_cmd 测试
 # ============================================================================
+
 
 def test_dangerous_rm():
     assert _is_dangerous_cmd("rm -rf /")
@@ -163,6 +178,7 @@ def test_dangerous_shutdown():
 # 2.4 — _is_path_sensitive 测试
 # ============================================================================
 
+
 def test_path_sensitive_cp_absolute():
     assert _is_path_sensitive("cp /etc/passwd ./")
 
@@ -195,6 +211,7 @@ def test_path_sensitive_non_sensitive_cmd():
 # 2.5 — CliCallback.on_prompt 测试
 # ============================================================================
 
+
 @pytest.mark.asyncio
 async def test_callback_yes(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _: "y")
@@ -215,8 +232,10 @@ async def test_callback_no(monkeypatch):
 async def test_callback_timeout(monkeypatch):
     def blocking_input(_prompt):
         import time
+
         time.sleep(2)
         return "y"
+
     monkeypatch.setattr("builtins.input", blocking_input)
     cb = CliCallback(timeout=0.5)
     result = await cb.on_prompt("test_tool", {}, "timeout test")
@@ -234,6 +253,7 @@ async def test_callback_uppercase_y(monkeypatch):
 # ============================================================================
 # 2.7 — load_permission_engine 测试
 # ============================================================================
+
 
 def test_load_from_missing_file_uses_defaults():
     engine = load_permission_engine("/tmp/nonexistent_permissions.json")

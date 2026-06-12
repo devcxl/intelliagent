@@ -23,14 +23,10 @@ async def test_database_manager_creates_pr3_core_tables(tmp_path):
     await manager.initialize()
 
     with sqlite3.connect(db_path) as connection:
-        table_rows = connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        table_rows = connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
 
     table_names = {row[0] for row in table_rows}
-    assert {"users", "conversations", "runs", "messages", "execution_traces"}.issubset(
-        table_names
-    )
+    assert {"users", "conversations", "runs", "messages", "execution_traces"}.issubset(table_names)
 
 
 async def test_database_manager_conversation_crud(tmp_path):

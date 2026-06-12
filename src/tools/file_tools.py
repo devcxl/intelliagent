@@ -6,6 +6,7 @@ from .response import error_response, success_response
 
 try:
     import aiofiles
+
     HAS_AIOFILES = True
 except ImportError:
     HAS_AIOFILES = False
@@ -32,10 +33,10 @@ async def read_file(path: str) -> str:
             return error_response(f"路径是目录而非文件: {path}", "IS_DIRECTORY")
 
         if HAS_AIOFILES:
-            async with aiofiles.open(file_path, mode='r', encoding='utf-8') as f:
+            async with aiofiles.open(file_path, mode="r", encoding="utf-8") as f:
                 content = await f.read()
         else:
-            content = file_path.read_text(encoding='utf-8')
+            content = file_path.read_text(encoding="utf-8")
 
         truncated = False
         if len(content) > FILE_READ_MAX_SIZE:
@@ -44,12 +45,9 @@ async def read_file(path: str) -> str:
 
         logger.debug("FileTools - 读取文件 | path=%s size=%d", str(file_path), len(content))
 
-        return success_response({
-            "content": content,
-            "size": len(content),
-            "truncated": truncated,
-            "path": str(file_path)
-        })
+        return success_response(
+            {"content": content, "size": len(content), "truncated": truncated, "path": str(file_path)}
+        )
 
     except Exception as e:
         return error_response(f"读取文件失败: {str(e)}", "READ_ERROR")
@@ -71,8 +69,7 @@ async def write_file(path: str, content: str) -> str:
 
     if len(content) > FILE_WRITE_MAX_SIZE:
         return error_response(
-            f"内容过大（{len(content)} > {FILE_WRITE_MAX_SIZE} 字符），超过 1MB 限制",
-            "CONTENT_TOO_LARGE"
+            f"内容过大（{len(content)} > {FILE_WRITE_MAX_SIZE} 字符），超过 1MB 限制", "CONTENT_TOO_LARGE"
         )
 
     try:
@@ -80,18 +77,14 @@ async def write_file(path: str, content: str) -> str:
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         if HAS_AIOFILES:
-            async with aiofiles.open(file_path, mode='w', encoding='utf-8') as f:
+            async with aiofiles.open(file_path, mode="w", encoding="utf-8") as f:
                 await f.write(content)
         else:
-            file_path.write_text(content, encoding='utf-8')
+            file_path.write_text(content, encoding="utf-8")
 
         logger.debug("FileTools - 写入文件 | path=%s size=%d", str(file_path), len(content))
 
-        return success_response({
-            "message": "文件已创建",
-            "path": str(file_path),
-            "size": len(content)
-        })
+        return success_response({"message": "文件已创建", "path": str(file_path), "size": len(content)})
 
     except Exception as e:
         return error_response(f"写入文件失败: {str(e)}", "WRITE_ERROR")
@@ -125,18 +118,15 @@ async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool 
             return error_response(f"路径是目录而非文件: {path}", "IS_DIRECTORY")
 
         if HAS_AIOFILES:
-            async with aiofiles.open(file_path, mode='r', encoding='utf-8') as f:
+            async with aiofiles.open(file_path, mode="r", encoding="utf-8") as f:
                 content = await f.read()
         else:
-            content = file_path.read_text(encoding='utf-8')
+            content = file_path.read_text(encoding="utf-8")
 
         occurrence_count = content.count(oldString)
 
         if occurrence_count == 0:
-            return error_response(
-                "未找到要替换的文本片段，请检查 oldString 是否正确",
-                "OLD_STRING_NOT_FOUND"
-            )
+            return error_response("未找到要替换的文本片段，请检查 oldString 是否正确", "OLD_STRING_NOT_FOUND")
 
         if occurrence_count > 1 and not replaceAll:
             msg = (
@@ -152,15 +142,14 @@ async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool 
 
         if len(new_content) > FILE_WRITE_MAX_SIZE:
             return error_response(
-                f"编辑后内容过大（{len(new_content)} > {FILE_WRITE_MAX_SIZE} 字符），超过 1MB 限制",
-                "CONTENT_TOO_LARGE"
+                f"编辑后内容过大（{len(new_content)} > {FILE_WRITE_MAX_SIZE} 字符），超过 1MB 限制", "CONTENT_TOO_LARGE"
             )
 
         if HAS_AIOFILES:
-            async with aiofiles.open(file_path, mode='w', encoding='utf-8') as f:
+            async with aiofiles.open(file_path, mode="w", encoding="utf-8") as f:
                 await f.write(new_content)
         else:
-            file_path.write_text(new_content, encoding='utf-8')
+            file_path.write_text(new_content, encoding="utf-8")
 
         preview_length = 500
         content_preview = new_content[:preview_length]
@@ -170,13 +159,15 @@ async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool 
         replacements = occurrence_count if replaceAll else 1
         logger.debug("FileTools - 编辑文件 | path=%s replacements=%d", str(file_path), replacements)
 
-        return success_response({
-            "message": "文件编辑成功",
-            "replacements": replacements,
-            "content": content_preview,
-            "path": str(file_path),
-            "size": len(new_content)
-        })
+        return success_response(
+            {
+                "message": "文件编辑成功",
+                "replacements": replacements,
+                "content": content_preview,
+                "path": str(file_path),
+                "size": len(new_content),
+            }
+        )
 
     except Exception as e:
         return error_response(f"编辑文件失败: {str(e)}", "WRITE_ERROR")

@@ -140,8 +140,7 @@ def test_second_compaction_updates_existing_summary_message():
 
     messages = ctx.get_messages()
     summary_messages = [
-        msg for msg in messages
-        if msg["role"] == "user" and msg["content"].startswith("以下是已压缩的上下文摘要")
+        msg for msg in messages if msg["role"] == "user" and msg["content"].startswith("以下是已压缩的上下文摘要")
     ]
     assert len(summary_messages) == 1
     assert first_summary.compression_count == 1
@@ -229,16 +228,8 @@ def test_truncate_keeps_tool_call_group_together():
 
     messages = ctx.truncate(max_tokens=80)
 
-    tool_call_ids = {
-        tc["id"]
-        for msg in messages
-        for tc in msg.get("tool_calls", [])
-    }
-    tool_message_ids = {
-        msg["tool_call_id"]
-        for msg in messages
-        if msg.get("role") == "tool"
-    }
+    tool_call_ids = {tc["id"] for msg in messages for tc in msg.get("tool_calls", [])}
+    tool_message_ids = {msg["tool_call_id"] for msg in messages if msg.get("role") == "tool"}
     assert tool_message_ids <= tool_call_ids
     assert "new-call" in tool_call_ids
     assert "new-call" in tool_message_ids

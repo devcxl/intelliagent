@@ -71,6 +71,7 @@ def estimate_tokens(messages: list[dict[str, Any]]) -> int:
 @dataclass
 class ContextSnapshot:
     """上下文快照 — 保存某一时刻的完整上下文状态，用于恢复和持久化。"""
+
     messages: list[dict[str, Any]] = field(default_factory=list)
     total_tokens_estimate: int = 0
     num_turns: int = 0
@@ -80,6 +81,7 @@ class ContextSnapshot:
 @dataclass
 class ContextSummary:
     """压缩后的上下文摘要。"""
+
     content: str
     source_message_count: int
     compression_count: int
@@ -354,11 +356,7 @@ class ContextManager:
         # 构建 user 消息（含历史上下文）
         user_content = task
         if history_context:
-            user_content = (
-                f"{history_context}\n\n"
-                f"现在的新任务是：{task}\n\n"
-                "请结合上述对话历史，完成新任务。"
-            )
+            user_content = f"{history_context}\n\n现在的新任务是：{task}\n\n请结合上述对话历史，完成新任务。"
 
         self._messages.append({"role": "user", "content": user_content})
 
@@ -382,7 +380,10 @@ class ContextManager:
         triggered = current_tokens + extra_tokens >= limit * ratio
         logger.debug(
             "ContextManager - 压缩检查 | current_tokens=%d limit=%d ratio=%.2f triggered=%s",
-            current_tokens, limit, ratio, str(triggered).lower(),
+            current_tokens,
+            limit,
+            ratio,
+            str(triggered).lower(),
         )
         if not triggered:
             return False
@@ -391,10 +392,9 @@ class ContextManager:
 
     def compact_to_summary(self) -> ContextSummary:
         """将非指令消息压缩为一条 summary message。"""
-        instruction_messages = self._messages[:self._instruction_count] or self._instruction_messages()
+        instruction_messages = self._messages[: self._instruction_count] or self._instruction_messages()
         source_messages = [
-            msg for msg in self._messages[len(instruction_messages):]
-            if not self._is_summary_message(msg)
+            msg for msg in self._messages[len(instruction_messages) :] if not self._is_summary_message(msg)
         ]
         old_summary = self._summary.content if self._summary else None
         summary_content = self._build_summary_content(source_messages, old_summary)
@@ -462,36 +462,36 @@ class ContextManager:
                 for tool_call in msg.get("tool_calls", []):
                     function = tool_call.get("function", {})
                     arguments = self._redact_secrets(str(function.get("arguments", "")))
-                    observations.append(
-                        f"工具调用 {function.get('name', '?')}({self._clip(arguments, limit=500)})"
-                    )
+                    observations.append(f"工具调用 {function.get('name', '?')}({self._clip(arguments, limit=500)})")
             elif role == "tool":
                 content = self._clip(raw_content, limit=500)
                 observations.append(f"工具结果 {msg.get('tool_call_id', '?')}：{content}")
 
-        return "\n".join([
-            SUMMARY_PREFIX,
-            "当前目标:",
-            self._format_bullets(current_goal),
-            "",
-            "用户约束:",
-            self._format_bullets(constraints),
-            "",
-            "已完成动作:",
-            self._format_bullets(completed),
-            "",
-            "关键观察:",
-            self._format_bullets(observations),
-            "",
-            "涉及文件:",
-            "- 暂无明确文件",
-            "",
-            "待处理事项:",
-            "- 继续完成当前目标",
-            "",
-            "下一步建议:",
-            "- 根据本摘要继续执行下一步",
-        ])
+        return "\n".join(
+            [
+                SUMMARY_PREFIX,
+                "当前目标:",
+                self._format_bullets(current_goal),
+                "",
+                "用户约束:",
+                self._format_bullets(constraints),
+                "",
+                "已完成动作:",
+                self._format_bullets(completed),
+                "",
+                "关键观察:",
+                self._format_bullets(observations),
+                "",
+                "涉及文件:",
+                "- 暂无明确文件",
+                "",
+                "待处理事项:",
+                "- 继续完成当前目标",
+                "",
+                "下一步建议:",
+                "- 根据本摘要继续执行下一步",
+            ]
+        )
 
     @staticmethod
     def _format_bullets(items: list[str]) -> str:
@@ -688,11 +688,16 @@ class ContextManager:
         before_msgs = len(self._messages)
         tokens_before = self.estimate_tokens()
         self._messages = self._window_strategy.apply(
-            self._messages, limit, self._system_prompt,
+            self._messages,
+            limit,
+            self._system_prompt,
         )
         logger.debug(
             "ContextManager - 截断 | before_msgs=%d after_msgs=%d tokens_before=%d tokens_after=%d",
-            before_msgs, len(self._messages), tokens_before, self.estimate_tokens(),
+            before_msgs,
+            len(self._messages),
+            tokens_before,
+            self.estimate_tokens(),
         )
         return self._messages
 
@@ -730,9 +735,7 @@ class ContextManager:
         self._summary = self._summary_from_messages(self._messages)
         self._num_turns = snapshot.num_turns
         self._metadata = dict(snapshot.metadata)
-        logger.info(
-            f"上下文从快照恢复 | messages={len(self._messages)} turns={self._num_turns}"
-        )
+        logger.info(f"上下文从快照恢复 | messages={len(self._messages)} turns={self._num_turns}")
 
     # ------------------------------------------------------------------
     # 序列化 / 反序列化

@@ -4,6 +4,7 @@ ReactEngine._loop() DEBUG 日志测试
 
 使用 caplog fixture 验证 DEBUG 级别日志输出。
 """
+
 import logging
 from unittest.mock import AsyncMock, Mock
 
@@ -16,6 +17,7 @@ from src.core.react_engine import ReactEngine
 def _enable_debug_logging():
     """确保 intelliagent logger 在测试期间输出 DEBUG 级别日志。"""
     import src.utils.logger as logger_mod
+
     logger_mod.logger.setLevel(logging.DEBUG)
     logging.getLogger("intelliagent").setLevel(logging.DEBUG)
 
@@ -29,9 +31,13 @@ def _make_tool_call(id: str, name: str, arguments: str):
     return tc
 
 
-def _make_response(content: str | None = None, tool_calls: list | None = None,
-                   total_tokens: int = 100, prompt_tokens: int = 80,
-                   completion_tokens: int = 20):
+def _make_response(
+    content: str | None = None,
+    tool_calls: list | None = None,
+    total_tokens: int = 100,
+    prompt_tokens: int = 80,
+    completion_tokens: int = 20,
+):
     resp = Mock()
     resp.content = content
     resp.tool_calls = tool_calls or []
@@ -60,7 +66,6 @@ def mock_engine():
 
 
 class TestReactEngineLoopDebugLogs:
-
     @pytest.mark.asyncio
     async def test_loop_start_logs_task_and_limits(self, mock_engine, caplog):
         """循环开始时输出 task/token_limit/repeat_limit/iteration_limit"""
@@ -106,7 +111,10 @@ class TestReactEngineLoopDebugLogs:
     async def test_llm_call_after_logs_token_details(self, mock_engine, caplog):
         """LLM 调用后输出 token 详情"""
         mock_engine.llm_client.chat_async.return_value = _make_response(
-            content="完成", total_tokens=150, prompt_tokens=100, completion_tokens=50,
+            content="完成",
+            total_tokens=150,
+            prompt_tokens=100,
+            completion_tokens=50,
         )
 
         with caplog.at_level(logging.DEBUG):

@@ -30,7 +30,9 @@ async def test_run_service_persists_run_and_messages(tmp_path):
     service = RunService(runtime, db_manager=db)
 
     result = await service.run_task_async(
-        task="测试任务", max_iterations=3, conversation_id="conversation-1",
+        task="测试任务",
+        max_iterations=3,
+        conversation_id="conversation-1",
     )
 
     assert result["success"] is True
@@ -78,8 +80,11 @@ async def test_run_service_cancel_run_sets_cancel_requested_flag(tmp_path):
     service = RunService(runtime, db_manager=db)
 
     await db.create_run(
-        run_id="run-pending", conversation_id="conversation-4",
-        task_snapshot="取消任务", status="running", max_iterations=3,
+        run_id="run-pending",
+        conversation_id="conversation-4",
+        task_snapshot="取消任务",
+        status="running",
+        max_iterations=3,
     )
 
     cancelled = await service.cancel_run("run-pending")
@@ -102,14 +107,19 @@ async def test_rerun_rejects_cross_conversation_source_run(tmp_path):
     service = RunService(runtime, db_manager=db)
 
     source_run = await db.create_run(
-        run_id="run-a-1", conversation_id="conversation-a",
-        task_snapshot="任务 A", status="completed", max_iterations=3,
+        run_id="run-a-1",
+        conversation_id="conversation-a",
+        task_snapshot="任务 A",
+        status="completed",
+        max_iterations=3,
     )
 
     try:
         await service.rerun(
-            conversation_id="conversation-b", task="任务 B",
-            max_iterations=3, source_run_id=source_run["id"],
+            conversation_id="conversation-b",
+            task="任务 B",
+            max_iterations=3,
+            source_run_id=source_run["id"],
         )
     except ValueError as exc:
         assert "不属于当前 Conversation" in str(exc)

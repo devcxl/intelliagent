@@ -20,8 +20,7 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
             created_llm_clients.append(self)
 
     class FakeReactEngine:
-        def __init__(self, llm_client=None, tools_registry=None, memory=None,
-                     max_tokens=128000, **kwargs):
+        def __init__(self, llm_client=None, tools_registry=None, memory=None, max_tokens=128000, **kwargs):
             self.llm_client = llm_client
             self.tools = tools_registry
             self.memory = memory
@@ -38,7 +37,8 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
     runtime = AgentRuntime(
         settings=settings,
         llm_client_factory=lambda: FakeLLMClient(
-            api_key="test-key", model="test-model",
+            api_key="test-key",
+            model="test-model",
         ),
     )
 

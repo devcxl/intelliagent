@@ -171,12 +171,16 @@ async def test_main_resume_uses_latest_conversation(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_main_history_lists_conversations(monkeypatch):
-    fake_db = FakeDatabaseManager(conversations=[{
-        "id": "conversation-1",
-        "title": "历史",
-        "status": "finished",
-        "updated_at": "now",
-    }])
+    fake_db = FakeDatabaseManager(
+        conversations=[
+            {
+                "id": "conversation-1",
+                "title": "历史",
+                "status": "finished",
+                "updated_at": "now",
+            }
+        ]
+    )
     _patch_orchestrator_dependencies(monkeypatch, fake_db)
 
     await main_module.main(task="", list_history=True)

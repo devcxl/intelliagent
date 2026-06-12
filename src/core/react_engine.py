@@ -98,7 +98,8 @@ class ReactEngine:
                 logger.debug("ReactEngine - 循环退出 | reason=max_iterations")
                 logger.warning(f"安全网触发终止 | turns={num_turns} max_iterations={iter_limit}")
                 state = {
-                    "success": False, "answer": "",
+                    "success": False,
+                    "answer": "",
                     "num_turns": num_turns,
                     "total_tokens": total_tokens,
                     "prompt_tokens": total_prompt_tokens,
@@ -114,14 +115,14 @@ class ReactEngine:
 
             safety = self._check_safety(total_tokens, consecutive_repeats, tok_limit, rep_limit)
             logger.debug(
-                f"ReactEngine - 安全网检查 | result={safety} "
-                f"tokens={total_tokens} repeats={consecutive_repeats}"
+                f"ReactEngine - 安全网检查 | result={safety} tokens={total_tokens} repeats={consecutive_repeats}"
             )
             if safety == "stop":
                 logger.debug("ReactEngine - 循环退出 | reason=safety_stop")
                 logger.warning(f"安全网触发终止 | turns={num_turns} tokens={total_tokens}")
                 state = {
-                    "success": False, "answer": "",
+                    "success": False,
+                    "answer": "",
                     "num_turns": num_turns,
                     "total_tokens": total_tokens,
                     "prompt_tokens": total_prompt_tokens,
@@ -134,16 +135,12 @@ class ReactEngine:
             elif safety == "warn":
                 self._ctx.add_user_message("⚠️ 系统提醒：请尽快总结当前进展并完成任务。")
 
-            logger.debug(
-                f"ReactEngine - 压缩上下文前 | msg_count={len(self._ctx.get_messages())}"
-            )
+            logger.debug(f"ReactEngine - 压缩上下文前 | msg_count={len(self._ctx.get_messages())}")
             compacted = self._ctx.compact_if_needed(
                 max_tokens=tok_limit,
                 extra_tokens=tool_tokens_estimate,
             )
-            logger.debug(
-                f"ReactEngine - 压缩上下文后 | compacted={compacted}"
-            )
+            logger.debug(f"ReactEngine - 压缩上下文后 | compacted={compacted}")
 
             logger.debug(
                 f"ReactEngine - LLM 调用前 | msg_count={len(self._ctx.get_messages())} "
@@ -205,21 +202,19 @@ class ReactEngine:
                     except json.JSONDecodeError:
                         tool_args = {}
 
-                    logger.debug(
-                        f"ReactEngine - 执行工具 | tool={tool_name} args_len={len(tool_args_str)}"
-                    )
+                    logger.debug(f"ReactEngine - 执行工具 | tool={tool_name} args_len={len(tool_args_str)}")
                     result = await self._execute_tool(tool_name, tool_args)
-                    logger.debug(
-                        f"ReactEngine - 工具结果 | tool={tool_name} result_len={len(result)}"
-                    )
+                    logger.debug(f"ReactEngine - 工具结果 | tool={tool_name} result_len={len(result)}")
                     self._ctx.add_tool_message(tc.id, result)
 
                     if self.memory:
-                        self.memory.add_observation({
-                            "tool_name": tool_name,
-                            "tool_args": tool_args,
-                            "result": result,
-                        })
+                        self.memory.add_observation(
+                            {
+                                "tool_name": tool_name,
+                                "tool_args": tool_args,
+                                "result": result,
+                            }
+                        )
             else:
                 return
 
@@ -252,9 +247,16 @@ class ReactEngine:
                     "cached_tokens": state["cached_tokens"],
                 }
 
-        return {"success": False, "answer": "", "num_turns": 0, "total_tokens": 0,
-                "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0,
-                "summary": "未知错误"}
+        return {
+            "success": False,
+            "answer": "",
+            "num_turns": 0,
+            "total_tokens": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "cached_tokens": 0,
+            "summary": "未知错误",
+        }
 
     # =======================================================================
     # iter_steps() — 异步流式生成器，供 WebSocket 实时推送

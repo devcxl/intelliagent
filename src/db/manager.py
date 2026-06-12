@@ -28,7 +28,7 @@ class DatabaseManager:
 
     def __init__(self, db_path: str) -> None:
         if db_path.startswith("sqlite:///"):
-            db_path = db_path[len("sqlite:///"):]
+            db_path = db_path[len("sqlite:///") :]
         self.db_path = db_path
         self.conversations = ConversationRepository(db_path)
         self.messages = MessageRepository(db_path)
@@ -45,6 +45,7 @@ class DatabaseManager:
             Path(db_dir).mkdir(parents=True, exist_ok=True)
 
         import sqlite3
+
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(_SCHEMA_SQL)
 
@@ -106,8 +107,13 @@ class DatabaseManager:
         source_run_id: str | None = None,
     ) -> dict[str, Any]:
         return await self.runs.create(
-            run_id, conversation_id, task_snapshot, status,
-            max_iterations, current_iteration, source_run_id,
+            run_id,
+            conversation_id,
+            task_snapshot,
+            status,
+            max_iterations,
+            current_iteration,
+            source_run_id,
         )
 
     async def get_run(self, run_id: str) -> dict[str, Any] | None:
@@ -219,7 +225,7 @@ def resolve_sqlite_database_path(database_url: str) -> Path:
     if not database_url.startswith("sqlite:///"):
         raise ValueError(f"不支持的数据库 URL 类型: {database_url}")
 
-    path_part = database_url[len("sqlite:///"):]
+    path_part = database_url[len("sqlite:///") :]
 
     # Windows 风格路径处理（如 sqlite:///C:/path）
     if len(path_part) > 2 and path_part[1] == ":":

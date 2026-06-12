@@ -7,6 +7,7 @@ ReactEngine 端到端测试 — 使用真实 LLM（需要 OPENAI_API_KEY）。
 
 跳过条件：未设置 OPENAI_API_KEY 环境变量时自动 skip。
 """
+
 import pytest
 
 from src.core.react_engine import ReactEngine
@@ -45,8 +46,7 @@ async def test_simple_calculation(engine):
 async def test_tool_call_read_file(engine):
     """单次工具调用：读取文件。"""
     result = await engine.run(
-        "读取文件 pyproject.toml 的内容，告诉我这个项目叫什么名字。"
-        "注意：文件路径是 pyproject.toml，在当前工作目录下。"
+        "读取文件 pyproject.toml 的内容，告诉我这个项目叫什么名字。注意：文件路径是 pyproject.toml，在当前工作目录下。"
     )
 
     assert result["success"] is True
@@ -73,9 +73,7 @@ async def test_tool_call_write_and_read(engine):
 @pytest.mark.asyncio
 async def test_tool_call_shell(engine):
     """Shell 工具调用。"""
-    result = await engine.run(
-        "用 run_shell 执行命令 'echo hello world'，把输出结果告诉我"
-    )
+    result = await engine.run("用 run_shell 执行命令 'echo hello world'，把输出结果告诉我")
 
     assert result["success"] is True
     assert "hello world" in result["answer"].lower()
@@ -102,8 +100,7 @@ async def test_safety_net_repeat_detection(engine):
     """安全网：连续重复调用检测。"""
     engine.max_consecutive_repeats = 3
     result = await engine.run(
-        "反复用 read_file 读取同一个不存在的文件 /tmp/nonexistent_xyz_123.txt，"
-        "每次都读取同一个文件，不要停。"
+        "反复用 read_file 读取同一个不存在的文件 /tmp/nonexistent_xyz_123.txt，每次都读取同一个文件，不要停。"
     )
 
     assert result["success"] is False

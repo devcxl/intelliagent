@@ -3,6 +3,7 @@
 LLM 客户端模块
 封装 OpenAI API 调用，支持原生 function calling。
 """
+
 import asyncio
 import os
 from dataclasses import dataclass
@@ -97,4 +98,3 @@ class LLMClient:
             response_format=response_format,
             tools=tools,
         )
-

@@ -36,34 +36,22 @@ async def run_shell(cmd: str) -> str:
             )
 
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=SHELL_COMMAND_TIMEOUT
-            )
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=SHELL_COMMAND_TIMEOUT)
         except asyncio.TimeoutError:
             process.kill()
-            return error_response(
-                f"命令执行超时（>{SHELL_COMMAND_TIMEOUT}秒）",
-                "TIMEOUT"
-            )
+            return error_response(f"命令执行超时（>{SHELL_COMMAND_TIMEOUT}秒）", "TIMEOUT")
 
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
-        logger.debug(
-            "ShellTool - 执行命令 | cmd=%s time_ms=%d returncode=%d",
-            cmd, elapsed_ms, process.returncode
-        )
+        logger.debug("ShellTool - 执行命令 | cmd=%s time_ms=%d returncode=%d", cmd, elapsed_ms, process.returncode)
 
-        output = stdout.decode('utf-8', errors='replace').strip()
-        error_output = stderr.decode('utf-8', errors='replace').strip()
+        output = stdout.decode("utf-8", errors="replace").strip()
+        error_output = stderr.decode("utf-8", errors="replace").strip()
 
         full_output = output
         if error_output and process.returncode != 0:
             full_output = f"{output}\n{error_output}".strip()
 
-        return success_response({
-            "output": full_output,
-            "returncode": process.returncode
-        })
+        return success_response({"output": full_output, "returncode": process.returncode})
 
     except Exception as e:
         return error_response(f"命令执行失败: {str(e)}", "EXECUTION_ERROR")

@@ -4,6 +4,7 @@ LLMClient.chat() DEBUG 日志测试
 
 使用 caplog fixture 验证 DEBUG 级别日志输出。
 """
+
 import logging
 from types import SimpleNamespace
 
@@ -12,7 +13,6 @@ from src.llm.llm_client import LLMClient
 
 
 class TestLLMClientChatDebugLogs:
-
     def test_chat_start_logs_model_msg_count_tool_count(self, monkeypatch, caplog):
         """chat() 调用开始时输出 model/msg_count/tool_count"""
         usage = SimpleNamespace(prompt_tokens=5, completion_tokens=5, total_tokens=10)

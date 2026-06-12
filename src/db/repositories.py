@@ -168,10 +168,7 @@ class MessageRepository:
                 "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
                 (conversation_id,),
             ).fetchall()
-        return [
-            {"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]}
-            for r in rows
-        ]
+        return [{"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]} for r in rows]
 
 
 # ======================================================================
@@ -200,8 +197,17 @@ class RunRepository:
                 """INSERT INTO runs (id, conversation_id, task_snapshot, status, max_iterations,
                                     current_iteration, source_run_id, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (run_id, conversation_id, task_snapshot, status, max_iterations,
-                 current_iteration, source_run_id, now, now),
+                (
+                    run_id,
+                    conversation_id,
+                    task_snapshot,
+                    status,
+                    max_iterations,
+                    current_iteration,
+                    source_run_id,
+                    now,
+                    now,
+                ),
             )
         return {"id": run_id}
 

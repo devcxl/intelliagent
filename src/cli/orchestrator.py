@@ -108,7 +108,11 @@ class ConversationOrchestrator:
             await self._db.save_message(self._conversation_id, role, content)
 
     async def save_trace(
-        self, seq: int, iteration: int, trace_type: str, data: dict[str, Any],
+        self,
+        seq: int,
+        iteration: int,
+        trace_type: str,
+        data: dict[str, Any],
     ) -> None:
         """保存执行轨迹。"""
         if self._run_id:
@@ -153,19 +157,26 @@ class ConversationOrchestrator:
         elif t == "action":
             await self.save_trace(seq, event["iteration"], "action", {"tool": data["tool"], "args": data["args"]})
         elif t == "observation":
-            await self.save_trace(seq, event["iteration"], "observation", {
-                "tool_name": data.get("tool_name", ""),
-                "tool_args": data.get("tool_args", {}),
-                "result": data.get("result", ""),
-                "status": data.get("status", ""),
-            })
+            await self.save_trace(
+                seq,
+                event["iteration"],
+                "observation",
+                {
+                    "tool_name": data.get("tool_name", ""),
+                    "tool_args": data.get("tool_args", {}),
+                    "result": data.get("result", ""),
+                    "status": data.get("status", ""),
+                },
+            )
         elif t == "answer":
             await self.save_trace(seq, event["iteration"], "answer", {"answer": data["answer"]})
             return data["answer"]
         return None
 
     async def execute(
-        self, task: str, history_context: str | None = None,
+        self,
+        task: str,
+        history_context: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """执行 agent run 并流式输出事件。"""
         engine = AgentRuntime(self._settings).create_engine()

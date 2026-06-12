@@ -47,23 +47,23 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, ToolDef] = {}
 
-    def register(self, fn: ToolFn, name: str, description: str,
-                 parameters: dict[str, dict[str, Any]]) -> None:
+    def register(self, fn: ToolFn, name: str, description: str, parameters: dict[str, dict[str, Any]]) -> None:
         self._tools[name] = ToolDef(
-            name=name, description=description,
-            function=fn, parameters=parameters,
+            name=name,
+            description=description,
+            function=fn,
+            parameters=parameters,
         )
 
-    def tool(self, name: str, description: str,
-             parameters: dict[str, dict[str, Any]]) -> Callable:
+    def tool(self, name: str, description: str, parameters: dict[str, dict[str, Any]]) -> Callable:
         def decorator(fn: ToolFn) -> ToolFn:
             self.register(fn, name, description, parameters)
             return fn
+
         return decorator
 
     def get_openai_tools(self) -> list[dict[str, Any]]:
-        return [_to_openai_function(t.name, t.description, t.parameters)
-                for t in self._tools.values()]
+        return [_to_openai_function(t.name, t.description, t.parameters) for t in self._tools.values()]
 
     def get_tool_fn(self, name: str) -> ToolFn | None:
         tool = self._tools.get(name)
@@ -101,6 +101,7 @@ _default_registry = ToolRegistry()
 )
 async def _run_shell_tool(cmd: str) -> str:
     from .shell_tool import run_shell as _run_shell
+
     return await _run_shell(cmd)
 
 
@@ -113,6 +114,7 @@ async def _run_shell_tool(cmd: str) -> str:
 )
 async def _read_file_tool(path: str) -> str:
     from .file_tools import read_file as _read_file
+
     return await _read_file(path)
 
 
@@ -126,6 +128,7 @@ async def _read_file_tool(path: str) -> str:
 )
 async def _write_file_tool(path: str, content: str) -> str:
     from .file_tools import write_file as _write_file
+
     return await _write_file(path, content)
 
 
@@ -141,6 +144,7 @@ async def _write_file_tool(path: str, content: str) -> str:
 )
 async def _edit_file_tool(path: str, oldString: str, newString: str, replaceAll: bool = False) -> str:
     from .file_tools import edit_file as _edit_file
+
     return await _edit_file(path, oldString, newString, replaceAll)
 
 
@@ -168,6 +172,7 @@ async def _todo_write_tool(todos: str) -> str:
 # ---------------------------------------------------------------------------
 # 向后兼容：模块级委托函数
 # ---------------------------------------------------------------------------
+
 
 def get_openai_tools() -> list[dict[str, Any]]:
     return _default_registry.get_openai_tools()

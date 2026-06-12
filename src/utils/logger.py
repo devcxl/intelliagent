@@ -3,6 +3,7 @@
 日志工具
 提供统一的日志记录功能
 """
+
 import logging
 import os
 import sys
@@ -10,9 +11,7 @@ from typing import Optional
 
 
 def setup_logger(
-    name: str = "intelliagent",
-    level: int | None = None,
-    format_string: Optional[str] = None
+    name: str = "intelliagent", level: int | None = None, format_string: Optional[str] = None
 ) -> logging.Logger:
     """
     设置日志记录器
@@ -54,4 +53,3 @@ def setup_logger(
 
 # 创建默认日志记录器
 logger = setup_logger()
-

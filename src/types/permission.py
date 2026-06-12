@@ -26,13 +26,13 @@ class Rule(BaseModel):
 
 class PermissionCallback(ABC):
     @abstractmethod
-    async def on_prompt(self, tool_name: str, args: dict[str, Any], reason: str) -> bool:
-        ...
+    async def on_prompt(self, tool_name: str, args: dict[str, Any], reason: str) -> bool: ...
 
 
 # ---------------------------------------------------------------------------
 # Protocol 定义 — 为 ReactEngine 提供类型契约
 # ---------------------------------------------------------------------------
+
 
 class LLMResponseProto:
     content: str | None
@@ -64,7 +64,13 @@ class PermissionCallbackProtocol(Protocol):
 
 
 __all__ = [
-    "PermissionAction", "Decision", "Rule", "PermissionCallback",
-    "LLMClientProtocol", "MemoryProtocol", "PermissionEngineProtocol",
-    "PermissionCallbackProtocol", "LLMResponseProto",
+    "PermissionAction",
+    "Decision",
+    "Rule",
+    "PermissionCallback",
+    "LLMClientProtocol",
+    "MemoryProtocol",
+    "PermissionEngineProtocol",
+    "PermissionCallbackProtocol",
+    "LLMResponseProto",
 ]

@@ -2,6 +2,7 @@
 """
 ReAct 循环引擎单元测试 — function calling 模式 + 双层安全网
 """
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -51,12 +52,9 @@ def mock_engine():
 
 
 class TestReactEngineBasicRun:
-
     @pytest.mark.asyncio
     async def test_immediate_completion(self, mock_engine):
-        mock_engine.llm_client.chat_async.return_value = _make_response(
-            content="任务已完成，答案是 42"
-        )
+        mock_engine.llm_client.chat_async.return_value = _make_response(content="任务已完成，答案是 42")
 
         result = await mock_engine.run("测试任务")
 
@@ -129,7 +127,6 @@ class TestReactEngineBasicRun:
 
 
 class TestReactEngineToolCalls:
-
     @pytest.mark.asyncio
     async def test_single_tool_call_then_complete(self, mock_engine):
         mock_engine.llm_client.chat_async.side_effect = [
@@ -154,7 +151,8 @@ class TestReactEngineToolCalls:
             call_count += 1
             if call_count < 5:
                 tc = _make_tool_call(
-                    f"call_{call_count}", "read_file",
+                    f"call_{call_count}",
+                    "read_file",
                     f'{{"path": "file_{call_count}.txt"}}',
                 )
                 return _make_response(tool_calls=[tc])
@@ -186,7 +184,6 @@ class TestReactEngineToolCalls:
 
 
 class TestReactEngineContext:
-
     @pytest.mark.asyncio
     async def test_clears_memory_on_run(self, mock_engine):
         mock_engine.llm_client.chat_async.return_value = _make_response(content="完成")
@@ -234,13 +231,10 @@ class TestReactEngineContext:
 
 
 class TestReactEngineIterSteps:
-
     @pytest.mark.asyncio
     async def test_iter_steps_yields_events(self, mock_engine):
         mock_engine.llm_client.chat_async.side_effect = [
-            _make_response(
-                tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')]
-            ),
+            _make_response(tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')]),
             _make_response(content="任务完成"),
         ]
 
