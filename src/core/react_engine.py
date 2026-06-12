@@ -5,53 +5,38 @@ from typing import Any, AsyncGenerator
 
 import src.tools.registry as _default_registry
 from src.core.context_manager import ContextManager, DEFAULT_SYSTEM_PROMPT
+from src.types.permission import (
+    LLMClientProtocol,
+    MemoryProtocol,
+    PermissionEngineProtocol,
+    PermissionCallbackProtocol,
+)
 from src.utils.logger import logger
 
 
-# ---------------------------------------------------------------------------
-# 系统提示词
-# ---------------------------------------------------------------------------
-# 注入到每次 LLM 调用首条消息的 system prompt。
-# 模型通过 function calling 机制自主决定调用哪个工具，不需要在 prompt 里描述工具列表。
-# 从 context_manager 模块导入，保持一致性
 SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT
 
 
 class ReactEngine:
-    """ReAct 循环引擎 — 对齐 Claude Code 设计。
+    """ReAct 循环引擎 — 对齐 Claude Code 设计。"""
 
-    核心设计：
-    - 使用 OpenAI 原生 function calling（非 JSON 解析），模型自主决定何时调用工具、何时停止
-    - while True 无限循环，模型返回不带 tool_calls 的消息即自然终止
-    - 安全网防止失控：token 用量上限 + 连续重复调用检测 + 可选轮数上限
-    - 完整的 token 用量追踪（prompt / completion / cached）
-    - TodoWrite 工具用于任务分解与进度跟踪
-    """
-
-    # -----------------------------------------------------------------------
-    # 安全网常量
-    # -----------------------------------------------------------------------
-    # 默认最大 token 用量，达到后强制终止。128K 是 GPT-4o 上下文窗口的保守值。
     DEFAULT_MAX_TOKENS = 128_000
-    # token 用量达到 80% 时注入提醒消息，提示模型尽快收尾。
     TOKEN_WARN_RATIO = 0.8
-    # 同一工具 + 同一参数连续调用超过此次数则判定为死循环，强制终止。
     DEFAULT_MAX_CONSECUTIVE_REPEATS = 5
-    # 连续重复达到 3 次时注入提醒消息。
     REPEAT_WARN_THRESHOLD = 3
 
     def __init__(
         self,
-        llm_client: Any,
+        llm_client: LLMClientProtocol,
         tools_registry: Any = None,
-        memory: Any = None,
+        memory: MemoryProtocol | None = None,
         context: Any = None,
         context_manager: ContextManager | None = None,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         max_iterations: int | None = None,
         max_consecutive_repeats: int = DEFAULT_MAX_CONSECUTIVE_REPEATS,
-        permission_engine: Any = None,
-        permission_callback: Any = None,
+        permission_engine: PermissionEngineProtocol | None = None,
+        permission_callback: PermissionCallbackProtocol | None = None,
     ):
         self.llm_client = llm_client
         self._registry = tools_registry if tools_registry is not None else _default_registry
@@ -62,68 +47,53 @@ class ReactEngine:
         self.max_consecutive_repeats = max_consecutive_repeats
         self._permission_engine = permission_engine
         self._permission_callback = permission_callback
-        # 上下文管理器 — 统一管理 messages 列表
         self._ctx = context_manager or ContextManager(
             system_prompt=SYSTEM_PROMPT,
             max_tokens=max_tokens,
         )
 
     # =======================================================================
-    # run() — 异步执行入口，返回最终结果字典
+    # _loop() — 核心循环生成器，供 run() 和 iter_steps() 共用
     # =======================================================================
-    async def run(
+    async def _loop(
         self,
         task: str,
-        max_iterations: int | None = None,
         history_context: str | None = None,
-    ) -> dict[str, Any]:
-        """执行 agent 循环，返回最终结果字典。
+        *,
+        token_limit: int | None = None,
+        repeat_limit: int | None = None,
+        iteration_limit: int | None = None,
+        reset_state: bool = True,
+    ) -> AsyncGenerator[tuple[Any, dict[str, Any]], None]:
+        if reset_state:
+            if self.memory:
+                self.memory.clear_memory()
+            if self.context:
+                self.context.add_context(f"用户任务: {task}")
 
-        返回值结构：
-            success: bool          — 是否正常完成（安全网触发时为 False）
-            answer: str            — 模型最终回复文本
-            num_turns: int         — 总交互轮数
-            total_tokens: int      — 总 token 用量
-            prompt_tokens: int     — prompt token 用量
-            completion_tokens: int — completion token 用量
-            cached_tokens: int     — 缓存命中 token 数
-            summary: str           — 仅在安全网触发时存在，描述终止原因
-        """
-        # ---- 初始化阶段 ----
-        # 清空上一轮的记忆和上下文，确保每次 run 是独立执行
-        if self.memory:
-            self.memory.clear_memory()
-        if self.context:
-            self.context.add_context(f"用户任务: {task}")
+        if reset_state or not self._ctx.get_messages():
+            self._ctx.initialize(task, history_context=history_context)
 
-        self._ctx.initialize(task, history_context=history_context)
-
-        # 获取 OpenAI function calling 格式的工具定义列表
         tools = self._registry.get_openai_tools()
         tool_tokens_estimate = self._estimate_extra_tokens(tools)
 
-        # ---- 状态追踪变量 ----
-        num_turns = 0                # 交互轮数计数器
-        total_tokens = 0             # 累计 token 用量（用于安全网判断）
-        total_prompt_tokens = 0      # 累计 prompt token
-        total_completion_tokens = 0  # 累计 completion token
-        total_cached_tokens = 0      # 累计缓存命中 token
-        last_call: tuple[str, str] | None = None  # 上一轮的工具调用签名 (工具名, 参数JSON)
-        consecutive_repeats = 0      # 连续重复调用计数
-        iteration_limit = max_iterations if max_iterations is not None else self.max_iterations
+        tok_limit = token_limit if token_limit is not None else self.max_tokens
+        rep_limit = repeat_limit if repeat_limit is not None else self.max_consecutive_repeats
+        iter_limit = iteration_limit if iteration_limit is not None else self.max_iterations
 
-        # ===================================================================
-        # 主循环 — 对齐 Claude Code 的 while(tool_use) 模式
-        # ===================================================================
-        # 循环终止条件：
-        #   1. 模型返回不带 tool_calls 的消息 → 自然完成
-        #   2. 安全网触发（token 超限 / 连续重复调用 / 轮数超限）→ 强制终止
+        num_turns = 0
+        total_tokens = 0
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        total_cached_tokens = 0
+        last_call: tuple[str, str] | None = None
+        consecutive_repeats = 0
+
         while True:
-            if iteration_limit is not None and num_turns >= iteration_limit:
-                logger.warning(f"安全网触发终止 | turns={num_turns} max_iterations={iteration_limit}")
-                return {
-                    "success": False,
-                    "answer": "",
+            if iter_limit is not None and num_turns >= iter_limit:
+                logger.warning(f"安全网触发终止 | turns={num_turns} max_iterations={iter_limit}")
+                state = {
+                    "success": False, "answer": "",
                     "num_turns": num_turns,
                     "total_tokens": total_tokens,
                     "prompt_tokens": total_prompt_tokens,
@@ -131,17 +101,16 @@ class ReactEngine:
                     "cached_tokens": total_cached_tokens,
                     "summary": "安全网触发：达到最大轮数",
                 }
+                yield None, state
+                return
 
             num_turns += 1
 
-            # ---- 第 1 步：安全网检查 ----
-            # 在每次 LLM 调用前检查，防止将已超限的上下文发送给 API。
-            safety = self._check_safety(total_tokens, consecutive_repeats)
+            safety = self._check_safety(total_tokens, consecutive_repeats, tok_limit, rep_limit)
             if safety == "stop":
                 logger.warning(f"安全网触发终止 | turns={num_turns} tokens={total_tokens}")
-                return {
-                    "success": False,
-                    "answer": "",
+                state = {
+                    "success": False, "answer": "",
                     "num_turns": num_turns,
                     "total_tokens": total_tokens,
                     "prompt_tokens": total_prompt_tokens,
@@ -149,31 +118,22 @@ class ReactEngine:
                     "cached_tokens": total_cached_tokens,
                     "summary": "安全网触发：任务终止",
                 }
+                yield None, state
+                return
             elif safety == "warn":
-                # 注入提醒消息，提示模型尽快收尾。
-                # 消息以 user 角色注入，确保模型注意到。
                 self._ctx.add_user_message("⚠️ 系统提醒：请尽快总结当前进展并完成任务。")
 
             self._ctx.compact_if_needed(
-                max_tokens=self.max_tokens,
+                max_tokens=tok_limit,
                 extra_tokens=tool_tokens_estimate,
             )
 
-            # ---- 第 2 步：调用 LLM ----
-            # 将完整 messages 历史 + 工具定义发送给模型。
-            # 模型通过 function calling 机制决定：
-            #   - 调用工具 → 返回 tool_calls
-            #   - 任务完成 → 返回纯文本，无 tool_calls
             response = await self.llm_client.chat_async(
                 messages=self._ctx.get_messages(),
                 temperature=0.3,
                 tools=tools,
             )
 
-            # ---- 第 3 步：累计 token 用量 ----
-            # 从 API 响应的 usage 字段提取各项 token 统计。
-            # prompt_tokens_details.cached_tokens 表示本次请求中被缓存命中的 token 数，
-            # 可用于评估上下文复用效率。
             if hasattr(response, "usage") and response.usage:
                 usage = response.usage
                 total_tokens += getattr(usage, "total_tokens", 0) or 0
@@ -184,28 +144,25 @@ class ReactEngine:
                 if cached_tokens:
                     total_cached_tokens += cached_tokens
 
-            # ---- 第 4 步：分支处理 ----
-            if response.tool_calls:
-                # ===========================================================
-                # 分支 A：模型请求调用工具
-                # ===========================================================
+            state = {
+                "num_turns": num_turns,
+                "total_tokens": total_tokens,
+                "prompt_tokens": total_prompt_tokens,
+                "completion_tokens": total_completion_tokens,
+                "cached_tokens": total_cached_tokens,
+                "last_call": last_call,
+                "consecutive_repeats": consecutive_repeats,
+            }
+            yield response, state
 
-                # 4a. 将 assistant 消息（含 tool_calls）追加到 messages
-                #     格式遵循 OpenAI function calling 协议：
-                #     assistant 消息包含 content 和 tool_calls 数组
+            if response.tool_calls:
                 tool_calls_msg = self._format_tool_calls(response.tool_calls)
                 self._ctx.add_assistant_message(response.content, tool_calls_msg)
 
-                # 4b. 逐个执行工具调用，将结果以 tool 角色追加到 messages
                 for tc in response.tool_calls:
                     tool_name = tc.function.name
                     tool_args_str = tc.function.arguments
 
-                    # ---- 连续重复调用检测 ----
-                    # 比较当前调用签名与上一轮是否完全一致。
-                    # 签名 = (工具名, 参数JSON字符串)，精确匹配。
-                    # 连续相同 → consecutive_repeats 递增
-                    # 不同 → 重置为 1
                     current_call = (tool_name, tool_args_str)
                     if current_call == last_call:
                         consecutive_repeats += 1
@@ -213,47 +170,55 @@ class ReactEngine:
                         consecutive_repeats = 1
                     last_call = current_call
 
-                    # 解析工具参数 JSON
                     try:
                         tool_args = json.loads(tool_args_str)
                     except json.JSONDecodeError:
                         tool_args = {}
 
-                    # 执行工具
                     result = await self._execute_tool(tool_name, tool_args)
-
-                    # 将工具执行结果以 tool 角色追加到 messages。
-                    # tool_call_id 必须与 assistant 消息中的 id 对应，
-                    # 这是 OpenAI function calling 协议的要求。
                     self._ctx.add_tool_message(tc.id, result)
 
-                    # 记录到外部 memory（供上层服务持久化）
                     if self.memory:
                         self.memory.add_observation({
                             "tool_name": tool_name,
                             "tool_args": tool_args,
                             "result": result,
                         })
-
-                # 工具执行完毕，回到循环顶部，继续下一轮 LLM 调用。
-                # 模型会看到工具结果，决定下一步操作。
-
             else:
-                # ===========================================================
-                # 分支 B：模型返回纯文本，无 tool_calls → 任务完成
-                # ===========================================================
-                # 这是唯一的正常退出路径。
-                # 模型认为任务已完成，返回最终答案。
-                logger.info(f"Agent 完成 | turns={num_turns} tokens={total_tokens}")
+                return
+
+    # =======================================================================
+    # run() — 异步执行入口，返回最终结果字典
+    # =======================================================================
+    async def run(
+        self,
+        task: str,
+        max_iterations: int | None = None,
+        history_context: str | None = None,
+    ) -> dict[str, Any]:
+        async for response, state in self._loop(
+            task,
+            history_context=history_context,
+            iteration_limit=max_iterations,
+        ):
+            if response is None:
+                return state
+
+            if not response.tool_calls:
+                logger.info(f"Agent 完成 | turns={state['num_turns']} tokens={state['total_tokens']}")
                 return {
                     "success": True,
                     "answer": response.content or "",
-                    "num_turns": num_turns,
-                    "total_tokens": total_tokens,
-                    "prompt_tokens": total_prompt_tokens,
-                    "completion_tokens": total_completion_tokens,
-                    "cached_tokens": total_cached_tokens,
+                    "num_turns": state["num_turns"],
+                    "total_tokens": state["total_tokens"],
+                    "prompt_tokens": state["prompt_tokens"],
+                    "completion_tokens": state["completion_tokens"],
+                    "cached_tokens": state["cached_tokens"],
                 }
+
+        return {"success": False, "answer": "", "num_turns": 0, "total_tokens": 0,
+                "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0,
+                "summary": "未知错误"}
 
     # =======================================================================
     # iter_steps() — 异步流式生成器，供 WebSocket 实时推送
@@ -269,136 +234,50 @@ class ReactEngine:
         reset_state: bool = True,
         seed_observations: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        """异步流式生成器，逐步 yield 执行步骤。
-
-        与 run() 的核心逻辑完全一致，区别在于：
-        - 每完成一个阶段（思考/行动/观察/答案）就 yield 一个事件
-        - 调用方可以逐事件推送到 WebSocket，实现实时进度展示
-        - 支持 resume 场景：通过 reset_state=False 和 seed_observations 恢复执行
-
-        yield 的事件类型：
-            thought:     模型返回的思考内容（含是否要调用工具）
-            action:      模型决定调用的工具名和参数
-            observation: 工具执行结果
-            answer:      最终答案（正常完成或安全网触发）
-        """
-        # 允许调用方覆盖安全网参数
         token_limit = max_tokens if max_tokens is not None else self.max_tokens
         repeat_limit = max_consecutive_repeats if max_consecutive_repeats is not None else self.max_consecutive_repeats
-        iteration_limit = max_iterations if max_iterations is not None else self.max_iterations
 
-        # 初始化：清空记忆和上下文（resume 场景可跳过）
-        if reset_state:
-            if self.memory:
-                self.memory.clear_memory()
-            if self.context:
-                self.context.add_context(f"用户任务: {task}")
-
-        if reset_state or not self._ctx.get_messages():
-            self._ctx.initialize(task, history_context=history_context)
-
-        tools = self._registry.get_openai_tools()
-        tool_tokens_estimate = self._estimate_extra_tokens(tools)
-
-        # 状态追踪变量（与 run() 相同）
-        num_turns = 0
-        total_tokens = 0
-        total_prompt_tokens = 0
-        total_completion_tokens = 0
-        total_cached_tokens = 0
-        last_call: tuple[str, str] | None = None
-        consecutive_repeats = 0
-
-        # 主循环 — 与 run() 逻辑完全一致，仅增加 yield 事件推送
-        while True:
-            if iteration_limit is not None and num_turns >= iteration_limit:
+        async for response, state in self._loop(
+            task,
+            history_context=history_context,
+            token_limit=token_limit,
+            repeat_limit=repeat_limit,
+            iteration_limit=max_iterations,
+            reset_state=reset_state,
+        ):
+            if response is None:
                 yield {
                     "type": "answer",
-                    "iteration": num_turns,
-                    "data": {"answer": "安全网触发：达到最大轮数"},
+                    "iteration": state["num_turns"],
+                    "data": {"answer": state.get("summary", "安全网触发")},
                 }
                 return
 
-            num_turns += 1
-
-            # 安全网检查
-            safety = self._check_safety(total_tokens, consecutive_repeats, token_limit, repeat_limit)
-            if safety == "stop":
-                yield {
-                    "type": "answer",
-                    "iteration": num_turns,
-                    "data": {"answer": "安全网触发：任务终止"},
-                }
-                return
-            elif safety == "warn":
-                self._ctx.add_user_message("⚠️ 系统提醒：请尽快总结当前进展并完成任务。")
-
-            self._ctx.compact_if_needed(
-                max_tokens=token_limit,
-                extra_tokens=tool_tokens_estimate,
-            )
-
-            # 调用 LLM
-            response = await self.llm_client.chat_async(
-                messages=self._ctx.get_messages(),
-                temperature=0.3,
-                tools=tools,
-            )
-
-            # 累计 token 用量
-            if hasattr(response, "usage") and response.usage:
-                usage = response.usage
-                total_tokens += getattr(usage, "total_tokens", 0) or 0
-                total_prompt_tokens += getattr(usage, "prompt_tokens", 0) or 0
-                total_completion_tokens += getattr(usage, "completion_tokens", 0) or 0
-                details = getattr(usage, "prompt_tokens_details", None)
-                cached_tokens = getattr(details, "cached_tokens", 0) if details else 0
-                if cached_tokens:
-                    total_cached_tokens += cached_tokens
-
-            # yield 思考事件：模型本轮返回的内容 + 是否包含工具调用
             yield {
                 "type": "thought",
-                "iteration": num_turns,
+                "iteration": state["num_turns"],
                 "data": {"content": response.content, "has_tool_calls": bool(response.tool_calls)},
             }
 
             if response.tool_calls:
-                # 分支 A：工具调用 — 与 run() 相同的处理逻辑
-                tool_calls_msg = self._format_tool_calls(response.tool_calls)
-                self._ctx.add_assistant_message(response.content, tool_calls_msg)
-
                 for tc in response.tool_calls:
                     tool_name = tc.function.name
                     tool_args_str = tc.function.arguments
-
-                    # 连续重复调用检测
-                    current_call = (tool_name, tool_args_str)
-                    if current_call == last_call:
-                        consecutive_repeats += 1
-                    else:
-                        consecutive_repeats = 1
-                    last_call = current_call
-
                     try:
                         tool_args = json.loads(tool_args_str)
                     except json.JSONDecodeError:
                         tool_args = {}
 
-                    # yield 行动事件：告知调用方即将执行哪个工具
                     yield {
                         "type": "action",
-                        "iteration": num_turns,
+                        "iteration": state["num_turns"],
                         "data": {"tool": tool_name, "args": tool_args},
                     }
 
-                    # 执行工具
                     result = await self._execute_tool(tool_name, tool_args)
-                    self._ctx.add_tool_message(tc.id, result)
 
-                    # yield 观察事件：告知调用方工具执行结果
                     obs = {
-                        "iteration": num_turns,
+                        "iteration": state["num_turns"],
                         "tool_name": tool_name,
                         "tool_args": tool_args,
                         "result": result,
@@ -406,19 +285,15 @@ class ReactEngine:
                         "error": None,
                         "execution_time": 0,
                     }
-                    if self.memory:
-                        self.memory.add_observation(obs)
-
                     yield {
                         "type": "observation",
-                        "iteration": num_turns,
+                        "iteration": state["num_turns"],
                         "data": obs,
                     }
             else:
-                # 分支 B：任务完成
                 yield {
                     "type": "answer",
-                    "iteration": num_turns,
+                    "iteration": state["num_turns"],
                     "data": {"answer": response.content or ""},
                 }
                 return
@@ -454,24 +329,9 @@ class ReactEngine:
         token_limit: int | None = None,
         repeat_limit: int | None = None,
     ) -> str:
-        """检查安全网状态，返回 "ok" / "warn" / "stop"。
-
-        两层检测，按严重程度从高到低：
-
-        第一层 — token 用量上限：
-          - total_tokens >= max_tokens → "stop"  立即终止，防止超出上下文窗口
-          - total_tokens >= 80% max_tokens → "warn"  提醒模型尽快收尾
-
-        第二层 — 连续重复调用检测：
-          - consecutive_repeats >= max_consecutive_repeats → "stop"  判定为死循环
-          - consecutive_repeats >= REPEAT_WARN_THRESHOLD → "warn"  提醒模型换策略
-
-        注意：stop 条件优先于 warn 条件，确保严重问题立即处理。
-        """
         max_tok = token_limit if token_limit is not None else self.max_tokens
         max_rep = repeat_limit if repeat_limit is not None else self.max_consecutive_repeats
 
-        # 第一层：token 用量 — 先检查 stop，再检查 warn
         if total_tokens >= max_tok:
             return "stop"
         if consecutive_repeats >= max_rep:
@@ -486,11 +346,6 @@ class ReactEngine:
     # _execute_tool() — 工具执行适配层
     # =======================================================================
     async def _execute_tool(self, name: str, args: dict[str, Any]) -> str:
-        """执行单个工具调用，返回 JSON 字符串结果。
-
-        从工具注册表查找工具函数，执行并捕获异常。
-        返回值统一为 JSON 字符串，包含 status 字段（"success" / "error"）。
-        """
         if self._permission_engine:
             decision = self._permission_engine.check(name, args)
             if decision.action == "deny":
