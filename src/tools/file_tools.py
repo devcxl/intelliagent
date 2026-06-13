@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 from src.utils.logger import logger
@@ -19,12 +20,14 @@ def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | Non
     """检查文件路径是否在工作区范围内。
 
     Args:
-        file_path: 已 resolve 的文件路径
-        workspace_root: 工作区根路径，None 表示不校验
+        file_path: 已 expanduser 的文件路径
+        workspace_root: 工作区根路径，None 时回退到 INTELLIAGENT_WORKSPACE_ROOT 环境变量
 
     Returns:
         错误响应字符串，None 表示通过校验
     """
+    if workspace_root is None:
+        workspace_root = os.environ.get("INTELLIAGENT_WORKSPACE_ROOT")
     if workspace_root is None:
         return None
 

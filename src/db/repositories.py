@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import uuid
+import threading
 from datetime import datetime, timezone
 from typing import Any
 
@@ -21,6 +21,19 @@ def _now() -> str:
 def _now_ts() -> int:
     """返回当前时间戳（毫秒）。"""
     return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
+# 消息 ID 生成：线程安全计数器 + 时间戳
+# 保证同一毫秒内不碰撞，且格式确定可复现
+_msg_id_counter = 0
+_msg_id_lock = threading.Lock()
+
+
+def _next_msg_id() -> str:
+    global _msg_id_counter
+    with _msg_id_lock:
+        _msg_id_counter += 1
+        return f"msg-{_now_ts()}-{_msg_id_counter:04d}"
 
 
 # ======================================================================
@@ -152,7 +165,7 @@ class MessageRepository:
         content: str,
     ) -> str:
         """保存一条消息，返回消息 ID。"""
-        msg_id = f"msg-{_now_ts()}-{uuid.uuid4().hex[:12]}"
+        msg_id = _next_msg_id()
         now = _now()
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
