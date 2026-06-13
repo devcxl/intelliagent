@@ -252,42 +252,7 @@ async def test_callback_uppercase_y(monkeypatch):
 
 
 # ============================================================================
-# 2.7 — load_permission_engine 测试
-# ============================================================================
-
-
-def test_load_from_missing_file_uses_defaults():
-    engine = load_permission_engine("/tmp/nonexistent_permissions.json")
-    assert len(engine.rules) == 10
-    d = engine.check("todo_write", {})
-    assert d.action.value == "allow"
-
-
-def test_load_from_valid_json(tmp_path):
-    config = tmp_path / "permissions.json"
-    config.write_text('{"rules": [{"tool": "run_shell", "action": "deny", "conditions": {}}]}')
-    engine = load_permission_engine(str(config))
-    assert len(engine.rules) == 1
-    d = engine.check("run_shell", {"cmd": "ls"})
-    assert d.action.value == "deny"
-
-
-def test_load_from_empty_rules_uses_defaults(tmp_path):
-    config = tmp_path / "permissions.json"
-    config.write_text('{"rules": []}')
-    engine = load_permission_engine(str(config))
-    assert len(engine.rules) == 10
-
-
-def test_load_broken_json_uses_defaults(tmp_path):
-    config = tmp_path / "permissions.json"
-    config.write_text("not json")
-    engine = load_permission_engine(str(config))
-    assert len(engine.rules) == 10
-
-
-# ============================================================================
-# 新增：load_permission_engine 接受 PermissionsConfig 对象
+# 2.7 — load_permission_engine 测试（仅 PermissionsConfig 对象）
 # ============================================================================
 
 

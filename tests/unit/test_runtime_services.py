@@ -30,13 +30,7 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
 
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
 
-    settings = SimpleNamespace(
-        OPENAI_API_KEY="test-key",
-        OPENAI_API_BASE=None,
-        OPENAI_MODEL="test-model",
-    )
     runtime = AgentRuntime(
-        settings=settings,
         llm_client_factory=lambda: FakeLLMClient(
             api_key="test-key",
             model="test-model",
@@ -122,7 +116,6 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
     )
 
     engine = AgentRuntime(
-        settings=settings,
         llm_client_factory=FakeLLMClient,
         permission_engine_factory=FakePermissionEngine,
         permission_callback_factory=FakePermissionCallback,
@@ -249,28 +242,6 @@ def test_agent_runtime_from_unified_config_workspace(monkeypatch):
     assert engine._workspace == Path("/tmp/custom-ws")
 
 
-def test_agent_runtime_backward_compat_with_settings(monkeypatch):
-    """AgentRuntime 仍接受旧版 settings 参数。"""
-    import src.llm.llm_client as llm_client_module
-
-    captured_kwargs = {}
-
-    class FakeLLMClient:
-        def __init__(self, api_key=None, base_url=None, model=None):
-            captured_kwargs["api_key"] = api_key
-            captured_kwargs["base_url"] = base_url
-            captured_kwargs["model"] = model
-
-    monkeypatch.setattr(llm_client_module, "LLMClient", FakeLLMClient)
-
-    settings = SimpleNamespace(
-        OPENAI_API_KEY="old-key",
-        OPENAI_API_BASE=None,
-        OPENAI_MODEL="old-model",
-    )
-
-    runtime = AgentRuntime(settings=settings)
-    runtime._default_llm_client_factory()
-
-    assert captured_kwargs["api_key"] == "old-key"
-    assert captured_kwargs["model"] == "old-model"
+# ============================================================================
+# 新增：test_settings.py 已覆盖 backward compat
+# ============================================================================

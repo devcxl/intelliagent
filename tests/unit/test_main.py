@@ -77,8 +77,8 @@ class FakeEngine:
 
 
 class FakeAgentRuntime:
-    def __init__(self, runtime_settings):
-        self.runtime_settings = runtime_settings
+    def __init__(self, config=None):
+        self._config = config
 
     def create_engine(self):
         return FakeEngine()
@@ -89,10 +89,10 @@ def _patch_orchestrator_dependencies(monkeypatch, fake_db, created=None):
     settings = SimpleNamespace(DATABASE_URL=":memory:")
 
     class RecordingAgentRuntime(FakeAgentRuntime):
-        def __init__(self, runtime_settings):
-            super().__init__(runtime_settings)
+        def __init__(self, config=None):
+            super().__init__(config)
             if created is not None:
-                created["settings"] = runtime_settings
+                created["config"] = config
 
         def create_engine(self):
             if created is not None:
@@ -119,7 +119,7 @@ async def test_main_creates_engine_through_agent_runtime(monkeypatch):
 
     await main_module.main(task="测试任务")
 
-    assert created["settings"] is settings
+    assert created["config"] is None  # no config passed = default load
     assert created["create_engine_called"] is True
 
 
