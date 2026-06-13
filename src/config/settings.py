@@ -37,7 +37,6 @@ class Settings(BaseModel):
     EXPERIENCE_FILE: str = "experiences.json"
 
     WORKSPACE_DIR: str = Field(default_factory=lambda: str(Path.cwd()))
-    PERMISSION_CONFIG: str = "permissions.json"
 
     DATABASE_URL: str = Field(default=DEFAULT_DATABASE_URL)
 
@@ -54,22 +53,19 @@ class Settings(BaseModel):
         )
 
 
+_ENV_OVERRIDE_KEYS = [
+    "OPENAI_API_KEY", "OPENAI_API_BASE", "OPENAI_MODEL",
+    "WORKSPACE_DIR", "DATABASE_URL", "EXPERIENCE_FILE", "LOG_LEVEL",
+]
+
+
 def _collect_env_overrides() -> dict[str, str]:
     """收集环境变量中与 Settings 字段对应的覆盖值。"""
-    env_map = {
-        "OPENAI_API_KEY": "OPENAI_API_KEY",
-        "OPENAI_API_BASE": "OPENAI_API_BASE",
-        "OPENAI_MODEL": "OPENAI_MODEL",
-        "WORKSPACE_DIR": "WORKSPACE_DIR",
-        "DATABASE_URL": "DATABASE_URL",
-        "EXPERIENCE_FILE": "EXPERIENCE_FILE",
-        "LOG_LEVEL": "LOG_LEVEL",
-    }
     overrides: dict[str, str] = {}
-    for env_key, settings_key in env_map.items():
-        val = os.environ.get(env_key)
+    for key in _ENV_OVERRIDE_KEYS:
+        val = os.environ.get(key)
         if val is not None:
-            overrides[settings_key] = val
+            overrides[key] = val
     return overrides
 
 

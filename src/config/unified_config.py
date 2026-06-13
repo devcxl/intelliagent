@@ -18,7 +18,6 @@ class LLMConfig(BaseModel):
     api_key: str = ""
     base_url: str | None = None
     model: str = "gpt-4o-mini"
-    reasoning_effort: str | None = None
 
 
 class WorkspaceConfig(BaseModel):

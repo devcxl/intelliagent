@@ -3,8 +3,7 @@
   "llm": {
     "api_key": "{env:OPENAI_API_KEY}",
     "base_url": "{env:OPENAI_API_BASE}",
-    "model": "{env:OPENAI_MODEL:gpt-4o-mini}",
-    "reasoning_effort": "{env:OPENAI_REASONING_EFFORT}"
+    "model": "{env:OPENAI_MODEL:gpt-4o-mini}"
   },
   "workspace": {
     "dir": "{env:WORKSPACE_DIR:.}"

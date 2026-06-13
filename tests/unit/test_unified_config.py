@@ -26,7 +26,6 @@ def test_llm_config_defaults():
     assert config.api_key == ""
     assert config.base_url is None
     assert config.model == "gpt-4o-mini"
-    assert config.reasoning_effort is None
 
 
 def test_workspace_config_defaults():
