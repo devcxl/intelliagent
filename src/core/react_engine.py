@@ -133,7 +133,14 @@ class ReactEngine:
                 yield None, state
                 return
             elif safety == "warn":
-                self._ctx.add_user_message("⚠️ 系统提醒：请尽快总结当前进展并完成任务。")
+                if consecutive_repeats >= self.REPEAT_WARN_THRESHOLD and last_call:
+                    tool_name, tool_args = last_call
+                    self._ctx.add_user_message(
+                        f"⚠️ 你已连续 {consecutive_repeats} 次调用 {tool_name} 且结果无变化。"
+                        f"请停止重复，换一种方式继续。"
+                    )
+                else:
+                    self._ctx.add_user_message("⚠️ 系统提醒：请尽快总结当前进展并完成任务。")
 
             logger.debug(f"ReactEngine - 压缩上下文前 | msg_count={len(self._ctx.get_messages())}")
             compacted = self._ctx.compact_if_needed(
