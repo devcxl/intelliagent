@@ -47,9 +47,9 @@ def format_conversation_header(
 ) -> None:
     """打印 Conversation 头部信息。"""
     if is_new:
-        print(f"🆕 新 Conversation: {conversation_id}")
+        print(f"[新] Conversation: {conversation_id}")
     else:
-        print(f"📋 继续 Conversation: {conversation_id}")
+        print(f"[继续] Conversation: {conversation_id}")
 
     print(f"\n{'=' * 60}")
     print(f"任务: {task}")
@@ -74,11 +74,11 @@ async def show_history(
 ) -> None:
     """展示所有历史 Conversation。"""
     if not conversations:
-        print("📭 没有历史 Conversation。")
+        print("没有历史 Conversation。")
         return
 
     print(f"\n{'=' * 60}")
-    print(f"📋 历史 Conversation 列表（共 {len(conversations)} 个）")
+    print(f"历史 Conversation 列表（共 {len(conversations)} 个）")
     print(f"{'=' * 60}\n")
 
     for conversation in conversations:
@@ -88,5 +88,5 @@ async def show_history(
 
 def show_save_info(conversation_id: str) -> None:
     """打印保存信息。"""
-    print(f"💾 已保存到 Conversation: {conversation_id}")
-    print(f'💡 下次继续请使用: python -m src.main --session {conversation_id} "新任务"')
+    print(f"已保存到 Conversation: {conversation_id}")
+    print(f'下次继续请使用: python -m src.main --session {conversation_id} "新任务"')

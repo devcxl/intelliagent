@@ -15,7 +15,36 @@ FILE_READ_MAX_SIZE = 50000
 FILE_WRITE_MAX_SIZE = 1000000
 
 
-async def read_file(path: str) -> str:
+def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | None) -> str | None:
+    """检查文件路径是否在工作区范围内。
+
+    Args:
+        file_path: 已 resolve 的文件路径
+        workspace_root: 工作区根路径，None 表示不校验
+
+    Returns:
+        错误响应字符串，None 表示通过校验
+    """
+    if workspace_root is None:
+        return None
+
+    workspace_path = pathlib.Path(workspace_root).resolve()
+    try:
+        resolved = file_path.resolve()
+    except (OSError, RuntimeError):
+        return error_response(f"无法解析路径: {file_path}", "PATH_RESOLVE_ERROR")
+
+    try:
+        resolved.relative_to(workspace_path)
+    except ValueError:
+        return error_response(
+            f"路径超出工作区范围: {resolved} (工作区: {workspace_path})",
+            "PATH_OUTSIDE_WORKSPACE",
+        )
+    return None
+
+
+async def read_file(path: str, workspace_root: str | None = None) -> str:
     if not path or not isinstance(path, str):
         return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
 
@@ -25,6 +54,10 @@ async def read_file(path: str) -> str:
 
     try:
         file_path = pathlib.Path(path).expanduser()
+
+        boundary_error = _check_workspace_boundary(file_path, workspace_root)
+        if boundary_error is not None:
+            return boundary_error
 
         if not file_path.exists():
             return error_response(f"文件不存在: {path}", "FILE_NOT_FOUND")
@@ -53,7 +86,7 @@ async def read_file(path: str) -> str:
         return error_response(f"读取文件失败: {str(e)}", "READ_ERROR")
 
 
-async def write_file(path: str, content: str) -> str:
+async def write_file(path: str, content: str, workspace_root: str | None = None) -> str:
     if not path or not isinstance(path, str):
         return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
 
@@ -74,6 +107,11 @@ async def write_file(path: str, content: str) -> str:
 
     try:
         file_path = pathlib.Path(path).expanduser()
+
+        boundary_error = _check_workspace_boundary(file_path, workspace_root)
+        if boundary_error is not None:
+            return boundary_error
+
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
         if HAS_AIOFILES:
@@ -90,7 +128,7 @@ async def write_file(path: str, content: str) -> str:
         return error_response(f"写入文件失败: {str(e)}", "WRITE_ERROR")
 
 
-async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool = False) -> str:
+async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool = False, workspace_root: str | None = None) -> str:
     if not path or not isinstance(path, str):
         return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
 
@@ -110,6 +148,10 @@ async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool 
 
     try:
         file_path = pathlib.Path(path).expanduser()
+
+        boundary_error = _check_workspace_boundary(file_path, workspace_root)
+        if boundary_error is not None:
+            return boundary_error
 
         if not file_path.exists():
             return error_response(f"文件不存在: {path}", "FILE_NOT_FOUND")

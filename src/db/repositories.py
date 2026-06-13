@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -151,7 +152,7 @@ class MessageRepository:
         content: str,
     ) -> str:
         """保存一条消息，返回消息 ID。"""
-        msg_id = f"msg-{_now_ts()}-{hash(content) % 10000}"
+        msg_id = f"msg-{_now_ts()}-{uuid.uuid4().hex[:12]}"
         now = _now()
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
