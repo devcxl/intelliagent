@@ -182,21 +182,18 @@ async def test_run_service_streams_steps_from_engine():
 
 
 def test_agent_runtime_from_unified_config_uses_llm_fields(monkeypatch):
-    """AgentRuntime 从 UnifiedConfig 构造时，默认工厂应使用 llm 子模型字段。"""
-    created_llm_clients = []
+    """AgentRuntime 从 UnifiedConfig 构造时，默认 LLM 工厂应使用 llm 子模型字段。"""
+    import src.llm.llm_client as llm_client_module
+
+    captured_kwargs = {}
 
     class FakeLLMClient:
         def __init__(self, api_key=None, base_url=None, model=None):
-            self.api_key = api_key
-            self.base_url = base_url
-            self.model = model
-            created_llm_clients.append(self)
+            captured_kwargs["api_key"] = api_key
+            captured_kwargs["base_url"] = base_url
+            captured_kwargs["model"] = model
 
-    class FakeReactEngine:
-        def __init__(self, llm_client=None, **kwargs):
-            self.llm_client = llm_client
-
-    monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
+    monkeypatch.setattr(llm_client_module, "LLMClient", FakeLLMClient)
 
     config = UnifiedConfig.model_validate({
         "llm": {
@@ -206,12 +203,12 @@ def test_agent_runtime_from_unified_config_uses_llm_fields(monkeypatch):
         },
     })
 
-    runtime = AgentRuntime(config=config, llm_client_factory=FakeLLMClient)
-    client = runtime.get_llm_client()
+    runtime = AgentRuntime(config=config)
+    runtime._default_llm_client_factory()
 
-    assert client.api_key == "sk-unified"
-    assert client.base_url == "https://unified.example.com"
-    assert client.model == "unified-model"
+    assert captured_kwargs["api_key"] == "sk-unified"
+    assert captured_kwargs["base_url"] == "https://unified.example.com"
+    assert captured_kwargs["model"] == "unified-model"
 
 
 def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
@@ -254,14 +251,17 @@ def test_agent_runtime_from_unified_config_workspace(monkeypatch):
 
 def test_agent_runtime_backward_compat_with_settings(monkeypatch):
     """AgentRuntime 仍接受旧版 settings 参数。"""
-    created_llm_clients = []
+    import src.llm.llm_client as llm_client_module
+
+    captured_kwargs = {}
 
     class FakeLLMClient:
         def __init__(self, api_key=None, base_url=None, model=None):
-            self.api_key = api_key
-            self.base_url = base_url
-            self.model = model
-            created_llm_clients.append(self)
+            captured_kwargs["api_key"] = api_key
+            captured_kwargs["base_url"] = base_url
+            captured_kwargs["model"] = model
+
+    monkeypatch.setattr(llm_client_module, "LLMClient", FakeLLMClient)
 
     settings = SimpleNamespace(
         OPENAI_API_KEY="old-key",
@@ -269,8 +269,8 @@ def test_agent_runtime_backward_compat_with_settings(monkeypatch):
         OPENAI_MODEL="old-model",
     )
 
-    runtime = AgentRuntime(settings=settings, llm_client_factory=FakeLLMClient)
-    client = runtime.get_llm_client()
+    runtime = AgentRuntime(settings=settings)
+    runtime._default_llm_client_factory()
 
-    assert client.api_key == "old-key"
-    assert client.model == "old-model"
+    assert captured_kwargs["api_key"] == "old-key"
+    assert captured_kwargs["model"] == "old-model"
