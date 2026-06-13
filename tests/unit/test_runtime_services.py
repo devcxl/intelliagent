@@ -181,13 +181,15 @@ def test_agent_runtime_from_unified_config_uses_llm_fields(monkeypatch):
 
     monkeypatch.setattr(llm_client_module, "LLMClient", FakeLLMClient)
 
-    config = UnifiedConfig.model_validate({
-        "llm": {
-            "api_key": "sk-unified",
-            "base_url": "https://unified.example.com",
-            "model": "unified-model",
-        },
-    })
+    config = UnifiedConfig.model_validate(
+        {
+            "llm": {
+                "api_key": "sk-unified",
+                "base_url": "https://unified.example.com",
+                "model": "unified-model",
+            },
+        }
+    )
 
     runtime = AgentRuntime(config=config)
     runtime._default_llm_client_factory()
@@ -201,13 +203,15 @@ def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
     """AgentRuntime 从 UnifiedConfig 构造时，权限引擎应使用 permissions 子模型。"""
     from src.core.permission_engine import PermissionEngine
 
-    config = UnifiedConfig.model_validate({
-        "permissions": {
-            "rules": [
-                {"tool": "run_shell", "action": "deny", "conditions": {}},
-            ],
-        },
-    })
+    config = UnifiedConfig.model_validate(
+        {
+            "permissions": {
+                "rules": [
+                    {"tool": "run_shell", "action": "deny", "conditions": {}},
+                ],
+            },
+        }
+    )
 
     runtime = AgentRuntime(config=config)
     engine = runtime._default_permission_engine_factory()
@@ -224,9 +228,11 @@ def test_agent_runtime_from_unified_config_workspace(monkeypatch):
 
     from src.core.permission_engine import PermissionEngine
 
-    config = UnifiedConfig.model_validate({
-        "workspace": {"dir": "/tmp/custom-ws"},
-    })
+    config = UnifiedConfig.model_validate(
+        {
+            "workspace": {"dir": "/tmp/custom-ws"},
+        }
+    )
 
     runtime = AgentRuntime(config=config)
     engine = runtime._default_permission_engine_factory()

@@ -77,13 +77,15 @@ def test_settings_rejects_non_sqlite_database_url(monkeypatch):
 def test_from_unified_config_maps_llm_fields():
     from src.config.settings import Settings
 
-    unified = UnifiedConfig.model_validate({
-        "llm": {
-            "api_key": "sk-bridge",
-            "base_url": "https://api.example.com",
-            "model": "bridge-model",
-        },
-    })
+    unified = UnifiedConfig.model_validate(
+        {
+            "llm": {
+                "api_key": "sk-bridge",
+                "base_url": "https://api.example.com",
+                "model": "bridge-model",
+            },
+        }
+    )
     settings = Settings.from_unified_config(unified)
 
     assert settings.OPENAI_API_KEY == "sk-bridge"
@@ -94,10 +96,12 @@ def test_from_unified_config_maps_llm_fields():
 def test_from_unified_config_maps_workspace_and_database():
     from src.config.settings import Settings
 
-    unified = UnifiedConfig.model_validate({
-        "workspace": {"dir": "/tmp/ws"},
-        "database": {"url": "sqlite:///bridge.db"},
-    })
+    unified = UnifiedConfig.model_validate(
+        {
+            "workspace": {"dir": "/tmp/ws"},
+            "database": {"url": "sqlite:///bridge.db"},
+        }
+    )
     settings = Settings.from_unified_config(unified)
 
     assert settings.WORKSPACE_DIR == "/tmp/ws"
@@ -107,9 +111,11 @@ def test_from_unified_config_maps_workspace_and_database():
 def test_from_unified_config_maps_experience_file():
     from src.config.settings import Settings
 
-    unified = UnifiedConfig.model_validate({
-        "experience_file": "bridge_experiences.json",
-    })
+    unified = UnifiedConfig.model_validate(
+        {
+            "experience_file": "bridge_experiences.json",
+        }
+    )
     settings = Settings.from_unified_config(unified)
 
     assert settings.EXPERIENCE_FILE == "bridge_experiences.json"
@@ -133,12 +139,16 @@ def test_get_settings_loads_from_intelliagent_json(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env")
 
     config_path = tmp_path / "intelliagent.json"
-    config_path.write_text(json.dumps({
-        "llm": {
-            "api_key": "{env:OPENAI_API_KEY}",
-            "model": "custom-model",
-        },
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "llm": {
+                    "api_key": "{env:OPENAI_API_KEY}",
+                    "model": "custom-model",
+                },
+            }
+        )
+    )
     clear_settings_cache()
 
     settings = get_settings()
@@ -155,9 +165,13 @@ def test_get_settings_env_overrides_intelliagent_json(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_MODEL", "env-model-override")
 
     config_path = tmp_path / "intelliagent.json"
-    config_path.write_text(json.dumps({
-        "llm": {"model": "json-model"},
-    }))
+    config_path.write_text(
+        json.dumps(
+            {
+                "llm": {"model": "json-model"},
+            }
+        )
+    )
     clear_settings_cache()
 
     settings = get_settings()

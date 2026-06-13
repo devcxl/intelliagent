@@ -57,6 +57,7 @@ def _format_mcp_result(result: CallToolResult) -> str:
     text = "\n".join(parts)
     if result.isError:
         import json
+
         return json.dumps({"status": "error", "error": text or "MCP 工具执行失败"}, ensure_ascii=False)
     return text
 

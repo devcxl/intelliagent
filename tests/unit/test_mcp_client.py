@@ -23,16 +23,18 @@ def test_mcp_config_empty():
 
 
 def test_mcp_config_with_env():
-    config = MCPConfig.from_dict({
-        "servers": [
-            {
-                "name": "github",
-                "command": "npx",
-                "args": ["-y", "server-github"],
-                "env": {"GITHUB_TOKEN": "xxx"},
-            },
-        ],
-    })
+    config = MCPConfig.from_dict(
+        {
+            "servers": [
+                {
+                    "name": "github",
+                    "command": "npx",
+                    "args": ["-y", "server-github"],
+                    "env": {"GITHUB_TOKEN": "xxx"},
+                },
+            ],
+        }
+    )
     assert config.servers[0].env == {"GITHUB_TOKEN": "xxx"}
 
 

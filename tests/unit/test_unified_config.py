@@ -74,25 +74,27 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
 
     config_path = tmp_path / "intelliagent.json"
     config_path.write_text(
-        json.dumps({
-            "llm": {
-                "api_key": "{env:OPENAI_API_KEY}",
-                "model": "{env:OPENAI_MODEL:gpt-4o-mini}",
-            },
-            "workspace": {"dir": "/tmp/ws"},
-            "database": {"url": "sqlite:///test.db"},
-            "experience_file": "my_experiences.json",
-            "permissions": {
-                "rules": [
-                    {"tool": "run_shell", "action": "deny", "conditions": {}},
-                ],
-            },
-            "mcp": {
-                "servers": [
-                    {"name": "fs", "command": "npx", "args": ["-y", "server-fs"]},
-                ],
-            },
-        })
+        json.dumps(
+            {
+                "llm": {
+                    "api_key": "{env:OPENAI_API_KEY}",
+                    "model": "{env:OPENAI_MODEL:gpt-4o-mini}",
+                },
+                "workspace": {"dir": "/tmp/ws"},
+                "database": {"url": "sqlite:///test.db"},
+                "experience_file": "my_experiences.json",
+                "permissions": {
+                    "rules": [
+                        {"tool": "run_shell", "action": "deny", "conditions": {}},
+                    ],
+                },
+                "mcp": {
+                    "servers": [
+                        {"name": "fs", "command": "npx", "args": ["-y", "server-fs"]},
+                    ],
+                },
+            }
+        )
     )
 
     config = UnifiedConfig.load(str(config_path))
@@ -120,9 +122,11 @@ def test_load_with_env_default_fallback(tmp_path, monkeypatch):
 
     config_path = tmp_path / "intelliagent.json"
     config_path.write_text(
-        json.dumps({
-            "llm": {"model": "{env:OPENAI_MODEL:gpt-4o-mini}"},
-        })
+        json.dumps(
+            {
+                "llm": {"model": "{env:OPENAI_MODEL:gpt-4o-mini}"},
+            }
+        )
     )
 
     config = UnifiedConfig.load(str(config_path))
@@ -134,9 +138,11 @@ def test_load_raises_on_missing_required_env(tmp_path, monkeypatch):
 
     config_path = tmp_path / "intelliagent.json"
     config_path.write_text(
-        json.dumps({
-            "llm": {"api_key": "{env:OPENAI_API_KEY}"},
-        })
+        json.dumps(
+            {
+                "llm": {"api_key": "{env:OPENAI_API_KEY}"},
+            }
+        )
     )
 
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
@@ -154,9 +160,11 @@ def test_load_invalid_json_raises(tmp_path):
 def test_load_invalid_schema_raises_validation_error(tmp_path):
     config_path = tmp_path / "intelliagent.json"
     config_path.write_text(
-        json.dumps({
-            "llm": {"api_key": 12345},  # api_key 应该是 str
-        })
+        json.dumps(
+            {
+                "llm": {"api_key": 12345},  # api_key 应该是 str
+            }
+        )
     )
 
     with pytest.raises(Exception):  # Pydantic ValidationError
@@ -166,17 +174,19 @@ def test_load_invalid_schema_raises_validation_error(tmp_path):
 def test_load_permissions_with_conditions(tmp_path):
     config_path = tmp_path / "intelliagent.json"
     config_path.write_text(
-        json.dumps({
-            "permissions": {
-                "rules": [
-                    {
-                        "tool": "read_file",
-                        "action": "allow",
-                        "conditions": {"path_in_workspace": True},
-                    },
-                ],
-            },
-        })
+        json.dumps(
+            {
+                "permissions": {
+                    "rules": [
+                        {
+                            "tool": "read_file",
+                            "action": "allow",
+                            "conditions": {"path_in_workspace": True},
+                        },
+                    ],
+                },
+            }
+        )
     )
 
     config = UnifiedConfig.load(str(config_path))
@@ -187,18 +197,20 @@ def test_load_permissions_with_conditions(tmp_path):
 def test_load_mcp_servers_preserved_as_dict(tmp_path):
     config_path = tmp_path / "intelliagent.json"
     config_path.write_text(
-        json.dumps({
-            "mcp": {
-                "servers": [
-                    {
-                        "name": "github",
-                        "command": "npx",
-                        "args": ["-y", "server-github"],
-                        "env": {"GITHUB_TOKEN": "{env:GITHUB_TOKEN:default}"},
-                    },
-                ],
-            },
-        })
+        json.dumps(
+            {
+                "mcp": {
+                    "servers": [
+                        {
+                            "name": "github",
+                            "command": "npx",
+                            "args": ["-y", "server-github"],
+                            "env": {"GITHUB_TOKEN": "{env:GITHUB_TOKEN:default}"},
+                        },
+                    ],
+                },
+            }
+        )
     )
 
     config = UnifiedConfig.load(str(config_path))
