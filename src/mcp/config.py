@@ -31,3 +31,13 @@ class MCPConfig(BaseModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MCPConfig:
         return cls.model_validate(data)
+
+    @classmethod
+    def from_unified_config(cls, data: dict[str, Any]) -> MCPConfig:
+        """从 UnifiedConfig.mcp 字典构造 MCPConfig。
+
+        data 是 UnifiedConfig 中 mcp 字段的值（dict），
+        应包含可选的 "servers" 键。
+        """
+        servers = data.get("servers", [])
+        return cls.model_validate({"servers": servers})
