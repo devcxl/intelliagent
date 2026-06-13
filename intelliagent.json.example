@@ -1,0 +1,48 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devcxl/intelliagent/main/schemas/intelliagent.schema.json",
+  "llm": {
+    "api_key": "{env:OPENAI_API_KEY}",
+    "base_url": "{env:OPENAI_API_BASE}",
+    "model": "{env:OPENAI_MODEL:gpt-4o-mini}",
+    "reasoning_effort": "{env:OPENAI_REASONING_EFFORT}"
+  },
+  "workspace": {
+    "dir": "{env:WORKSPACE_DIR:.}"
+  },
+  "database": {
+    "url": "{env:DATABASE_URL:sqlite:///intelliagent.db}"
+  },
+  "experience_file": "{env:EXPERIENCE_FILE:experiences.json}",
+  "permissions": {
+    "rules": [
+      {"tool": "run_shell", "action": "prompt", "conditions": {"dangerous": true}},
+      {"tool": "run_shell", "action": "prompt", "conditions": {"path_sensitive": true}},
+      {"tool": "run_shell", "action": "allow", "conditions": {}},
+      {"tool": "read_file", "action": "allow", "conditions": {"path_in_workspace": true}},
+      {"tool": "read_file", "action": "prompt", "conditions": {"path_in_workspace": false}},
+      {"tool": "write_file", "action": "allow", "conditions": {"path_in_workspace": true}},
+      {"tool": "write_file", "action": "prompt", "conditions": {"path_in_workspace": false}},
+      {"tool": "edit_file", "action": "allow", "conditions": {"path_in_workspace": true}},
+      {"tool": "edit_file", "action": "prompt", "conditions": {"path_in_workspace": false}},
+      {"tool": "todo_write", "action": "allow", "conditions": {}}
+    ]
+  },
+  "mcp": {
+    "servers": [
+      {
+        "name": "filesystem",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+        "env": {}
+      },
+      {
+        "name": "github",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_TOKEN": "{env:GITHUB_TOKEN}"
+        }
+      }
+    ]
+  }
+}
