@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import src.runtime.agent_runtime as agent_runtime_module
+from src.config.unified_config import UnifiedConfig
 from src.runtime import AgentRuntime, RunService
 
 
@@ -173,3 +174,103 @@ async def test_run_service_streams_steps_from_engine():
         "observation",
         "answer",
     ]
+
+
+# ============================================================================
+# 新增：AgentRuntime 从 UnifiedConfig 构造
+# ============================================================================
+
+
+def test_agent_runtime_from_unified_config_uses_llm_fields(monkeypatch):
+    """AgentRuntime 从 UnifiedConfig 构造时，默认工厂应使用 llm 子模型字段。"""
+    created_llm_clients = []
+
+    class FakeLLMClient:
+        def __init__(self, api_key=None, base_url=None, model=None):
+            self.api_key = api_key
+            self.base_url = base_url
+            self.model = model
+            created_llm_clients.append(self)
+
+    class FakeReactEngine:
+        def __init__(self, llm_client=None, **kwargs):
+            self.llm_client = llm_client
+
+    monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
+
+    config = UnifiedConfig.model_validate({
+        "llm": {
+            "api_key": "sk-unified",
+            "base_url": "https://unified.example.com",
+            "model": "unified-model",
+        },
+    })
+
+    runtime = AgentRuntime(config=config, llm_client_factory=FakeLLMClient)
+    client = runtime.get_llm_client()
+
+    assert client.api_key == "sk-unified"
+    assert client.base_url == "https://unified.example.com"
+    assert client.model == "unified-model"
+
+
+def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
+    """AgentRuntime 从 UnifiedConfig 构造时，权限引擎应使用 permissions 子模型。"""
+    from src.core.permission_engine import PermissionEngine
+
+    config = UnifiedConfig.model_validate({
+        "permissions": {
+            "rules": [
+                {"tool": "run_shell", "action": "deny", "conditions": {}},
+            ],
+        },
+    })
+
+    runtime = AgentRuntime(config=config)
+    engine = runtime._default_permission_engine_factory()
+
+    assert isinstance(engine, PermissionEngine)
+    assert len(engine.rules) == 1
+    assert engine.rules[0].tool == "run_shell"
+    assert engine.rules[0].action.value == "deny"
+
+
+def test_agent_runtime_from_unified_config_workspace(monkeypatch):
+    """AgentRuntime 从 UnifiedConfig 构造时，workspace 应从配置读取。"""
+    from pathlib import Path
+
+    from src.core.permission_engine import PermissionEngine
+
+    config = UnifiedConfig.model_validate({
+        "workspace": {"dir": "/tmp/custom-ws"},
+    })
+
+    runtime = AgentRuntime(config=config)
+    engine = runtime._default_permission_engine_factory()
+
+    assert isinstance(engine, PermissionEngine)
+    assert engine._workspace == Path("/tmp/custom-ws")
+
+
+def test_agent_runtime_backward_compat_with_settings(monkeypatch):
+    """AgentRuntime 仍接受旧版 settings 参数。"""
+    created_llm_clients = []
+
+    class FakeLLMClient:
+        def __init__(self, api_key=None, base_url=None, model=None):
+            self.api_key = api_key
+            self.base_url = base_url
+            self.model = model
+            created_llm_clients.append(self)
+
+    settings = SimpleNamespace(
+        OPENAI_API_KEY="old-key",
+        OPENAI_API_BASE=None,
+        OPENAI_MODEL="old-model",
+    )
+
+    runtime = AgentRuntime(settings=settings, llm_client_factory=FakeLLMClient)
+    client = runtime.get_llm_client()
+
+    assert client.api_key == "old-key"
+    assert client.model == "old-model"
