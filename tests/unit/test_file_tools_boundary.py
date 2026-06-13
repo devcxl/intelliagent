@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 import tempfile
 
 import pytest
 
-from src.tools.file_tools import read_file, write_file, edit_file
+from src.tools.file_tools import edit_file, read_file, write_file
 
 
 @pytest.fixture
