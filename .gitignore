@@ -21,3 +21,6 @@ node_modules/
 .agents
 .codegraph
 test.txt
+# 旧配置文件（已废弃）
+permissions.json
+mcp_config.json

@@ -2,7 +2,7 @@
 
 ## 研究结论摘要
 
-现有配置分散在 `.env`、`permissions.json`、`mcp_config.json` 三个文件，使用两种不同的加载机制（Pydantic Settings 和手动 `json.load`），且 JSON 配置文件不支持环境变量引用。建议引入 **单一 `intelliagent.json` 配置文件 + 环境变量插值语法**，将现有所有配置收敛到一个文件中，同时保留向后兼容。
+现有配置分散在 `.env`、`permissions.json`、`mcp_config.json` 三个文件，使用两种不同的加载机制（Pydantic Settings 和手动 `json.load`），且 JSON 配置文件不支持环境变量引用。建议引入 **单一 `intelliagent.json` 配置文件 + 环境变量插值语法**，将现有所有配置收敛到一个文件中。
 
 ---
 
@@ -25,7 +25,7 @@
 
 - 合并 `permissions.json`、`mcp_config.json`、`.env` 中的配置项到统一文件
 - 设计环境变量插值语法（参考 opencode 的 `"{env:OPENAI_API_KEY}"`）
-- 保持向后兼容（旧文件路径仍可工作）
+- 不保持向后兼容（旧文件已废弃）
 - 不改变已有配置的语义和默认值
 
 ### 限制
@@ -221,13 +221,9 @@ class UnifiedConfig(BaseModel):
         return cls.model_validate(interpolated)
 ```
 
-### 向后兼容策略
+### 向后兼容策略（已废弃）
 
-| 场景 | 行为 |
-|------|------|
-| 只有 `intelliagent.json` | 全新方式，统一加载 |
-| 只有旧文件（`.env` + `permissions.json` + `mcp_config.json`） | 通过桥接代码自动兼容 |
-| 同时存在 | `intelliagent.json` 优先，旧文件被忽略（打印 warning） |
+旧配置文件（`.env`、`permissions.json`、`mcp_config.json`）已完全废弃，项目仅从 `intelliagent.json` 加载配置。
 
 ### 加载优先级
 
@@ -245,7 +241,7 @@ class UnifiedConfig(BaseModel):
 | 环境变量引用 | 仅 Pydantic Settings 支持 | 全 JSON 支持 |
 | Schema 验证 | 仅 Settings（Pydantic）| 统一 Config 模型 |
 | 配置发现 | 需读多处代码 | 读一个文件即了解全部 |
-| 向后兼容 | — | 保留 |
+| 向后兼容 | — | 不保留，旧配置已废弃 |
 | 新增配置项 | 至少改 2 个地方 | 改 1 个模型 + 1 个 JSON |
 
 ---
@@ -254,7 +250,7 @@ class UnifiedConfig(BaseModel):
 
 | 风险 | 说明 | 缓解措施 |
 |------|------|---------|
-| `permissions.json` 被用户直接编辑 | 迁移后需通知用户 | 检测旧文件存在时打印 deprecation warning |
+| `permissions.json` 被用户直接编辑 | 已废弃，用户需迁移到 intelliagent.json | 删除旧文件，git rm 清理版本历史 |
 | MCP 配置结构未来可能变化 | MCP 协议在演进 | `mcp` 字段用 `dict[str, Any]` 保持灵活 |
 | `{env:XXX}` 在值中包含冒号 | 插值正则可能误匹配 | 用 `\{env:NAME:DEFAULT\}` 严格匹配，避免 URL 中的冒号干扰 |
 | 性能影响 | 递归遍历 JSON 有开销 | 配置仅在启动时加载一次，开销可忽略 |

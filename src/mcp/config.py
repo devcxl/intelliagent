@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -17,16 +16,9 @@ class MCPServerConfig(BaseModel):
 
 
 class MCPConfig(BaseModel):
-    """MCP 客户端配置 — 从 JSON 文件加载。"""
+    """MCP 客户端配置 — 从 UnifiedConfig 或 dict 构造。"""
 
     servers: list[MCPServerConfig] = Field(default_factory=list)
-
-    @classmethod
-    def from_file(cls, path: str | Path) -> MCPConfig:
-        import json
-
-        raw = json.loads(Path(path).read_text(encoding="utf-8"))
-        return cls.model_validate(raw)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MCPConfig:
