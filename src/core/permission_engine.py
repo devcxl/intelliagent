@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import json
 import re
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.types.permission import Decision, PermissionAction, Rule
+
+if TYPE_CHECKING:
+    from src.config.unified_config import PermissionsConfig
 
 _SHELL_DELIMITERS = re.compile(r"[;&|\n]")
 _CMD_SUBSTITUTION = re.compile(r"\$\(|`")
@@ -63,7 +65,7 @@ DEFAULT_RULES: list[dict[str, Any]] = [
 ]
 
 
-def _token_to_cmd(token: str) -> str:
+def _extract_command_name(token: str) -> str:
     token = token.strip()
     if not token:
         return token
@@ -88,7 +90,7 @@ def _is_dangerous_cmd(cmd_str: str) -> bool:
     for segment in _SHELL_DELIMITERS.split(cmd_str):
         tokens = segment.strip().split()
         if tokens:
-            cmd_name = _token_to_cmd(tokens[0])
+            cmd_name = _extract_command_name(tokens[0])
             if cmd_name and cmd_name in DANGEROUS_COMMANDS:
                 return True
 
@@ -99,7 +101,7 @@ def _is_path_sensitive(cmd_str: str) -> bool:
     tokens = cmd_str.strip().split()
     if not tokens:
         return False
-    cmd_name = _token_to_cmd(tokens[0])
+    cmd_name = _extract_command_name(tokens[0])
     if cmd_name not in PATH_SENSITIVE_COMMANDS:
         return False
     for token in tokens[1:]:
@@ -194,14 +196,10 @@ class PermissionEngine:
         return f"匹配规则: tool={rule.tool}, action={rule.action.value}, conditions={rule.conditions}"
 
 
-def load_permission_engine(config_path: str, workspace: Path | None = None) -> PermissionEngine:
-    rules: list[dict[str, Any]]
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            data = json.load(f)
-            rules = data.get("rules", [])
-    except (FileNotFoundError, json.JSONDecodeError):
-        rules = DEFAULT_RULES
-    if not rules:
-        rules = DEFAULT_RULES
+def load_permission_engine(
+    config: PermissionsConfig,
+    workspace: Path | None = None,
+) -> PermissionEngine:
+    """从 PermissionsConfig 对象加载权限引擎。"""
+    rules = [r.model_dump() for r in config.rules] if config.rules else DEFAULT_RULES
     return PermissionEngine(rules=rules, workspace=workspace)

@@ -179,7 +179,7 @@ class ConversationOrchestrator:
         history_context: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """执行 agent run 并流式输出事件。"""
-        engine = AgentRuntime(self._settings).create_engine()
+        engine = AgentRuntime().create_engine()
         async for event in engine.iter_steps(task, history_context=history_context):
             self._last_iteration = event["iteration"]
             yield event

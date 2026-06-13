@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """PR2 runtime / service 测试。"""
 
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import src.runtime.agent_runtime as agent_runtime_module
+from src.config.unified_config import UnifiedConfig
 from src.runtime import AgentRuntime, RunService
 
 
@@ -29,13 +29,7 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
 
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
 
-    settings = SimpleNamespace(
-        OPENAI_API_KEY="test-key",
-        OPENAI_API_BASE=None,
-        OPENAI_MODEL="test-model",
-    )
     runtime = AgentRuntime(
-        settings=settings,
         llm_client_factory=lambda: FakeLLMClient(
             api_key="test-key",
             model="test-model",
@@ -114,14 +108,7 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
 
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
 
-    settings = SimpleNamespace(
-        OPENAI_API_KEY="test-key",
-        OPENAI_API_BASE=None,
-        OPENAI_MODEL="test-model",
-    )
-
     engine = AgentRuntime(
-        settings=settings,
         llm_client_factory=FakeLLMClient,
         permission_engine_factory=FakePermissionEngine,
         permission_callback_factory=FakePermissionCallback,
@@ -173,3 +160,87 @@ async def test_run_service_streams_steps_from_engine():
         "observation",
         "answer",
     ]
+
+
+# ============================================================================
+# 新增：AgentRuntime 从 UnifiedConfig 构造
+# ============================================================================
+
+
+def test_agent_runtime_from_unified_config_uses_llm_fields(monkeypatch):
+    """AgentRuntime 从 UnifiedConfig 构造时，默认 LLM 工厂应使用 llm 子模型字段。"""
+    import src.llm.llm_client as llm_client_module
+
+    captured_kwargs = {}
+
+    class FakeLLMClient:
+        def __init__(self, api_key=None, base_url=None, model=None):
+            captured_kwargs["api_key"] = api_key
+            captured_kwargs["base_url"] = base_url
+            captured_kwargs["model"] = model
+
+    monkeypatch.setattr(llm_client_module, "LLMClient", FakeLLMClient)
+
+    config = UnifiedConfig.model_validate(
+        {
+            "llm": {
+                "api_key": "sk-unified",
+                "base_url": "https://unified.example.com",
+                "model": "unified-model",
+            },
+        }
+    )
+
+    runtime = AgentRuntime(config=config)
+    runtime._default_llm_client_factory()
+
+    assert captured_kwargs["api_key"] == "sk-unified"
+    assert captured_kwargs["base_url"] == "https://unified.example.com"
+    assert captured_kwargs["model"] == "unified-model"
+
+
+def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
+    """AgentRuntime 从 UnifiedConfig 构造时，权限引擎应使用 permissions 子模型。"""
+    from src.core.permission_engine import PermissionEngine
+
+    config = UnifiedConfig.model_validate(
+        {
+            "permissions": {
+                "rules": [
+                    {"tool": "run_shell", "action": "deny", "conditions": {}},
+                ],
+            },
+        }
+    )
+
+    runtime = AgentRuntime(config=config)
+    engine = runtime._default_permission_engine_factory()
+
+    assert isinstance(engine, PermissionEngine)
+    assert len(engine.rules) == 1
+    assert engine.rules[0].tool == "run_shell"
+    assert engine.rules[0].action.value == "deny"
+
+
+def test_agent_runtime_from_unified_config_workspace(monkeypatch):
+    """AgentRuntime 从 UnifiedConfig 构造时，workspace 应从配置读取。"""
+    from pathlib import Path
+
+    from src.core.permission_engine import PermissionEngine
+
+    config = UnifiedConfig.model_validate(
+        {
+            "workspace": {"dir": "/tmp/custom-ws"},
+        }
+    )
+
+    runtime = AgentRuntime(config=config)
+    engine = runtime._default_permission_engine_factory()
+
+    assert isinstance(engine, PermissionEngine)
+    assert engine._workspace == Path("/tmp/custom-ws")
+
+
+# ============================================================================
+# 新增：test_settings.py 已覆盖 backward compat
+# ============================================================================

@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
+from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
 from src.types.permission import (
     LLMClientProtocol,
@@ -15,41 +16,45 @@ from src.types.permission import (
 
 
 class AgentRuntime:
-    """Agent 运行时 — 单例管理 LLM 客户端，每次创建独立 ReactEngine。"""
+    """Agent 运行时 — 单例管理 LLM 客户端，每次创建独立 ReactEngine。
+
+    通过 UnifiedConfig 构造。未传入 config 时自动从 intelliagent.json 加载。
+    """
 
     def __init__(
         self,
-        settings: Any,
+        config: UnifiedConfig | None = None,
         *,
         llm_client_factory: Callable[[], LLMClientProtocol] | None = None,
         permission_engine_factory: Callable[[], PermissionEngineProtocol] | None = None,
         permission_callback_factory: Callable[[], PermissionCallbackProtocol] | None = None,
     ) -> None:
-        self._settings = settings
+        self._config = config or UnifiedConfig.load()
         self._llm_client_factory = llm_client_factory or self._default_llm_client_factory
         self._permission_engine_factory = permission_engine_factory or self._default_permission_engine_factory
         self._permission_callback_factory = permission_callback_factory or self._default_permission_callback_factory
         self._llm_client: LLMClientProtocol | None = None
 
     # ------------------------------------------------------------------
-    # 默认工厂（保持向后兼容行为）
+    # 默认工厂
     # ------------------------------------------------------------------
 
     def _default_llm_client_factory(self) -> LLMClientProtocol:
         from src.llm.llm_client import LLMClient
 
+        llm = self._config.llm
         return LLMClient(
-            api_key=getattr(self._settings, "OPENAI_API_KEY", None),
-            base_url=getattr(self._settings, "OPENAI_API_BASE", None),
-            model=getattr(self._settings, "OPENAI_MODEL", "gpt-4o-mini"),
+            api_key=llm.api_key,
+            base_url=llm.base_url,
+            model=llm.model,
         )
 
     def _default_permission_engine_factory(self) -> PermissionEngineProtocol:
-        from src.core.permission_engine import load_permission_engine
+        from src.core.permission_engine import PermissionEngine
 
-        workspace = Path(getattr(self._settings, "WORKSPACE_DIR", str(Path.cwd())))
-        config_path = getattr(self._settings, "PERMISSION_CONFIG", "permissions.json")
-        return load_permission_engine(str(config_path), workspace)
+        rules = [r.model_dump() for r in self._config.permissions.rules]
+        workspace = Path(self._config.workspace.dir)
+        return PermissionEngine(rules=rules, workspace=workspace)
 
     def _default_permission_callback_factory(self) -> PermissionCallbackProtocol:
         from src.runtime.permission_callback import CliCallback

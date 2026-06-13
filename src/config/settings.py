@@ -2,30 +2,31 @@
 """
 统一配置定义。
 
-PR1 先将现有环境变量收敛到 Pydantic Settings，后续阶段再继续拆分到
-更细粒度的 runtime / db / web 配置边界。
+仅从 intelliagent.json 加载，不再支持 .env / BaseSettings 向后兼容。
 """
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
-try:
-    from pydantic_settings import BaseSettings, SettingsConfigDict
-except ImportError:  # pragma: no cover - 兼容未安装 pydantic-settings 的环境
-    from pydantic import BaseSettings  # type: ignore
-
-    SettingsConfigDict = None
+if TYPE_CHECKING:
+    from src.config.unified_config import UnifiedConfig
 
 
 DEFAULT_DATABASE_URL = "sqlite:///intelliagent.db"
+INTELLIAGENT_CONFIG_FILE = "intelliagent.json"
 
 
-class Settings(BaseSettings):
-    """项目统一配置。"""
+class Settings(BaseModel):
+    """项目配置桥接层 — 从 UnifiedConfig 构造。
+
+    仅作为过渡层存在，后续可直接使用 UnifiedConfig 替代。
+    """
 
     LOG_LEVEL: str = "INFO"
 
@@ -36,28 +37,60 @@ class Settings(BaseSettings):
     EXPERIENCE_FILE: str = "experiences.json"
 
     WORKSPACE_DIR: str = Field(default_factory=lambda: str(Path.cwd()))
-    PERMISSION_CONFIG: str = "permissions.json"
 
     DATABASE_URL: str = Field(default=DEFAULT_DATABASE_URL)
 
-    if SettingsConfigDict is not None:
-        model_config = SettingsConfigDict(
-            env_file=".env",
-            env_file_encoding="utf-8",
-            extra="ignore",
+    @classmethod
+    def from_unified_config(cls, config: UnifiedConfig) -> Settings:
+        """从 UnifiedConfig 构造 Settings 实例。"""
+        return cls(
+            OPENAI_API_KEY=config.llm.api_key,
+            OPENAI_API_BASE=config.llm.base_url,
+            OPENAI_MODEL=config.llm.model,
+            WORKSPACE_DIR=config.workspace.dir,
+            DATABASE_URL=config.database.url,
+            EXPERIENCE_FILE=config.experience_file,
         )
-    else:
 
-        class Config:
-            env_file = ".env"
-            env_file_encoding = "utf-8"
-            extra = "ignore"
+
+_ENV_OVERRIDE_KEYS = [
+    "OPENAI_API_KEY",
+    "OPENAI_API_BASE",
+    "OPENAI_MODEL",
+    "WORKSPACE_DIR",
+    "DATABASE_URL",
+    "EXPERIENCE_FILE",
+    "LOG_LEVEL",
+]
+
+
+def _collect_env_overrides() -> dict[str, str]:
+    """收集环境变量中与 Settings 字段对应的覆盖值。"""
+    overrides: dict[str, str] = {}
+    for key in _ENV_OVERRIDE_KEYS:
+        val = os.environ.get(key)
+        if val is not None:
+            overrides[key] = val
+    return overrides
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """获取缓存后的配置实例。"""
-    return Settings()
+    """获取缓存后的配置实例。
+
+    从 intelliagent.json 加载，环境变量覆盖。
+    """
+    from src.config.unified_config import UnifiedConfig
+
+    unified = UnifiedConfig.load(INTELLIAGENT_CONFIG_FILE)
+    settings = Settings.from_unified_config(unified)
+
+    # 环境变量覆盖：真实环境变量优先级高于 JSON 文件
+    env_overrides = _collect_env_overrides()
+    for key, value in env_overrides.items():
+        setattr(settings, key, value)
+
+    return settings
 
 
 def clear_settings_cache() -> None:

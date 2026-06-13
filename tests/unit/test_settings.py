@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """统一配置测试。"""
 
+import json
 from pathlib import Path
 
 import pytest
 
 from src.config import clear_settings_cache, get_settings
+from src.config.unified_config import UnifiedConfig
 from src.db.manager import resolve_sqlite_database_path
 
 
@@ -63,5 +65,116 @@ def test_settings_rejects_non_sqlite_database_url(monkeypatch):
 
     with pytest.raises(ValueError):
         resolve_sqlite_database_path(settings.DATABASE_URL)
+
+    clear_settings_cache()
+
+
+# ============================================================================
+# 新增：from_unified_config 桥接测试
+# ============================================================================
+
+
+def test_from_unified_config_maps_llm_fields():
+    from src.config.settings import Settings
+
+    unified = UnifiedConfig.model_validate(
+        {
+            "llm": {
+                "api_key": "sk-bridge",
+                "base_url": "https://api.example.com",
+                "model": "bridge-model",
+            },
+        }
+    )
+    settings = Settings.from_unified_config(unified)
+
+    assert settings.OPENAI_API_KEY == "sk-bridge"
+    assert settings.OPENAI_API_BASE == "https://api.example.com"
+    assert settings.OPENAI_MODEL == "bridge-model"
+
+
+def test_from_unified_config_maps_workspace_and_database():
+    from src.config.settings import Settings
+
+    unified = UnifiedConfig.model_validate(
+        {
+            "workspace": {"dir": "/tmp/ws"},
+            "database": {"url": "sqlite:///bridge.db"},
+        }
+    )
+    settings = Settings.from_unified_config(unified)
+
+    assert settings.WORKSPACE_DIR == "/tmp/ws"
+    assert settings.DATABASE_URL == "sqlite:///bridge.db"
+
+
+def test_from_unified_config_maps_experience_file():
+    from src.config.settings import Settings
+
+    unified = UnifiedConfig.model_validate(
+        {
+            "experience_file": "bridge_experiences.json",
+        }
+    )
+    settings = Settings.from_unified_config(unified)
+
+    assert settings.EXPERIENCE_FILE == "bridge_experiences.json"
+
+
+def test_from_unified_config_uses_defaults_for_missing_fields():
+    from src.config.settings import Settings
+
+    unified = UnifiedConfig()
+    settings = Settings.from_unified_config(unified)
+
+    assert settings.OPENAI_API_KEY == ""
+    assert settings.OPENAI_MODEL == "gpt-4o-mini"
+    assert settings.DATABASE_URL == "sqlite:///intelliagent.db"
+
+
+def test_get_settings_loads_from_intelliagent_json(tmp_path, monkeypatch):
+    """当 intelliagent.json 存在时，get_settings() 应从它加载。"""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env")
+
+    config_path = tmp_path / "intelliagent.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "llm": {
+                    "api_key": "{env:OPENAI_API_KEY}",
+                    "model": "custom-model",
+                },
+            }
+        )
+    )
+    clear_settings_cache()
+
+    settings = get_settings()
+    assert settings.OPENAI_API_KEY == "sk-from-env"
+    assert settings.OPENAI_MODEL == "custom-model"
+
+    clear_settings_cache()
+
+
+def test_get_settings_env_overrides_intelliagent_json(tmp_path, monkeypatch):
+    """真实环境变量应覆盖 intelliagent.json 中的值。"""
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("OPENAI_MODEL", "env-model-override")
+
+    config_path = tmp_path / "intelliagent.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "llm": {"model": "json-model"},
+            }
+        )
+    )
+    clear_settings_cache()
+
+    settings = get_settings()
+    assert settings.OPENAI_MODEL == "env-model-override"
 
     clear_settings_cache()
