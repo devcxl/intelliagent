@@ -131,8 +131,9 @@ async def write_file(path: str, content: str, workspace_root: str | None = None)
         return error_response(f"写入文件失败: {str(e)}", "WRITE_ERROR")
 
 
-async def edit_file(path: str, oldString: str, newString: str, replaceAll: bool = False,
-                    workspace_root: str | None = None) -> str:
+async def edit_file(
+    path: str, oldString: str, newString: str, replaceAll: bool = False, workspace_root: str | None = None
+) -> str:
     if not path or not isinstance(path, str):
         return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
 

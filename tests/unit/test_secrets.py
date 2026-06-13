@@ -53,9 +53,7 @@ def test_redact_sk_preserves_no_prefix():
 
 
 def test_redact_mixed_content():
-    result = redact_secrets(
-        "password=admin123 api_key=sk-abc Bearer token https://u:p@host"
-    )
+    result = redact_secrets("password=admin123 api_key=sk-abc Bearer token https://u:p@host")
     assert "admin123" not in result
     assert "sk-abc" not in result
     assert "https://u:p" not in result
