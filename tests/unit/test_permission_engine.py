@@ -11,6 +11,7 @@ from src.core.permission_engine import (
     _is_path_sensitive,
     load_permission_engine,
 )
+from src.config.unified_config import PermissionsConfig, PermissionRule
 from src.runtime.permission_callback import CliCallback
 
 # ============================================================================
@@ -282,4 +283,30 @@ def test_load_broken_json_uses_defaults(tmp_path):
     config = tmp_path / "permissions.json"
     config.write_text("not json")
     engine = load_permission_engine(str(config))
+    assert len(engine.rules) == 10
+
+
+# ============================================================================
+# 新增：load_permission_engine 接受 PermissionsConfig 对象
+# ============================================================================
+
+
+def test_load_from_permissions_config_object():
+    """load_permission_engine 应接受 PermissionsConfig 对象。"""
+    perms = PermissionsConfig(
+        rules=[
+            PermissionRule(tool="run_shell", action="deny", conditions={}),
+            PermissionRule(tool="read_file", action="allow", conditions={"path_in_workspace": True}),
+        ]
+    )
+    engine = load_permission_engine(perms)
+    assert len(engine.rules) == 2
+    d = engine.check("run_shell", {"cmd": "ls"})
+    assert d.action.value == "deny"
+
+
+def test_load_from_permissions_config_empty_rules_uses_defaults():
+    """PermissionsConfig 中 rules 为空时应使用默认规则。"""
+    perms = PermissionsConfig(rules=[])
+    engine = load_permission_engine(perms)
     assert len(engine.rules) == 10
