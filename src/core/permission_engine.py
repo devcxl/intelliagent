@@ -3,9 +3,12 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from src.types.permission import Decision, PermissionAction, Rule
+
+if TYPE_CHECKING:
+    from src.config.unified_config import PermissionsConfig
 
 _SHELL_DELIMITERS = re.compile(r"[;&|\n]")
 _CMD_SUBSTITUTION = re.compile(r"\$\(|`")
@@ -194,14 +197,27 @@ class PermissionEngine:
         return f"匹配规则: tool={rule.tool}, action={rule.action.value}, conditions={rule.conditions}"
 
 
-def load_permission_engine(config_path: str, workspace: Path | None = None) -> PermissionEngine:
+def load_permission_engine(
+    config_path: str | PermissionsConfig,
+    workspace: Path | None = None,
+) -> PermissionEngine:
+    """从配置文件路径或 PermissionsConfig 对象加载权限引擎。
+
+    config_path 为 str 时：从 JSON 文件加载（向后兼容）。
+    config_path 为 PermissionsConfig 时：直接使用其 rules。
+    """
+    from src.config.unified_config import PermissionsConfig
+
     rules: list[dict[str, Any]]
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            data = json.load(f)
-            rules = data.get("rules", [])
-    except (FileNotFoundError, json.JSONDecodeError):
-        rules = DEFAULT_RULES
+    if isinstance(config_path, PermissionsConfig):
+        rules = [r.model_dump() for r in config_path.rules]
+    else:
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                data = json.load(f)
+                rules = data.get("rules", [])
+        except (FileNotFoundError, json.JSONDecodeError):
+            rules = DEFAULT_RULES
     if not rules:
         rules = DEFAULT_RULES
     return PermissionEngine(rules=rules, workspace=workspace)
