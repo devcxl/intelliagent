@@ -4,9 +4,9 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from mcp import ClientSession, StdioServerParameters, stdio_client
 from mcp.types import CallToolResult
 
+from mcp import ClientSession, StdioServerParameters, stdio_client
 from src.mcp.config import MCPConfig, MCPServerConfig
 from src.tools.registry import ToolRegistry
 from src.utils.logger import logger
@@ -111,7 +111,11 @@ class MCPClientManager:
                 mcp_name = _mcp_tool_name(server.name, tool.name)
                 params = _tool_params_to_openai(tool.inputSchema)
 
-                async def call_mcp_tool(tool_name: str = tool.name, session: ClientSession = session, **kwargs: Any) -> str:
+                async def call_mcp_tool(
+                    tool_name: str = tool.name,
+                    session: ClientSession = session,
+                    **kwargs: Any,
+                ) -> str:
                     result = await session.call_tool(tool_name, arguments=kwargs)
                     return _format_mcp_result(result)
 

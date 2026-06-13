@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from src.config.unified_config import PermissionRule, PermissionsConfig
 from src.core.permission_engine import (
     PermissionEngine,
     _is_dangerous_cmd,
@@ -11,7 +12,6 @@ from src.core.permission_engine import (
     _is_path_sensitive,
     load_permission_engine,
 )
-from src.config.unified_config import PermissionsConfig, PermissionRule
 from src.runtime.permission_callback import CliCallback
 
 # ============================================================================

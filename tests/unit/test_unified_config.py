@@ -2,7 +2,6 @@
 """UnifiedConfig 单元测试 — 覆盖统一配置加载、默认值、向后兼容。"""
 
 import json
-import os
 
 import pytest
 
@@ -14,7 +13,6 @@ from src.config.unified_config import (
     UnifiedConfig,
     WorkspaceConfig,
 )
-
 
 # ============================================================================
 # 子模型默认值

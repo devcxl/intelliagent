@@ -6,14 +6,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
 from src.types.permission import (
     LLMClientProtocol,
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )
-
-from src.config.unified_config import UnifiedConfig
 
 
 class AgentRuntime:

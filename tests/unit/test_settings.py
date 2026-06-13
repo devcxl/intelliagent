@@ -128,7 +128,6 @@ def test_from_unified_config_uses_defaults_for_missing_fields():
 
 def test_get_settings_loads_from_intelliagent_json(tmp_path, monkeypatch):
     """当 intelliagent.json 存在时，get_settings() 应从它加载。"""
-    from src.config.settings import Settings
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-from-env")
@@ -151,7 +150,6 @@ def test_get_settings_loads_from_intelliagent_json(tmp_path, monkeypatch):
 
 def test_get_settings_env_overrides_intelliagent_json(tmp_path, monkeypatch):
     """真实环境变量应覆盖 intelliagent.json 中的值。"""
-    from src.config.settings import Settings
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("OPENAI_MODEL", "env-model-override")

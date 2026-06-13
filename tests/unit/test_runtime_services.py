@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """PR2 runtime / service 测试。"""
 
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import src.runtime.agent_runtime as agent_runtime_module
@@ -108,12 +107,6 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
             created_engines.append(self)
 
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
-
-    settings = SimpleNamespace(
-        OPENAI_API_KEY="test-key",
-        OPENAI_API_BASE=None,
-        OPENAI_MODEL="test-model",
-    )
 
     engine = AgentRuntime(
         llm_client_factory=FakeLLMClient,

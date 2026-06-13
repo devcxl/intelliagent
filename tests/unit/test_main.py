@@ -114,7 +114,7 @@ async def test_main_creates_engine_through_agent_runtime(monkeypatch):
     def fail_if_direct_llm_is_used(*args, **kwargs):
         raise AssertionError("main.py must create engines through AgentRuntime")
 
-    settings = _patch_orchestrator_dependencies(monkeypatch, fake_db, created)
+    _patch_orchestrator_dependencies(monkeypatch, fake_db, created)
     monkeypatch.setattr(orchestrator_module, "LLMClient", fail_if_direct_llm_is_used, raising=False)
 
     await main_module.main(task="测试任务")

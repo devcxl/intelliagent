@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.mcp.config import MCPConfig, MCPServerConfig
+from src.mcp.config import MCPConfig
 from src.mcp.manager import _mcp_tool_name, _tool_params_to_openai
 
 

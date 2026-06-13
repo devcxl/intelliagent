@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """env_interpolator 单元测试 — 覆盖 {env:NAME} / {env:NAME:default} 插值语法。"""
 
-import os
 
 import pytest
 
 from src.config.env_interpolator import deep_interpolate, interpolate
-
 
 # ============================================================================
 # interpolate() — 单字符串插值
