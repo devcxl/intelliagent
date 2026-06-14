@@ -50,7 +50,7 @@ class AgentRuntime:
         )
 
     def _default_permission_engine_factory(self) -> PermissionEngineProtocol:
-        from src.core.permission_engine import PermissionEngine, load_permission_engine
+        from src.core.permission_engine import load_permission_engine
 
         return load_permission_engine(
             self._config.permissions,
