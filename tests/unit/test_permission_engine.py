@@ -50,7 +50,7 @@ def test_last_match_wins_with_wildcard():
 
 
 def test_fnmatch_tool_name_wildcard():
-    """"read *" 应匹配 read_file、read。"""
+    """ "read *" 应匹配 read_file、read。"""
     engine = PermissionEngine(
         rules=[("read *", "allow")],
         workspace=Path("/tmp"),
@@ -60,7 +60,7 @@ def test_fnmatch_tool_name_wildcard():
 
 
 def test_fnmatch_tool_name_exact():
-    """"bash" 精确匹配。"""
+    """ "bash" 精确匹配。"""
     engine = PermissionEngine(
         rules=[("bash", "deny")],
         workspace=Path("/tmp"),

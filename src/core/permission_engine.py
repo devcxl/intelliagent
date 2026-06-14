@@ -67,9 +67,7 @@ def _match_rule(pattern: str, tool_name: str, args: dict[str, Any]) -> bool:
     return False
 
 
-def _evaluate_rules(
-    rules: Sequence[tuple[str, str]], tool_name: str, args: dict[str, Any]
-) -> Decision | None:
+def _evaluate_rules(rules: Sequence[tuple[str, str]], tool_name: str, args: dict[str, Any]) -> Decision | None:
     """last-match-wins 遍历规则列表，返回最后匹配的决策。"""
     last_match: tuple[str, str] | None = None
     for pattern, action in rules:
