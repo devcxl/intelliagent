@@ -5,9 +5,9 @@ from typing import Any, AsyncGenerator
 
 from src.core.context_manager import DEFAULT_SYSTEM_PROMPT, ContextManager
 from src.tools.registry import _default_registry
+from src.types.llm import LLMClientProtocol
+from src.types.memory import MemoryProtocol
 from src.types.permission import (
-    LLMClientProtocol,
-    MemoryProtocol,
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )
@@ -29,7 +29,6 @@ class ReactEngine:
         llm_client: LLMClientProtocol,
         tools_registry: Any = None,
         memory: MemoryProtocol | None = None,
-        context: Any = None,
         context_manager: ContextManager | None = None,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         max_iterations: int | None = None,

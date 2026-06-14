@@ -10,8 +10,8 @@ from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
 from src.mcp.config import MCPConfig
 from src.tools.registry import ToolRegistry, _default_registry
+from src.types.llm import LLMClientProtocol
 from src.types.permission import (
-    LLMClientProtocol,
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )
