@@ -4,26 +4,18 @@
 import json
 
 import pytest
-
 from src.config.unified_config import (
     DatabaseConfig,
-    LLMConfig,
     PermissionRule,
     PermissionsConfig,
     UnifiedConfig,
     WorkspaceConfig,
 )
 
+
 # ============================================================================
 # 子模型默认值
 # ============================================================================
-
-
-def test_llm_config_defaults():
-    config = LLMConfig()
-    assert config.api_key == ""
-    assert config.base_url is None
-    assert config.model == "gpt-4o-mini"
 
 
 def test_workspace_config_defaults():
@@ -54,11 +46,12 @@ def test_permissions_config_defaults():
 
 def test_unified_config_defaults():
     config = UnifiedConfig()
-    assert config.llm.model == "gpt-4o-mini"
+    assert config.model is None
     assert config.workspace.dir == "."
     assert config.database.url == "sqlite:///intelliagent.db"
     assert config.permissions.rules == []
     assert config.mcp == {}
+    assert config.provider == {}
 
 
 # ============================================================================
@@ -74,9 +67,13 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
     config_path.write_text(
         json.dumps(
             {
-                "llm": {
-                    "api_key": "{env:OPENAI_API_KEY}",
-                    "model": "{env:OPENAI_MODEL:gpt-4o-mini}",
+                "model": "{env:OPENAI_MODEL:gpt-4o-mini}",
+                "provider": {
+                    "openai": {
+                        "options": {
+                            "apiKey": "{env:OPENAI_API_KEY}",
+                        },
+                    },
                 },
                 "workspace": {"dir": "/tmp/ws"},
                 "database": {"url": "sqlite:///test.db"},
@@ -96,8 +93,8 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
 
     config = UnifiedConfig.load(str(config_path))
 
-    assert config.llm.api_key == "sk-test-123"
-    assert config.llm.model == "gpt-4o"
+    assert config.model == "gpt-4o"
+    assert config.provider["openai"].options.apiKey == "sk-test-123"
     assert config.workspace.dir == "/tmp/ws"
     assert config.database.url == "sqlite:///test.db"
     assert len(config.permissions.rules) == 1
@@ -108,7 +105,7 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
 
 def test_load_from_missing_file_returns_defaults():
     config = UnifiedConfig.load("/tmp/nonexistent_intelliagent.json")
-    assert config.llm.model == "gpt-4o-mini"
+    assert config.model is None
     assert config.workspace.dir == "."
     assert config.permissions.rules == []
 
@@ -120,13 +117,13 @@ def test_load_with_env_default_fallback(tmp_path, monkeypatch):
     config_path.write_text(
         json.dumps(
             {
-                "llm": {"model": "{env:OPENAI_MODEL:gpt-4o-mini}"},
+                "model": "{env:OPENAI_MODEL:gpt-4o-mini}",
             }
         )
     )
 
     config = UnifiedConfig.load(str(config_path))
-    assert config.llm.model == "gpt-4o-mini"
+    assert config.model == "gpt-4o-mini"
 
 
 def test_load_raises_on_missing_required_env(tmp_path, monkeypatch):
@@ -136,7 +133,11 @@ def test_load_raises_on_missing_required_env(tmp_path, monkeypatch):
     config_path.write_text(
         json.dumps(
             {
-                "llm": {"api_key": "{env:OPENAI_API_KEY}"},
+                "provider": {
+                    "openai": {
+                        "options": {"apiKey": "{env:OPENAI_API_KEY}"},
+                    },
+                },
             }
         )
     )
@@ -158,12 +159,12 @@ def test_load_invalid_schema_raises_validation_error(tmp_path):
     config_path.write_text(
         json.dumps(
             {
-                "llm": {"api_key": 12345},  # api_key 应该是 str
+                "model": 12345,
             }
         )
     )
 
-    with pytest.raises(Exception):  # Pydantic ValidationError
+    with pytest.raises(Exception):
         UnifiedConfig.load(str(config_path))
 
 

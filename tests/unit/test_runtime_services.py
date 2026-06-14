@@ -173,8 +173,8 @@ async def test_run_service_streams_steps_from_engine():
 # ============================================================================
 
 
-def test_agent_runtime_from_unified_config_uses_llm_fields(monkeypatch):
-    """AgentRuntime 从 UnifiedConfig 构造时，默认 LLM 工厂应使用 llm 子模型字段。"""
+def test_agent_runtime_from_unified_config_uses_provider_fields(monkeypatch):
+    """AgentRuntime 从 UnifiedConfig 构造时，默认 LLM 工厂应使用 provider 字段。"""
     import src.llm.llm_client as llm_client_module
 
     captured_kwargs = {}
@@ -189,10 +189,14 @@ def test_agent_runtime_from_unified_config_uses_llm_fields(monkeypatch):
 
     config = UnifiedConfig.model_validate(
         {
-            "llm": {
-                "api_key": "sk-unified",
-                "base_url": "https://unified.example.com",
-                "model": "unified-model",
+            "model": "unified-model",
+            "provider": {
+                "openai": {
+                    "options": {
+                        "apiKey": "sk-unified",
+                        "baseURL": "https://unified.example.com",
+                    },
+                },
             },
         }
     )

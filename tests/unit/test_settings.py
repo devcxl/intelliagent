@@ -74,15 +74,19 @@ def test_settings_rejects_non_sqlite_database_url(monkeypatch):
 # ============================================================================
 
 
-def test_from_unified_config_maps_llm_fields():
+def test_from_unified_config_maps_provider_fields():
     from src.config.settings import Settings
 
     unified = UnifiedConfig.model_validate(
         {
-            "llm": {
-                "api_key": "sk-bridge",
-                "base_url": "https://api.example.com",
-                "model": "bridge-model",
+            "model": "bridge-model",
+            "provider": {
+                "openai": {
+                    "options": {
+                        "apiKey": "sk-bridge",
+                        "baseURL": "https://api.example.com",
+                    },
+                },
             },
         }
     )
@@ -115,7 +119,7 @@ def test_from_unified_config_uses_defaults_for_missing_fields():
     settings = Settings.from_unified_config(unified)
 
     assert settings.OPENAI_API_KEY == ""
-    assert settings.OPENAI_MODEL == "gpt-4o-mini"
+    assert settings.OPENAI_MODEL == ""
     assert settings.DATABASE_URL == "sqlite:///intelliagent.db"
 
 
@@ -129,9 +133,13 @@ def test_get_settings_loads_from_intelliagent_json(tmp_path, monkeypatch):
     config_path.write_text(
         json.dumps(
             {
-                "llm": {
-                    "api_key": "{env:OPENAI_API_KEY}",
-                    "model": "custom-model",
+                "model": "custom-model",
+                "provider": {
+                    "openai": {
+                        "options": {
+                            "apiKey": "{env:OPENAI_API_KEY}",
+                        },
+                    },
                 },
             }
         )
