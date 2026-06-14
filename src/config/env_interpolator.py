@@ -17,6 +17,10 @@ def interpolate(value: str) -> str:
     """
 
     def _replace(m: re.Match) -> str:
+        """将正则匹配到的 {env:NAME} 或 {env:NAME:default} 替换为实际值。
+
+        优先取环境变量，不存在时取默认值，两者都没有则抛出 ValueError。
+        """
         var = m.group(1)
         default = m.group(2)
         val = os.environ.get(var)
