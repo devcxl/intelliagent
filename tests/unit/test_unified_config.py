@@ -37,10 +37,9 @@ def test_database_config_defaults():
 
 
 def test_permission_rule_defaults():
-    rule = PermissionRule(tool="test_tool")
-    assert rule.tool == "test_tool"
-    assert rule.action == "prompt"
-    assert rule.conditions == {}
+    rule = PermissionRule()
+    assert rule.pattern == "*"
+    assert rule.action == "ask"
 
 
 def test_permissions_config_defaults():
@@ -85,7 +84,7 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
                 "experience_file": "my_experiences.json",
                 "permissions": {
                     "rules": [
-                        {"tool": "run_shell", "action": "deny", "conditions": {}},
+                        {"pattern": "run_shell", "action": "deny"},
                     ],
                 },
                 "mcp": {
@@ -105,7 +104,7 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
     assert config.database.url == "sqlite:///test.db"
     assert config.experience_file == "my_experiences.json"
     assert len(config.permissions.rules) == 1
-    assert config.permissions.rules[0].tool == "run_shell"
+    assert config.permissions.rules[0].pattern == "run_shell"
     assert config.permissions.rules[0].action == "deny"
     assert config.mcp["servers"][0]["name"] == "fs"
 
@@ -171,7 +170,7 @@ def test_load_invalid_schema_raises_validation_error(tmp_path):
         UnifiedConfig.load(str(config_path))
 
 
-def test_load_permissions_with_conditions(tmp_path):
+def test_load_permissions_with_pattern(tmp_path):
     config_path = tmp_path / "intelliagent.json"
     config_path.write_text(
         json.dumps(
@@ -179,9 +178,8 @@ def test_load_permissions_with_conditions(tmp_path):
                 "permissions": {
                     "rules": [
                         {
-                            "tool": "read_file",
+                            "pattern": "read *",
                             "action": "allow",
-                            "conditions": {"path_in_workspace": True},
                         },
                     ],
                 },
@@ -191,7 +189,8 @@ def test_load_permissions_with_conditions(tmp_path):
 
     config = UnifiedConfig.load(str(config_path))
     rule = config.permissions.rules[0]
-    assert rule.conditions == {"path_in_workspace": True}
+    assert rule.pattern == "read *"
+    assert rule.action == "allow"
 
 
 def test_load_mcp_servers_preserved_as_dict(tmp_path):
