@@ -54,11 +54,9 @@ def _make_response(
 def mock_engine():
     llm = AsyncMock()
     memory = Mock()
-    context = Mock()
     engine = ReactEngine(
         llm_client=llm,
         memory=memory,
-        context=context,
         max_tokens=10000,
         max_consecutive_repeats=5,
     )

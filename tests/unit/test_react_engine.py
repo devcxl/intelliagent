@@ -39,12 +39,10 @@ def _make_response(content: str | None = None, tool_calls: list | None = None, t
 def mock_engine():
     llm = AsyncMock()
     memory = Mock()
-    context = Mock()
 
     engine = ReactEngine(
         llm_client=llm,
         memory=memory,
-        context=context,
         max_tokens=10000,
         max_consecutive_repeats=5,
     )
@@ -191,14 +189,6 @@ class TestReactEngineContext:
         await mock_engine.run("测试任务")
 
         assert mock_engine.memory.clear_memory.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_adds_task_to_context(self, mock_engine):
-        mock_engine.llm_client.chat_async.return_value = _make_response(content="完成")
-
-        await mock_engine.run("测试任务")
-
-        mock_engine.context.add_context.assert_called_once_with("用户任务: 测试任务")
 
     @pytest.mark.asyncio
     async def test_compacts_context_before_llm_call(self):

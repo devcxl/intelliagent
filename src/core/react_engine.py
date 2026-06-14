@@ -39,7 +39,6 @@ class ReactEngine:
         self.llm_client = llm_client
         self._registry = tools_registry if tools_registry is not None else _default_registry
         self.memory = memory
-        self.context = context
         self.max_tokens = max_tokens
         self.max_iterations = max_iterations
         self.max_consecutive_repeats = max_consecutive_repeats
@@ -66,8 +65,6 @@ class ReactEngine:
         if reset_state:
             if self.memory:
                 self.memory.clear_memory()
-            if self.context:
-                self.context.add_context(f"用户任务: {task}")
 
         if reset_state or not self._ctx.get_messages():
             self._ctx.initialize(task, history_context=history_context)
