@@ -127,6 +127,14 @@ class ToolRegistry:
         tool = self._tools.get(name)
         return tool.function if tool else None
 
+    def unregister(self, name: str) -> None:
+        """注销指定工具。
+
+        Args:
+            name: 工具名称
+        """
+        self._tools.pop(name, None)
+
     def list_tool_names(self) -> list[str]:
         """列出所有已注册的工具名称。
 
