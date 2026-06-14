@@ -1,7 +1,7 @@
 ## Agent Brief
 
 **类别：** enhancement
-**摘要：** 引入单一 `intelliagent.json` 配置文件，统一 `.env`、`permissions.json`、`mcp_config.json` 三个分散配置源，支持 `"{env:VAR}"` 环境变量插值语法，保持向后兼容。
+**摘要：** 引入单一 `intelliagent.json` 配置文件，统一 `.env`、`permissions.json`、`mcp_config.json` 三个分散配置源，支持 `"{env:VAR}"` 环境变量插值语法，不保留向后兼容。
 
 **关联 Issue：** [#8](https://github.com/devcxl/intelliagent/issues/8)
 **设计文档：** `docs/config-unification-design.md`
@@ -59,10 +59,7 @@
 
 3. **加载优先级**：真实环境变量 > `intelliagent.json`（含插值展开）> 代码默认值。即：即使 JSON 中写了 `"{env:VAR}"`，如果运行时存在同名环境变量，以环境变量为准。
 
-4. **向后兼容**：
-   - 如果 `intelliagent.json` 存在 → 使用新加载路径
-   - 如果 `intelliagent.json` 不存在但旧文件存在 → 保持现有行为，打印 deprecation warning
-   - 两者同时存在 → `intelliagent.json` 优先，忽略旧文件并打印 info 日志
+4. **不保留向后兼容**：旧配置文件（`.env`、`permissions.json`、`mcp_config.json`）已完全废弃，项目仅从 `intelliagent.json` 加载配置。详见 [Issue #10](https://github.com/devcxl/intelliagent/issues/10)。
 
 5. **Schema 校验**：配置文件加载后由 Pydantic model 做完整校验，字段类型错误、缺失必填项时报错而非静默 fallback。
 
