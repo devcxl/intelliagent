@@ -29,11 +29,27 @@ class _ServerConnection:
 
 
 def _mcp_tool_name(server_name: str, tool_name: str) -> str:
+    """生成 MCP 工具在注册表中的唯一名称。
+
+    Args:
+        server_name: MCP 服务器名称
+        tool_name: 工具原始名称
+
+    Returns:
+        带 mcp_ 前缀和服务器名的工具标识，格式为 mcp_{server_name}_{tool_name}
+    """
     return f"{MCP_TOOL_PREFIX}{server_name}_{tool_name}"
 
 
 def _tool_params_to_openai(input_schema: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """将 MCP inputSchema 转为 ToolRegistry 兼容的 parameters 格式。"""
+    """将 MCP inputSchema 转为 ToolRegistry 兼容的 parameters 格式。
+
+    Args:
+        input_schema: MCP 工具返回的 inputSchema 字典，包含 properties 和 required 字段
+
+    Returns:
+        键为参数名、值为 {type, description, required} 的参数字典
+    """
     properties = input_schema.get("properties", {})
     required = set(input_schema.get("required", []))
     result: dict[str, dict[str, Any]] = {}
@@ -47,7 +63,14 @@ def _tool_params_to_openai(input_schema: dict[str, Any]) -> dict[str, dict[str, 
 
 
 def _format_mcp_result(result: CallToolResult) -> str:
-    """将 MCP CallToolResult 转为 JSON 字符串。"""
+    """将 MCP CallToolResult 转为 JSON 字符串。
+
+    Args:
+        result: MCP 工具调用返回的 CallToolResult 对象
+
+    Returns:
+        成功时返回 content 文本拼接结果，失败时返回 {"status": "error", "error": ...} JSON
+    """
     parts: list[str] = []
     for item in result.content:
         if hasattr(item, "text") and item.text:
@@ -63,20 +86,43 @@ def _format_mcp_result(result: CallToolResult) -> str:
 
 
 class MCPClientManager:
-    """管理 N 个 MCP Server 连接，生命周期由 async with 控制。"""
+    """管理 N 个 MCP Server 连接，生命周期由 async with 控制。
+
+    通过 async with 进入时自动连接所有配置的 MCP 服务器，
+    将各服务器的工具注册到 ToolRegistry 中。
+    退出时自动注销工具并关闭所有连接。
+    """
 
     def __init__(self, config: MCPConfig, registry: ToolRegistry) -> None:
+        """初始化 MCP 客户端管理器。
+
+        Args:
+            config: MCP 配置，包含要连接的服务器列表
+            registry: 工具注册表，MCP 工具将注册到此实例
+        """
         self._config = config
         self._registry = registry
         self._connections: list[_ServerConnection] = []
 
     async def __aenter__(self) -> MCPClientManager:
+        """异步上下文管理器入口，依次连接所有 MCP 服务器。
+
+        Returns:
+            self，连接完成后的 MCPClientManager 实例
+        """
         for server in self._config.servers:
             conn = await self._connect_server(server)
             self._connections.append(conn)
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """异步上下文管理器出口，关闭所有连接并清理资源。
+
+        Args:
+            exc_type: 异常类型（如有）
+            exc_val: 异常值（如有）
+            exc_tb: 异常 traceback（如有）
+        """
         results = await asyncio.gather(
             *(self._close_connection(c) for c in self._connections),
             return_exceptions=True,
@@ -87,6 +133,14 @@ class MCPClientManager:
         self._connections.clear()
 
     async def _connect_server(self, server: MCPServerConfig) -> _ServerConnection:
+        """连接单个 MCP 服务器并注册其工具。
+
+        Args:
+            server: 单个 MCP 服务器配置
+
+        Returns:
+            _ServerConnection 实例，包含连接状态和已注册工具列表
+        """
         conn = _ServerConnection(name=server.name, config=server)
         try:
             params = StdioServerParameters(
@@ -141,6 +195,14 @@ class MCPClientManager:
         return conn
 
     async def _close_connection(self, conn: _ServerConnection) -> None:
+        """关闭单个 MCP 服务器连接并清理资源。
+
+        依次执行：注销工具 → 关闭 session → 关闭 stdio 上下文。
+        连接失败时静默清理，正常关闭时的异常会向上传播。
+
+        Args:
+            conn: 要关闭的服务器连接
+        """
         for tool_name in conn.registered_tools:
             self._registry.unregister(tool_name)
         conn.registered_tools.clear()
