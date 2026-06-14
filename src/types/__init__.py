@@ -1,3 +1,3 @@
-from src.types.permission import Decision, PermissionAction, PermissionCallback, Rule
+from src.types.permission import Decision, PermissionAction, PermissionCallback
 
-__all__ = ["PermissionAction", "Decision", "Rule", "PermissionCallback"]
+__all__ = ["PermissionAction", "Decision", "PermissionCallback"]

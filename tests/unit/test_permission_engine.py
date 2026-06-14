@@ -98,13 +98,13 @@ def test_fnmatch_args_dotenv_prod_deny():
 
 
 def test_fnmatch_args_normal_file_not_denied():
-    """规则 ".env*": "deny" 不应拒绝普通文件。"""
+    """规则 ".env*": "deny" 不应拒绝普通文件（默认规则 read * → allow 生效）。"""
     engine = PermissionEngine(
         rules=[(".env*", "deny")],
         workspace=Path("/tmp"),
     )
     d = engine.check("read_file", {"path": "src/main.py"})
-    assert d.action == PermissionAction.ask
+    assert d.action == PermissionAction.allow
 
 
 # ============================================================================

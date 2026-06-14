@@ -395,7 +395,7 @@ class ReactEngine:
             decision = self._permission_engine.check(name, args)
             if decision.action == "deny":
                 return json.dumps({"status": "error", "error": f"权限拒绝: {decision.reason}"}, ensure_ascii=False)
-            if decision.action == "prompt":
+            if decision.action == "ask":
                 if self._permission_callback:
                     approved = await self._permission_callback.on_prompt(name, args, decision.reason)
                     if not approved:

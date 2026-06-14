@@ -10,18 +10,12 @@ from pydantic import BaseModel, Field
 class PermissionAction(str, Enum):
     allow = "allow"
     deny = "deny"
-    prompt = "prompt"
+    ask = "ask"
 
 
 class Decision(BaseModel):
-    action: PermissionAction = PermissionAction.prompt
+    action: PermissionAction = PermissionAction.ask
     reason: str = ""
-
-
-class Rule(BaseModel):
-    tool: str
-    action: PermissionAction = PermissionAction.prompt
-    conditions: dict[str, Any] = Field(default_factory=dict)
 
 
 class PermissionCallback(ABC):
@@ -66,7 +60,6 @@ class PermissionCallbackProtocol(Protocol):
 __all__ = [
     "PermissionAction",
     "Decision",
-    "Rule",
     "PermissionCallback",
     "LLMClientProtocol",
     "MemoryProtocol",
