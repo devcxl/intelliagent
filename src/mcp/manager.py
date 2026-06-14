@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -12,7 +11,6 @@ from src.tools.registry import ToolRegistry
 from src.utils.logger import logger
 
 MCP_TOOL_PREFIX = "mcp_"
-_PROCESS_CLEANUP_TIMEOUT = 10
 
 
 @dataclass
@@ -123,13 +121,11 @@ class MCPClientManager:
             exc_val: 异常值（如有）
             exc_tb: 异常 traceback（如有）
         """
-        results = await asyncio.gather(
-            *(self._close_connection(c) for c in self._connections),
-            return_exceptions=True,
-        )
-        for name, r in zip([c.name for c in self._connections], results):
-            if isinstance(r, Exception):
-                logger.error("MCP 服务器关闭失败 | server=%s error=%s", name, r)
+        for conn in self._connections:
+            try:
+                await self._close_connection(conn)
+            except Exception as e:
+                logger.error("MCP 服务器关闭失败 | server=%s error=%s", conn.name, e)
         self._connections.clear()
 
     async def _connect_server(self, server: MCPServerConfig) -> _ServerConnection:
@@ -197,36 +193,25 @@ class MCPClientManager:
     async def _close_connection(self, conn: _ServerConnection) -> None:
         """关闭单个 MCP 服务器连接并清理资源。
 
-        依次执行：注销工具 → 关闭 session → 关闭 stdio 上下文。
-        连接失败时静默清理，正常关闭时的异常会向上传播。
-
-        Args:
-            conn: 要关闭的服务器连接
+        按顺序：注销工具 → 关闭 session → 关闭 stdio 上下文。
+        所有操作在同一 task 中执行，避免 anyio CancelScope 跨 task 问题。
         """
         for tool_name in conn.registered_tools:
             self._registry.unregister(tool_name)
         conn.registered_tools.clear()
 
-        exc = None
         if conn._session is not None:
             try:
                 await conn._session.__aexit__(None, None, None)
-            except Exception as e:
-                exc = e
-                logger.warning("MCP session 关闭异常 | server=%s error=%s", conn.name, e)
+            except Exception:
+                pass
             conn._session = None
 
         if conn._stdio_ctx is not None:
             try:
-                async with asyncio.timeout(_PROCESS_CLEANUP_TIMEOUT):
-                    await conn._stdio_ctx.__aexit__(None, None, None)
-            except TimeoutError:
-                logger.warning("MCP 进程关闭超时 | server=%s", conn.name)
-            except Exception as e:
-                if exc is None:
-                    exc = e
-                logger.warning("MCP stdio 关闭异常 | server=%s error=%s", conn.name, e)
+                await conn._stdio_ctx.__aexit__(None, None, None)
+            except Exception:
+                pass
             conn._stdio_ctx = None
-
-        if exc is not None and not conn.failed:
-            raise exc  # type: ignore[misc]
+            conn._read_stream = None
+            conn._write_stream = None
