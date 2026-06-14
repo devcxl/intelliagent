@@ -6,10 +6,22 @@ from src.utils.logger import logger
 
 from .response import error_response, success_response
 
-SHELL_COMMAND_TIMEOUT = 30
+SHELL_COMMAND_TIMEOUT = 30  # shell 命令默认超时时间（秒）
 
 
 async def run_shell(cmd: str) -> str:
+    """异步执行 shell 命令并返回结果。
+
+    使用 bash -lc 执行命令（如果 bash 可用），支持超时控制。
+    命令执行超时后会强制终止进程。
+
+    Args:
+        cmd: 要执行的 shell 命令字符串
+
+    Returns:
+        JSON 格式的响应，成功时包含 output 和 returncode 字段，
+        失败时包含 error 和 code 字段
+    """
     if not cmd or not isinstance(cmd, str):
         return error_response("cmd 参数为空或非字符串类型", "EMPTY_COMMAND")
 

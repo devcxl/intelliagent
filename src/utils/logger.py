@@ -51,5 +51,5 @@ def setup_logger(
     return logger
 
 
-# 创建默认日志记录器
+# 创建默认日志记录器，供整个项目统一使用
 logger = setup_logger()

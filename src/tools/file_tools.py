@@ -12,8 +12,8 @@ try:
 except ImportError:
     HAS_AIOFILES = False
 
-FILE_READ_MAX_SIZE = 50000
-FILE_WRITE_MAX_SIZE = 1000000
+FILE_READ_MAX_SIZE = 50000   # 文件读取最大字符数
+FILE_WRITE_MAX_SIZE = 1000000  # 文件写入最大字符数（1MB）
 
 
 def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | None) -> str | None:
@@ -48,6 +48,17 @@ def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | Non
 
 
 async def read_file(path: str, workspace_root: str | None = None) -> str:
+    """异步读取文件内容。
+
+    支持工作区边界检查、文件大小截断，优先使用 aiofiles 异步读取。
+
+    Args:
+        path: 文件路径，支持 ~ 展开
+        workspace_root: 工作区根路径，用于边界检查，None 时从环境变量获取
+
+    Returns:
+        JSON 格式的响应，成功时包含 content、size、truncated、path 字段
+    """
     if not path or not isinstance(path, str):
         return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
 
@@ -90,6 +101,18 @@ async def read_file(path: str, workspace_root: str | None = None) -> str:
 
 
 async def write_file(path: str, content: str, workspace_root: str | None = None) -> str:
+    """异步写入文件内容。
+
+    自动创建父目录，支持工作区边界检查，优先使用 aiofiles 异步写入。
+
+    Args:
+        path: 文件路径，支持 ~ 展开
+        content: 要写入的文件内容
+        workspace_root: 工作区根路径，用于边界检查，None 时从环境变量获取
+
+    Returns:
+        JSON 格式的响应，成功时包含 message、path、size 字段
+    """
     if not path or not isinstance(path, str):
         return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
 
@@ -134,6 +157,20 @@ async def write_file(path: str, content: str, workspace_root: str | None = None)
 async def edit_file(
     path: str, oldString: str, newString: str, replaceAll: bool = False, workspace_root: str | None = None
 ) -> str:
+    """异步编辑文件内容，精确替换指定字符串。
+
+    支持单次替换和全部替换两种模式，替换后自动写回文件。
+
+    Args:
+        path: 文件路径，支持 ~ 展开
+        oldString: 要替换的旧字符串
+        newString: 替换后的新字符串
+        replaceAll: 是否替换所有匹配项，默认 False（仅替换首次出现）
+        workspace_root: 工作区根路径，用于边界检查，None 时从环境变量获取
+
+    Returns:
+        JSON 格式的响应，成功时包含 message、replacements、content、path、size 字段
+    """
     if not path or not isinstance(path, str):
         return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
 
