@@ -207,7 +207,7 @@ def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
         {
             "permissions": {
                 "rules": [
-                    {"tool": "run_shell", "action": "deny", "conditions": {}},
+                    {"pattern": "run_shell", "action": "deny"},
                 ],
             },
         }
@@ -218,8 +218,7 @@ def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
 
     assert isinstance(engine, PermissionEngine)
     assert len(engine.rules) == 1
-    assert engine.rules[0].tool == "run_shell"
-    assert engine.rules[0].action.value == "deny"
+    assert engine.rules[0] == ("run_shell", "deny")
 
 
 def test_agent_runtime_from_unified_config_workspace(monkeypatch):

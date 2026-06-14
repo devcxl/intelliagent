@@ -24,7 +24,7 @@ class MockRegistry:
         return []
 
 
-def _make_engine(rules: list[dict], callback=None, workspace=None):
+def _make_engine(rules: list[tuple[str, str]], callback=None, workspace=None):
     pe = PermissionEngine(rules=rules, workspace=workspace or Path.cwd())
     return ReactEngine(
         llm_client=MockLLMClient(),
@@ -37,9 +37,7 @@ def _make_engine(rules: list[dict], callback=None, workspace=None):
 @pytest.mark.asyncio
 async def test_allow_executes_directly():
     engine = _make_engine(
-        [
-            {"tool": "run_shell", "action": "allow", "conditions": {}},
-        ]
+        [("run_shell", "allow")],
     )
     result = await engine._execute_tool("run_shell", {"cmd": "ls"})
     assert "success" in result
@@ -48,9 +46,7 @@ async def test_allow_executes_directly():
 @pytest.mark.asyncio
 async def test_deny_blocks():
     engine = _make_engine(
-        [
-            {"tool": "run_shell", "action": "deny", "conditions": {}},
-        ]
+        [("run_shell", "deny")],
     )
     result = await engine._execute_tool("run_shell", {"cmd": "rm -rf /"})
     assert "权限拒绝" in result
@@ -58,13 +54,11 @@ async def test_deny_blocks():
 
 
 @pytest.mark.asyncio
-async def test_prompt_approved_executes(monkeypatch):
+async def test_ask_approved_executes(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _: "y")
     cb = CliCallback(timeout=10.0)
     engine = _make_engine(
-        [
-            {"tool": "run_shell", "action": "prompt", "conditions": {"dangerous": True}},
-        ],
+        [("run_shell", "ask")],
         callback=cb,
     )
     result = await engine._execute_tool("run_shell", {"cmd": "rm -rf /"})
@@ -72,13 +66,11 @@ async def test_prompt_approved_executes(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_prompt_rejected_blocks(monkeypatch):
+async def test_ask_rejected_blocks(monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _: "n")
     cb = CliCallback(timeout=10.0)
     engine = _make_engine(
-        [
-            {"tool": "run_shell", "action": "prompt", "conditions": {}},
-        ],
+        [("run_shell", "ask")],
         callback=cb,
     )
     result = await engine._execute_tool("run_shell", {"cmd": "ls"})
@@ -96,17 +88,11 @@ async def test_no_permission_engine_executes_directly():
 
 
 @pytest.mark.asyncio
-async def test_path_in_workspace_allows(tmp_path, monkeypatch):
-    monkeypatch.setattr("builtins.input", lambda _: "y")
-    cb = CliCallback(timeout=10.0)
+async def test_path_in_workspace_allows(tmp_path):
     test_file = tmp_path / "test.py"
     test_file.write_text("x=1")
     engine = _make_engine(
-        [
-            {"tool": "read_file", "action": "allow", "conditions": {"path_in_workspace": True}},
-            {"tool": "read_file", "action": "prompt", "conditions": {"path_in_workspace": False}},
-        ],
-        callback=cb,
+        [("read *", "allow")],
         workspace=tmp_path,
     )
     result = await engine._execute_tool("read_file", {"path": str(test_file)})
@@ -114,16 +100,11 @@ async def test_path_in_workspace_allows(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_path_outside_workspace_prompts_and_rejects(monkeypatch, tmp_path):
-    monkeypatch.setattr("builtins.input", lambda _: "n")
-    cb = CliCallback(timeout=10.0)
+async def test_path_outside_workspace_denies(tmp_path):
+    # 无用户规则匹配时，外部路径应被拒绝
     engine = _make_engine(
-        [
-            {"tool": "read_file", "action": "allow", "conditions": {"path_in_workspace": True}},
-            {"tool": "read_file", "action": "prompt", "conditions": {"path_in_workspace": False}},
-        ],
-        callback=cb,
+        [],
         workspace=tmp_path,
     )
     result = await engine._execute_tool("read_file", {"path": "/etc/passwd"})
-    assert "用户拒绝执行" in result
+    assert "权限拒绝" in result

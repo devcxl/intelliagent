@@ -1,125 +1,35 @@
 from __future__ import annotations
 
-import re
+import fnmatch
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Sequence
 
-from src.types.permission import Decision, PermissionAction, Rule
+from src.types.permission import Decision, PermissionAction
 
 if TYPE_CHECKING:
     from src.config.unified_config import PermissionsConfig
 
-_SHELL_DELIMITERS = re.compile(r"[;&|\n]")
-_CMD_SUBSTITUTION = re.compile(r"\$\(|`")
-_REDIRECT_DANGER = re.compile(r">[>\s]")
-_XARGS_DANGER = re.compile(r"\bxargs\s+(rm|mv|dd|chmod|chown)\b")
-_SUDO_PATTERN = re.compile(r"\b(sudo|su)\b")
+# ---------------------------------------------------------------------------
+# 默认规则（last-match-wins，列表末尾优先级最高）
+# ---------------------------------------------------------------------------
 
-DANGEROUS_COMMANDS: set[str] = {
-    "rm",
-    "mv",
-    "dd",
-    "mkfs",
-    "mkswap",
-    "swapon",
-    "shutdown",
-    "reboot",
-    "halt",
-    "poweroff",
-    "chmod",
-    "chown",
-    "chgrp",
-    "kill",
-    "pkill",
-    "killall",
-    "fdisk",
-    "parted",
-    "wipefs",
-    "iptables",
-    "nft",
-    "ufw",
-}
-
-PATH_SENSITIVE_COMMANDS: set[str] = {
-    "ln",
-    "cp",
-    "mv",
-    "rsync",
-    "curl",
-    "wget",
-    "scp",
-    "find",
-}
-
-DEFAULT_RULES: list[dict[str, Any]] = [
-    {"tool": "run_shell", "action": "prompt", "conditions": {"dangerous": True}},
-    {"tool": "run_shell", "action": "prompt", "conditions": {"path_sensitive": True}},
-    {"tool": "run_shell", "action": "allow", "conditions": {}},
-    {"tool": "read_file", "action": "allow", "conditions": {"path_in_workspace": True}},
-    {"tool": "read_file", "action": "prompt", "conditions": {"path_in_workspace": False}},
-    {"tool": "write_file", "action": "allow", "conditions": {"path_in_workspace": True}},
-    {"tool": "write_file", "action": "prompt", "conditions": {"path_in_workspace": False}},
-    {"tool": "edit_file", "action": "allow", "conditions": {"path_in_workspace": True}},
-    {"tool": "edit_file", "action": "prompt", "conditions": {"path_in_workspace": False}},
-    {"tool": "todo_write", "action": "allow", "conditions": {}},
-]
-
-
-def _extract_command_name(token: str) -> str:
-    token = token.strip()
-    if not token:
-        return token
-    while "=" in token and token.split("=", 1)[0].isidentifier():
-        token = token.split("=", 1)[1].strip()
-    return token.rsplit("/", 1)[-1] if "/" in token else token
-
-
-def _is_dangerous_cmd(cmd_str: str) -> bool:
-    if not cmd_str or not cmd_str.strip():
-        return False
-
-    if _CMD_SUBSTITUTION.search(cmd_str):
-        return True
-    if _REDIRECT_DANGER.search(cmd_str):
-        return True
-    if _XARGS_DANGER.search(cmd_str):
-        return True
-    if _SUDO_PATTERN.search(cmd_str):
-        return True
-
-    for segment in _SHELL_DELIMITERS.split(cmd_str):
-        tokens = segment.strip().split()
-        if tokens:
-            cmd_name = _extract_command_name(tokens[0])
-            if cmd_name and cmd_name in DANGEROUS_COMMANDS:
-                return True
-
-    return False
-
-
-def _is_path_sensitive(cmd_str: str) -> bool:
-    tokens = cmd_str.strip().split()
-    if not tokens:
-        return False
-    cmd_name = _extract_command_name(tokens[0])
-    if cmd_name not in PATH_SENSITIVE_COMMANDS:
-        return False
-    for token in tokens[1:]:
-        if token.startswith("/"):
-            return True
-        if token.startswith("../"):
-            return True
-        if token.startswith("~"):
-            return True
-        if "/proc/" in token or "/dev/" in token:
-            return True
-    return False
+_DEFAULT_RULES: tuple[tuple[str, str], ...] = (
+    ("*", "ask"),
+    ("read *", "allow"),
+    (".env*", "deny"),
+    ("edit *", "ask"),
+    ("bash *", "ask"),
+    ("write *", "ask"),
+)
 
 
 def _is_path_in_workspace(path: str, workspace: Path) -> bool:
     if not path:
         return True
-    resolved = Path(path).resolve()
+    p = Path(path)
+    if not p.is_absolute():
+        p = workspace / p
+    resolved = p.resolve()
     workspace_resolved = workspace.resolve()
     try:
         resolved.relative_to(workspace_resolved)
@@ -128,72 +38,105 @@ def _is_path_in_workspace(path: str, workspace: Path) -> bool:
         return False
 
 
-class ConditionStrategy(Protocol):
-    """条件评估策略协议 — 每种条件类型对应一个实现。"""
-
-    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool: ...
-
-
-class DangerousConditionStrategy:
-    """危险命令条件策略 — 复用 _is_dangerous_cmd 逻辑。"""
-
-    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool:
-        return _is_dangerous_cmd(args.get("cmd", ""))
-
-
-class PathInWorkspaceConditionStrategy:
-    """工作区路径条件策略 — 复用 _is_path_in_workspace 逻辑。"""
-
-    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool:
-        return _is_path_in_workspace(args.get("path", ""), workspace)
+def _is_in_external_directories(path: str, external_directories: list[str]) -> bool:
+    if not path or not external_directories:
+        return False
+    resolved = Path(path).resolve()
+    for d in external_directories:
+        dir_resolved = Path(d).resolve()
+        try:
+            resolved.relative_to(dir_resolved)
+            return True
+        except ValueError:
+            continue
+    return False
 
 
-class PathSensitiveConditionStrategy:
-    """路径敏感命令条件策略 — 复用 _is_path_sensitive 逻辑。"""
+def _match_rule(pattern: str, tool_name: str, args: dict[str, Any]) -> bool:
+    """检查 pattern 是否匹配工具名或参数值。
 
-    def evaluate(self, args: dict[str, Any], workspace: Path) -> bool:
-        return _is_path_sensitive(args.get("cmd", ""))
+    工具名匹配时将 pattern 中空格压缩（"read *" → "read*"），
+    参数值匹配时使用原始 pattern。
+    """
+    compact = pattern.replace(" ", "")
+    if fnmatch.fnmatch(tool_name, compact):
+        return True
+    for value in args.values():
+        if isinstance(value, str) and fnmatch.fnmatch(value, pattern):
+            return True
+    return False
 
 
-_STRATEGIES: dict[str, ConditionStrategy] = {
-    "dangerous": DangerousConditionStrategy(),
-    "path_in_workspace": PathInWorkspaceConditionStrategy(),
-    "path_sensitive": PathSensitiveConditionStrategy(),
-}
+def _evaluate_rules(rules: Sequence[tuple[str, str]], tool_name: str, args: dict[str, Any]) -> Decision | None:
+    """last-match-wins 遍历规则列表，返回最后匹配的决策。"""
+    last_match: tuple[str, str] | None = None
+    for pattern, action in rules:
+        if _match_rule(pattern, tool_name, args):
+            last_match = (pattern, action)
+    if last_match is None:
+        return None
+    pattern, action = last_match
+    return Decision(
+        action=PermissionAction(action),
+        reason=f"匹配规则: pattern={pattern}, action={action}",
+    )
 
 
 class PermissionEngine:
-    def __init__(self, rules: list[dict[str, Any]], workspace: Path | None = None) -> None:
-        self._rules = [Rule(**r) for r in rules]
-        self._workspace = workspace or Path.cwd()
+    """权限引擎 — last-match-wins + fnmatch 模式匹配。
+
+    构造函数：
+        rules: list[tuple[str, str]] — 用户配置的 (pattern, action) 规则列表
+        workspace: Path — 工作区根路径
+        external_directories: list[str] | None — 外部目录白名单
+    """
+
+    _DEFAULT_RULES: tuple[tuple[str, str], ...] = _DEFAULT_RULES
+
+    def __init__(
+        self,
+        rules: list[tuple[str, str]],
+        workspace: Path,
+        external_directories: list[str] | None = None,
+    ) -> None:
+        self._rules = rules
+        self._workspace = workspace
+        self._external_directories = external_directories or []
 
     @property
-    def rules(self) -> list[Rule]:
+    def rules(self) -> list[tuple[str, str]]:
         return self._rules
 
     def check(self, tool_name: str, args: dict[str, Any]) -> Decision:
-        for rule in self._rules:
-            if rule.tool != tool_name and rule.tool != "*":
-                continue
-            if self._evaluate_condition(rule.conditions, args):
-                return Decision(action=rule.action, reason=self._reason(rule))
-        return Decision(action=PermissionAction.prompt, reason="无匹配权限规则，默认需要确认")
+        # 1. 用户规则优先（last-match-wins），用户可以覆盖任何行为
+        result = _evaluate_rules(self._rules, tool_name, args)
+        if result is not None:
+            return result
 
-    def _evaluate_condition(self, conditions: dict[str, Any], args: dict[str, Any]) -> bool:
-        if not conditions:
-            return True
-        for key, expected in conditions.items():
-            strategy = _STRATEGIES.get(key)
-            if strategy is None:
-                return False
-            actual = strategy.evaluate(args, self._workspace)
-            if actual != expected:
-                return False
-        return True
+        # 2. 安全检查：外部路径不在白名单中 → deny
+        path = args.get("path", "")
+        if isinstance(path, str) and path:
+            in_workspace = _is_path_in_workspace(path, self._workspace)
+            if not in_workspace:
+                in_external = _is_in_external_directories(path, self._external_directories)
+                if not in_external:
+                    return Decision(
+                        action=PermissionAction.deny,
+                        reason=f"路径不在工作区且不在外部目录白名单中: {path}",
+                    )
+                # 在白名单中的外部目录 → 默认 ask
+                return Decision(
+                    action=PermissionAction.ask,
+                    reason=f"外部目录路径需确认: {path}",
+                )
 
-    @staticmethod
-    def _reason(rule: Rule) -> str:
-        return f"匹配规则: tool={rule.tool}, action={rule.action.value}, conditions={rule.conditions}"
+        # 3. 默认规则（last-match-wins）
+        result = _evaluate_rules(self._DEFAULT_RULES, tool_name, args)
+        if result is not None:
+            return result
+
+        # 4. 绝对兜底
+        return Decision(action=PermissionAction.ask, reason="无匹配权限规则，默认需要确认")
 
 
 def load_permission_engine(
@@ -201,5 +144,9 @@ def load_permission_engine(
     workspace: Path | None = None,
 ) -> PermissionEngine:
     """从 PermissionsConfig 对象加载权限引擎。"""
-    rules = [r.model_dump() for r in config.rules] if config.rules else DEFAULT_RULES
-    return PermissionEngine(rules=rules, workspace=workspace)
+    rules = [(r.pattern, r.action) for r in config.rules]
+    return PermissionEngine(
+        rules=rules,
+        workspace=workspace or Path.cwd(),
+        external_directories=config.external_directories,
+    )

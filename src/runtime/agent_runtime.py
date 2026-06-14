@@ -50,11 +50,12 @@ class AgentRuntime:
         )
 
     def _default_permission_engine_factory(self) -> PermissionEngineProtocol:
-        from src.core.permission_engine import PermissionEngine
+        from src.core.permission_engine import load_permission_engine
 
-        rules = [r.model_dump() for r in self._config.permissions.rules]
-        workspace = Path(self._config.workspace.dir)
-        return PermissionEngine(rules=rules, workspace=workspace)
+        return load_permission_engine(
+            self._config.permissions,
+            workspace=Path(self._config.workspace.dir),
+        )
 
     def _default_permission_callback_factory(self) -> PermissionCallbackProtocol:
         from src.runtime.permission_callback import CliCallback
