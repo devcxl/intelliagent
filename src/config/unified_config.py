@@ -56,7 +56,6 @@ class UnifiedConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     workspace: WorkspaceConfig = Field(default_factory=WorkspaceConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    experience_file: str = "experiences.json"
     permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
     mcp: dict[str, Any] = Field(default_factory=dict)
 

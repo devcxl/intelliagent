@@ -57,7 +57,6 @@ def test_unified_config_defaults():
     assert config.llm.model == "gpt-4o-mini"
     assert config.workspace.dir == "."
     assert config.database.url == "sqlite:///intelliagent.db"
-    assert config.experience_file == "experiences.json"
     assert config.permissions.rules == []
     assert config.mcp == {}
 
@@ -81,7 +80,6 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
                 },
                 "workspace": {"dir": "/tmp/ws"},
                 "database": {"url": "sqlite:///test.db"},
-                "experience_file": "my_experiences.json",
                 "permissions": {
                     "rules": [
                         {"pattern": "run_shell", "action": "deny"},
@@ -102,7 +100,6 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
     assert config.llm.model == "gpt-4o"
     assert config.workspace.dir == "/tmp/ws"
     assert config.database.url == "sqlite:///test.db"
-    assert config.experience_file == "my_experiences.json"
     assert len(config.permissions.rules) == 1
     assert config.permissions.rules[0].pattern == "run_shell"
     assert config.permissions.rules[0].action == "deny"

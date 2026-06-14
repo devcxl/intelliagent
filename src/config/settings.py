@@ -34,8 +34,6 @@ class Settings(BaseModel):
     OPENAI_API_BASE: str | None = None
     OPENAI_MODEL: str = "gpt-4o-mini"
 
-    EXPERIENCE_FILE: str = "experiences.json"
-
     WORKSPACE_DIR: str = Field(default_factory=lambda: str(Path.cwd()))
 
     DATABASE_URL: str = Field(default=DEFAULT_DATABASE_URL)
@@ -49,7 +47,6 @@ class Settings(BaseModel):
             OPENAI_MODEL=config.llm.model,
             WORKSPACE_DIR=config.workspace.dir,
             DATABASE_URL=config.database.url,
-            EXPERIENCE_FILE=config.experience_file,
         )
 
 
@@ -59,7 +56,6 @@ _ENV_OVERRIDE_KEYS = [
     "OPENAI_MODEL",
     "WORKSPACE_DIR",
     "DATABASE_URL",
-    "EXPERIENCE_FILE",
     "LOG_LEVEL",
 ]
 

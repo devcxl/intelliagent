@@ -108,19 +108,6 @@ def test_from_unified_config_maps_workspace_and_database():
     assert settings.DATABASE_URL == "sqlite:///bridge.db"
 
 
-def test_from_unified_config_maps_experience_file():
-    from src.config.settings import Settings
-
-    unified = UnifiedConfig.model_validate(
-        {
-            "experience_file": "bridge_experiences.json",
-        }
-    )
-    settings = Settings.from_unified_config(unified)
-
-    assert settings.EXPERIENCE_FILE == "bridge_experiences.json"
-
-
 def test_from_unified_config_uses_defaults_for_missing_fields():
     from src.config.settings import Settings
 
