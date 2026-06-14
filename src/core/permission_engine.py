@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import fnmatch
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Sequence
 
 from src.types.permission import Decision, PermissionAction
 
@@ -13,14 +13,14 @@ if TYPE_CHECKING:
 # 默认规则（last-match-wins，列表末尾优先级最高）
 # ---------------------------------------------------------------------------
 
-_DEFAULT_RULES: list[tuple[str, str]] = [
+_DEFAULT_RULES: tuple[tuple[str, str], ...] = (
     ("*", "ask"),
     ("read *", "allow"),
     (".env*", "deny"),
     ("edit *", "ask"),
     ("bash *", "ask"),
     ("write *", "ask"),
-]
+)
 
 
 def _is_path_in_workspace(path: str, workspace: Path) -> bool:
@@ -68,7 +68,7 @@ def _match_rule(pattern: str, tool_name: str, args: dict[str, Any]) -> bool:
 
 
 def _evaluate_rules(
-    rules: list[tuple[str, str]], tool_name: str, args: dict[str, Any]
+    rules: Sequence[tuple[str, str]], tool_name: str, args: dict[str, Any]
 ) -> Decision | None:
     """last-match-wins 遍历规则列表，返回最后匹配的决策。"""
     last_match: tuple[str, str] | None = None
@@ -93,7 +93,7 @@ class PermissionEngine:
         external_directories: list[str] | None — 外部目录白名单
     """
 
-    _DEFAULT_RULES: list[tuple[str, str]] = _DEFAULT_RULES
+    _DEFAULT_RULES: tuple[tuple[str, str], ...] = _DEFAULT_RULES
 
     def __init__(
         self,
@@ -110,7 +110,12 @@ class PermissionEngine:
         return self._rules
 
     def check(self, tool_name: str, args: dict[str, Any]) -> Decision:
-        # 1. 检查是否涉及外部路径
+        # 1. 用户规则优先（last-match-wins），用户可以覆盖任何行为
+        result = _evaluate_rules(self._rules, tool_name, args)
+        if result is not None:
+            return result
+
+        # 2. 安全检查：外部路径不在白名单中 → deny
         path = args.get("path", "")
         if isinstance(path, str) and path:
             in_workspace = _is_path_in_workspace(path, self._workspace)
@@ -121,16 +126,11 @@ class PermissionEngine:
                         action=PermissionAction.deny,
                         reason=f"路径不在工作区且不在外部目录白名单中: {path}",
                     )
-                # 在外部目录白名单中，默认 ask
+                # 在白名单中的外部目录 → 默认 ask
                 return Decision(
                     action=PermissionAction.ask,
                     reason=f"外部目录路径需确认: {path}",
                 )
-
-        # 2. 用户规则（last-match-wins）
-        result = _evaluate_rules(self._rules, tool_name, args)
-        if result is not None:
-            return result
 
         # 3. 默认规则（last-match-wins）
         result = _evaluate_rules(self._DEFAULT_RULES, tool_name, args)

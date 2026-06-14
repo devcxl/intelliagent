@@ -101,8 +101,9 @@ async def test_path_in_workspace_allows(tmp_path):
 
 @pytest.mark.asyncio
 async def test_path_outside_workspace_denies(tmp_path):
+    # 无用户规则匹配时，外部路径应被拒绝
     engine = _make_engine(
-        [("read *", "allow")],
+        [],
         workspace=tmp_path,
     )
     result = await engine._execute_tool("read_file", {"path": "/etc/passwd"})

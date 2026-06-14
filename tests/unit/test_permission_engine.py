@@ -248,7 +248,8 @@ def test_load_permission_engine_passes_external_directories():
     )
     engine = load_permission_engine(perms, workspace=Path("/home/user/project"))
     d = engine.check("read_file", {"path": "/tmp/safe/data.txt"})
-    assert d.action == PermissionAction.ask
+    # 用户规则 ("read *", "allow") 优先匹配，允许读取
+    assert d.action == PermissionAction.allow
 
 
 def test_load_permission_engine_empty_rules_uses_defaults():

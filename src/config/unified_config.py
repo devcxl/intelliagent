@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -36,7 +36,7 @@ class PermissionRule(BaseModel):
     """单条权限规则 — pattern + action 模式。"""
 
     pattern: str = "*"
-    action: str = "ask"
+    action: Literal["allow", "ask", "deny"] = "ask"
 
 
 class PermissionsConfig(BaseModel):
