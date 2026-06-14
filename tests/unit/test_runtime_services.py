@@ -38,8 +38,10 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
 
     first_llm = runtime.get_llm_client()
     second_llm = runtime.get_llm_client()
-    first_engine = runtime.create_engine()
-    second_engine = runtime.create_engine()
+    import asyncio
+
+    first_engine = asyncio.run(runtime.create_engine())
+    second_engine = asyncio.run(runtime.create_engine())
 
     assert first_llm is second_llm
     assert len(created_llm_clients) == 1
@@ -108,11 +110,15 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
 
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
 
-    engine = AgentRuntime(
-        llm_client_factory=FakeLLMClient,
-        permission_engine_factory=FakePermissionEngine,
-        permission_callback_factory=FakePermissionCallback,
-    ).create_engine(max_iterations=3)
+    import asyncio
+
+    engine = asyncio.run(
+        AgentRuntime(
+            llm_client_factory=FakeLLMClient,
+            permission_engine_factory=FakePermissionEngine,
+            permission_callback_factory=FakePermissionCallback,
+        ).create_engine(max_iterations=3)
+    )
 
     assert created_engines == [engine]
     assert engine.max_tokens == 128000

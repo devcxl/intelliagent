@@ -79,9 +79,16 @@ class FakeEngine:
 class FakeAgentRuntime:
     def __init__(self, config=None):
         self._config = config
+        self._mcp_manager = None
 
-    def create_engine(self):
+    async def create_engine(self):
         return FakeEngine()
+
+    async def start_mcp(self, registry=None):
+        pass
+
+    async def stop_mcp(self):
+        pass
 
 
 def _patch_orchestrator_dependencies(monkeypatch, fake_db, created=None):
@@ -94,7 +101,7 @@ def _patch_orchestrator_dependencies(monkeypatch, fake_db, created=None):
             if created is not None:
                 created["config"] = config
 
-        def create_engine(self):
+        async def create_engine(self):
             if created is not None:
                 created["create_engine_called"] = True
                 return FakeEngine(created.setdefault("engine_calls", []))
