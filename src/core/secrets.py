@@ -22,6 +22,7 @@ _SECRET_PATTERNS: list[tuple[str, str]] = [
 def redact_secrets(value: str) -> str:
     """对文本中的敏感信息进行脱敏处理。
 
+    支持 OpenAI API Key（sk- 开头）、Bearer Token、密码、API Key、URL 凭据等模式。
     对于带捕获组的模式，保留捕获组前缀，将匹配的敏感部分替换为 [REDACTED]。
     对于不带捕获组的模式，将整个匹配替换为 [REDACTED]。
 

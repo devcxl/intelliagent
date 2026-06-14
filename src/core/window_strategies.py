@@ -12,7 +12,10 @@ from src.utils.logger import logger
 
 
 class WindowStrategy:
-    """上下文窗口策略基类 — 定义如何处理上下文窗口溢出。"""
+    """上下文窗口策略基类 — 定义如何处理上下文窗口溢出。
+
+    子类需实现 apply 方法，在上下文超出 max_tokens 时执行具体的压缩策略。
+    """
 
     def apply(
         self,
@@ -55,7 +58,19 @@ class SlidingWindowStrategy(WindowStrategy):
         max_tokens: int,
         system_prompt: str,
     ) -> list[dict[str, Any]]:
-        """滑动窗口截断：丢弃最早的历史消息，保留最近的上下文。"""
+        """滑动窗口截断：丢弃最早的历史消息，保留最近的上下文。
+
+        保留 system prompt + 最早几条 user 消息 + 最近的 N 组消息。
+        assistant 和对应的 tool 消息必须成组保留，避免孤立 tool 消息。
+
+        Args:
+            messages: 当前完整消息列表
+            max_tokens: token 上限
+            system_prompt: 系统提示词（应始终保留）
+
+        Returns:
+            截断后的消息列表
+        """
         if not messages:
             return messages
 

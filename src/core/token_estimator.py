@@ -18,6 +18,17 @@ TOOL_CALL_OVERHEAD_TOKENS = 10
 
 
 def estimate_tokens(messages: list[dict[str, Any]]) -> int:
+    """粗略估算消息列表的 token 总数。
+
+    仅用于预判是否接近上下文窗口上限，实际 token 数以 API 返回的 usage 为准。
+    估算公式：每条消息开销 4 tokens + 内容字符数 × 1.3 + 工具调用开销。
+
+    Args:
+        messages: 消息列表
+
+    Returns:
+        估算的 token 总数
+    """
     total = 0
     for msg in messages:
         total += MESSAGE_OVERHEAD_TOKENS

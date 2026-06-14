@@ -205,7 +205,10 @@ class ContextManager:
         self._messages.append({"role": "user", "content": user_content})
 
     def clear(self) -> None:
-        """清空上下文。"""
+        """清空上下文。
+
+        重置消息列表、摘要、轮数和元数据到初始状态。
+        """
         self._messages = []
         self._instruction_count = 0
         self._summary = None
@@ -235,7 +238,14 @@ class ContextManager:
         return True
 
     def compact_to_summary(self) -> ContextSummary:
-        """将非指令消息压缩为一条 summary message。"""
+        """将非指令消息压缩为一条 summary message。
+
+        保留 instruction 消息（system prompt），将后续所有非 summary 消息
+        压缩为一条带摘要的 user 消息，以节省上下文窗口。
+
+        Returns:
+            压缩后的 ContextSummary 实例
+        """
         instruction_messages = self._messages[: self._instruction_count] or self._instruction_messages()
         source_messages = [
             msg for msg in self._messages[len(instruction_messages) :] if not self._is_summary_message(msg)
@@ -258,6 +268,7 @@ class ContextManager:
         return self._summary
 
     def _instruction_messages(self) -> list[dict[str, Any]]:
+        """构建指令前缀消息列表（system prompt 系列）。"""
         return [
             {"role": "system", "content": content}
             for content in (
@@ -270,6 +281,16 @@ class ContextManager:
 
     @staticmethod
     def _count_instruction_prefix(messages: list[dict[str, Any]]) -> int:
+        """统计消息列表中开头的 system 消息数量。
+
+        用于识别 instruction 前缀的边界，在压缩时保留这些消息不被压缩。
+
+        Args:
+            messages: 消息列表
+
+        Returns:
+            开头的 system 消息数量
+        """
         count = 0
         for msg in messages:
             if msg.get("role") != "system":
@@ -440,29 +461,52 @@ class ContextManager:
         return len(self._messages) - 1
 
     def increment_turns(self, n: int = 1) -> None:
-        """递增轮数计数器。"""
+        """递增轮数计数器。
+
+        Args:
+            n: 递增步数，默认 1
+        """
         self._num_turns += n
 
     # ------------------------------------------------------------------
     # 消息查询
     # ------------------------------------------------------------------
     def get_messages(self) -> list[dict[str, Any]]:
-        """获取完整消息列表（用于 LLM 调用）。"""
+        """获取完整消息列表（用于 LLM 调用）。
+
+        Returns:
+            消息列表的副本
+        """
         return list(self._messages)
 
     def get_system_message(self) -> dict[str, Any] | None:
-        """获取第一条 system 消息。"""
+        """获取第一条 system 消息。
+
+        Returns:
+            system 消息字典，未找到时返回 None
+        """
         for msg in self._messages:
             if msg.get("role") == "system":
                 return msg
         return None
 
     def get_last_message(self) -> dict[str, Any] | None:
-        """获取最后一条消息。"""
+        """获取最后一条消息。
+
+        Returns:
+            最后一条消息字典，列表为空时返回 None
+        """
         return self._messages[-1] if self._messages else None
 
     def get_messages_by_role(self, role: str) -> list[dict[str, Any]]:
-        """按角色获取消息。"""
+        """按角色获取消息。
+
+        Args:
+            role: 角色名称（system/user/assistant/tool）
+
+        Returns:
+            匹配角色的消息列表
+        """
         return [m for m in self._messages if m.get("role") == role]
 
     def count_messages(self) -> int:

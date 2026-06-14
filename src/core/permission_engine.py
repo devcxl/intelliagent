@@ -24,6 +24,15 @@ _DEFAULT_RULES: tuple[tuple[str, str], ...] = (
 
 
 def _is_path_in_workspace(path: str, workspace: Path) -> bool:
+    """检查路径是否在工作区范围内。
+
+    Args:
+        path: 待检查路径
+        workspace: 工作区根路径
+
+    Returns:
+        True 表示路径在工作区内
+    """
     if not path:
         return True
     p = Path(path)
@@ -39,6 +48,15 @@ def _is_path_in_workspace(path: str, workspace: Path) -> bool:
 
 
 def _is_in_external_directories(path: str, external_directories: list[str]) -> bool:
+    """检查路径是否在外部目录白名单中。
+
+    Args:
+        path: 待检查路径
+        external_directories: 外部目录白名单列表
+
+    Returns:
+        True 表示路径在白名单中
+    """
     if not path or not external_directories:
         return False
     resolved = Path(path).resolve()
@@ -105,9 +123,21 @@ class PermissionEngine:
 
     @property
     def rules(self) -> list[tuple[str, str]]:
+        """获取当前规则列表。"""
         return self._rules
 
     def check(self, tool_name: str, args: dict[str, Any]) -> Decision:
+        """检查工具调用是否被允许。
+
+        优先级：用户规则（last-match-wins）> 安全检查（路径越界）> 默认规则 > 绝对兜底。
+
+        Args:
+            tool_name: 工具名称
+            args: 工具参数字典
+
+        Returns:
+            权限决策结果
+        """
         # 1. 用户规则优先（last-match-wins），用户可以覆盖任何行为
         result = _evaluate_rules(self._rules, tool_name, args)
         if result is not None:
@@ -143,7 +173,15 @@ def load_permission_engine(
     config: PermissionsConfig,
     workspace: Path | None = None,
 ) -> PermissionEngine:
-    """从 PermissionsConfig 对象加载权限引擎。"""
+    """从 PermissionsConfig 对象加载权限引擎。
+
+    Args:
+        config: 权限配置对象
+        workspace: 工作区根路径，默认使用当前工作目录
+
+    Returns:
+        配置好的 PermissionEngine 实例
+    """
     rules = [(r.pattern, r.action) for r in config.rules]
     return PermissionEngine(
         rules=rules,
