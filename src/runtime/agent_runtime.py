@@ -46,15 +46,25 @@ class AgentRuntime:
         """默认 LLM 客户端工厂 — 从配置创建 LLMClient 实例。
 
         Returns:
-            使用 UnifiedConfig 中 llm 字段配置的 LLMClient
+            使用 UnifiedConfig 中 provider 配置的 LLMClient
         """
         from src.llm.llm_client import LLMClient
 
-        llm = self._config.llm
+        api_key = ""
+        base_url = None
+        model = self._config.model or ""
+
+        for pc in self._config.provider.values():
+            if pc.options:
+                if pc.options.apiKey:
+                    api_key = pc.options.apiKey
+                if pc.options.baseURL:
+                    base_url = pc.options.baseURL
+
         return LLMClient(
-            api_key=llm.api_key,
-            base_url=llm.base_url,
-            model=llm.model,
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
         )
 
     def _default_permission_engine_factory(self) -> PermissionEngineProtocol:

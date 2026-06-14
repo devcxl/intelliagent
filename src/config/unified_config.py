@@ -10,14 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from src.config.env_interpolator import deep_interpolate
-
-
-class LLMConfig(BaseModel):
-    """LLM 客户端配置。"""
-
-    api_key: str = ""
-    base_url: str | None = None
-    model: str = "gpt-4o-mini"
+from src.config.provider_config import ProviderConfig
 
 
 class WorkspaceConfig(BaseModel):
@@ -53,7 +46,12 @@ class UnifiedConfig(BaseModel):
     自动执行 {env:NAME} 插值展开。
     """
 
-    llm: LLMConfig = Field(default_factory=LLMConfig)
+    model: str | None = None
+    small_model: str | None = None
+    provider: dict[str, ProviderConfig] = Field(default_factory=dict)
+    enabled_providers: list[str] | None = None
+    disabled_providers: list[str] | None = None
+
     workspace: WorkspaceConfig = Field(default_factory=WorkspaceConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)

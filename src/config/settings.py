@@ -40,11 +40,24 @@ class Settings(BaseModel):
 
     @classmethod
     def from_unified_config(cls, config: UnifiedConfig) -> Settings:
-        """从 UnifiedConfig 构造 Settings 实例。"""
+        """从 UnifiedConfig 构造 Settings 实例。
+
+        优先取 provider 配置，无 provider 时留空。
+        """
+        api_key = ""
+        base_url = None
+        model = config.model or ""
+
+        for pid, pc in config.provider.items():
+            if pc.options and pc.options.apiKey:
+                api_key = pc.options.apiKey
+            if pc.options and pc.options.baseURL:
+                base_url = pc.options.baseURL
+
         return cls(
-            OPENAI_API_KEY=config.llm.api_key,
-            OPENAI_API_BASE=config.llm.base_url,
-            OPENAI_MODEL=config.llm.model,
+            OPENAI_API_KEY=api_key,
+            OPENAI_API_BASE=base_url,
+            OPENAI_MODEL=model,
             WORKSPACE_DIR=config.workspace.dir,
             DATABASE_URL=config.database.url,
         )
