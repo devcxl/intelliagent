@@ -254,7 +254,11 @@ class ConversationOrchestrator:
         Yields:
             事件字典，每轮迭代产出一个事件。
         """
-        engine = AgentRuntime().create_engine()
-        async for event in engine.iter_steps(task, history_context=history_context):
-            self._last_iteration = event["iteration"]
-            yield event
+        runtime = AgentRuntime()
+        engine = await runtime.create_engine()
+        try:
+            async for event in engine.iter_steps(task, history_context=history_context):
+                self._last_iteration = event["iteration"]
+                yield event
+        finally:
+            await runtime.stop_mcp()

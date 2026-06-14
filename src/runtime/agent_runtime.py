@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
+from src.mcp.config import MCPConfig
+from src.tools.registry import ToolRegistry, _default_registry
 from src.types.permission import (
     LLMClientProtocol,
     PermissionCallbackProtocol,
@@ -34,6 +36,7 @@ class AgentRuntime:
         self._permission_engine_factory = permission_engine_factory or self._default_permission_engine_factory
         self._permission_callback_factory = permission_callback_factory or self._default_permission_callback_factory
         self._llm_client: LLMClientProtocol | None = None
+        self._mcp_manager: Any = None
 
     # ------------------------------------------------------------------
     # 默认工厂
@@ -91,7 +94,34 @@ class AgentRuntime:
             self._llm_client = self._llm_client_factory()
         return self._llm_client
 
-    def create_engine(
+    async def start_mcp(self, registry: ToolRegistry | None = None) -> None:
+        """启动 MCP 连接，注册 MCP 工具到注册表。
+
+        配置中无 MCP 服务器时静默跳过。已启动时不再重复连接。
+
+        Args:
+            registry: 目标工具注册表，默认使用全局 _default_registry
+        """
+        if self._mcp_manager is not None:
+            return
+        mcp_data = self._config.mcp
+        if not mcp_data or not mcp_data.get("servers"):
+            return
+        from src.mcp.manager import MCPClientManager
+
+        mcp_config = MCPConfig.from_unified_config(mcp_data)
+        target_registry = registry or _default_registry
+        self._mcp_manager = MCPClientManager(mcp_config, target_registry)
+        await self._mcp_manager.__aenter__()
+
+    async def stop_mcp(self) -> None:
+        """关闭所有 MCP 连接并清理资源。"""
+        if self._mcp_manager is not None:
+            mgr = self._mcp_manager
+            self._mcp_manager = None
+            await mgr.__aexit__(None, None, None)
+
+    async def create_engine(
         self,
         api_key: str | None = None,
         model: str | None = None,
@@ -100,6 +130,7 @@ class AgentRuntime:
         """创建新的 ReactEngine 实例。
 
         每次调用均创建独立引擎，组装 LLM 客户端、权限引擎和权限回调。
+        首次调用时自动启动 MCP 连接。
 
         Args:
             api_key: 覆盖默认 API Key（None 则使用配置值）
@@ -109,6 +140,7 @@ class AgentRuntime:
         Returns:
             组装完成的 ReactEngine 实例
         """
+        await self.start_mcp()
         llm = self.get_llm_client()
         permission_engine = self._permission_engine_factory()
         permission_callback = self._permission_callback_factory()

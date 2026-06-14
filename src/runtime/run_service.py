@@ -47,7 +47,7 @@ class RunService:
             包含 success、answer、num_turns、run_id 等字段的结果字典
         """
         history_context = await self._build_history_context(conversation_id)
-        engine = self._runtime.create_engine(
+        engine = await self._runtime.create_engine(
             api_key=None,
             model=None,
             max_iterations=max_iterations,
@@ -91,7 +91,7 @@ class RunService:
         Yields:
             每个 ReAct 步骤的事件字典，包含 step、action、observation 等字段
         """
-        engine = self._runtime.create_engine(max_iterations=max_iterations)
+        engine = await self._runtime.create_engine(max_iterations=max_iterations)
         async for event in engine.iter_steps(task, max_iterations=max_iterations):
             yield event
 
@@ -193,7 +193,7 @@ class RunService:
         Returns:
             包含 success、answer、num_turns、run_id 的结果字典
         """
-        engine = self._runtime.create_engine(max_iterations=max_iterations)
+        engine = await self._runtime.create_engine(max_iterations=max_iterations)
         history_context = await self._build_history_context(conversation_id)
         result = await engine.run(task, max_iterations=max_iterations, history_context=history_context)
 
