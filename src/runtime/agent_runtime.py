@@ -156,7 +156,8 @@ class AgentRuntime:
         permission_callback = self._permission_callback_factory()
         return ReactEngine(
             llm_client=llm,
-            max_iterations=max_iterations,
+            context_limit=self._config.get_model_context_limit(),
+            max_steps=max_iterations if max_iterations else 50,
             permission_engine=permission_engine,
             permission_callback=permission_callback,
         )

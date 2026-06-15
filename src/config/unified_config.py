@@ -57,6 +57,25 @@ class UnifiedConfig(BaseModel):
     permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
     mcp: dict[str, Any] = Field(default_factory=dict)
 
+    def get_model_context_limit(self) -> int | None:
+        """从 model 引用解析模型上下文长度限制。
+
+        model 格式为 "provider_id/model_id"，从中查 provider.models 的 limit.context。
+        无配置或查不到时返回 None。
+        """
+        if not self.model:
+            return None
+        if "/" not in self.model:
+            return None
+        provider_id, model_id = self.model.split("/", 1)
+        pc = self.provider.get(provider_id)
+        if not pc or not pc.models:
+            return None
+        mo = pc.models.get(model_id)
+        if mo and mo.limit and mo.limit.context is not None:
+            return mo.limit.context
+        return None
+
     @classmethod
     def load(cls, path: str | Path = "intelliagent.json") -> UnifiedConfig:
         """从 JSON 文件加载配置，自动执行环境变量插值。

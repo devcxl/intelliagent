@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, AsyncGenerator
 
-from src.core.context_manager import ContextManager
+from src.core.constants import build_history_context
 from src.db.manager import DatabaseManager
 
 
@@ -228,7 +228,7 @@ class RunService:
         if not conversation_id:
             return None
         history_messages = await self._db.get_messages(conversation_id)
-        return ContextManager.build_history_context(history_messages)
+        return build_history_context(history_messages)
 
 
 __all__ = ["RunService"]

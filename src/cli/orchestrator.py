@@ -7,7 +7,7 @@ import time
 from typing import Any, AsyncGenerator
 
 from src.config.settings import get_settings
-from src.core.context_manager import ContextManager
+from src.core.constants import build_history_context
 from src.db.manager import DatabaseManager
 from src.runtime import AgentRuntime
 
@@ -104,7 +104,7 @@ class ConversationOrchestrator:
         self._conversation_id = conversation_id
 
         history_messages = await self._db.get_messages(conversation_id)
-        history_context = ContextManager.build_history_context(history_messages)
+        history_context = build_history_context(history_messages)
         return conversation_id, history_context
 
     async def create_run(self, task: str) -> str:
