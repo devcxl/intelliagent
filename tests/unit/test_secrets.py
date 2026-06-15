@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.core.secrets import redact_secrets
+from src.utils.secrets import redact_secrets
 
 
 def test_redact_sk_key():

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from src.core.token_estimator import estimate_tokens
+from src.utils.token_estimator import estimate_tokens
 
 
 def test_estimate_tokens_empty():
