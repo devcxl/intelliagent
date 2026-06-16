@@ -139,17 +139,33 @@ class MCPClientManager:
         """
         conn = _ServerConnection(name=server.name, config=server)
         try:
-            params = StdioServerParameters(
-                command=server.command,
-                args=server.args,
-                env=server.env,
-                cwd=server.cwd,
-            )
-            stdio_ctx = stdio_client(params)
-            read_stream, write_stream = await stdio_ctx.__aenter__()
-            conn._read_stream = read_stream
-            conn._write_stream = write_stream
-            conn._stdio_ctx = stdio_ctx
+            if server.transport == "sse":
+                if not server.url:
+                    raise ValueError("SSE transport 需要 url 字段")
+                from mcp.client.sse import sse_client
+
+                sse_ctx = sse_client(
+                    url=server.url,
+                    headers=server.headers,
+                    timeout=server.timeout,
+                    sse_read_timeout=server.sse_read_timeout,
+                )
+                read_stream, write_stream = await sse_ctx.__aenter__()
+                conn._read_stream = read_stream
+                conn._write_stream = write_stream
+                conn._stdio_ctx = sse_ctx
+            else:
+                params = StdioServerParameters(
+                    command=server.command,
+                    args=server.args,
+                    env=server.env,
+                    cwd=server.cwd,
+                )
+                stdio_ctx = stdio_client(params)
+                read_stream, write_stream = await stdio_ctx.__aenter__()
+                conn._read_stream = read_stream
+                conn._write_stream = write_stream
+                conn._stdio_ctx = stdio_ctx
 
             session = ClientSession(read_stream, write_stream)
             await session.__aenter__()

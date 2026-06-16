@@ -10,15 +10,25 @@ class MCPServerConfig(BaseModel):
 
     Attributes:
         name: 服务器名称，用于日志和工具名前缀
-        command: 启动 MCP 服务器的命令（如 npx、uvx）
-        args: 命令行参数列表
+        transport: 传输方式，stdio（本地子进程）或 sse（远程 HTTP）
+        command: stdio 模式：启动命令（如 npx、uvx）
+        args: stdio 模式：命令行参数
+        url: SSE 模式：远程服务器 URL
+        headers: SSE 模式：自定义 HTTP 头
+        timeout: SSE 模式：HTTP 超时时间（秒）
+        sse_read_timeout: SSE 模式：SSE 读取超时（秒）
         env: 注入到子进程的环境变量
         cwd: 子进程工作目录
     """
 
     name: str
-    command: str
+    transport: str = "stdio"
+    command: str = ""
     args: list[str] = Field(default_factory=list)
+    url: str = ""
+    headers: dict[str, str] | None = None
+    timeout: float = 5.0
+    sse_read_timeout: float = 300.0
     env: dict[str, str] | None = None
     cwd: str | None = None
 
