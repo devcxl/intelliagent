@@ -60,21 +60,24 @@ class UnifiedConfig(BaseModel):
     def get_model_context_limit(self) -> int | None:
         """从 model 引用解析模型上下文长度限制。
 
-        model 格式为 "provider_id/model_id"，从中查 provider.models 的 limit.context。
-        无配置或查不到时返回 None。
+        model 格式为 "provider_id/model_id"。
+        查询顺序：① 用户配置覆盖 → ② 注册表数据 → ③ 返回 None。
         """
-        if not self.model:
-            return None
-        if "/" not in self.model:
+        if not self.model or "/" not in self.model:
             return None
         provider_id, model_id = self.model.split("/", 1)
+
+        # ① 用户配置覆盖
         pc = self.provider.get(provider_id)
-        if not pc or not pc.models:
-            return None
-        mo = pc.models.get(model_id)
-        if mo and mo.limit and mo.limit.context is not None:
-            return mo.limit.context
-        return None
+        if pc and pc.models:
+            mo = pc.models.get(model_id)
+            if mo and mo.limit and mo.limit.context is not None:
+                return mo.limit.context
+
+        # ② 注册表数据
+        from src.config.provider_registry import ProviderRegistry
+
+        return ProviderRegistry.get_model_context_limit(provider_id, model_id)
 
     @classmethod
     def load(cls, path: str | Path = "intelliagent.json") -> UnifiedConfig:
