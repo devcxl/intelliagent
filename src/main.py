@@ -27,7 +27,6 @@ from src.cli.presenter import (
     format_conversation_header,
     format_event,
     show_history,
-    show_save_info,
 )
 
 
@@ -49,25 +48,18 @@ async def main(
     for warning in orchestrator.warnings:
         print(f"⚠️  {warning}")
     await orchestrator.save_message("user", task)
-    await orchestrator.create_run(task)
 
     history_count = await orchestrator.get_message_count(conversation_id)
     format_conversation_header(task, history_count, conversation_id, orchestrator.is_new)
 
     assistant_content = ""
-    seq = 0
     async for event in orchestrator.execute(task, history_context=history_context):
-        seq += 1
         format_event(event)
-        answer = await orchestrator.save_event_trace(seq, event)
-        if answer:
-            assistant_content = answer
+        if event["type"] == "answer":
+            assistant_content = event["data"]["answer"]
 
     if assistant_content:
         await orchestrator.save_message("assistant", assistant_content)
-
-    await orchestrator.finalize()
-    show_save_info(conversation_id)
 
 
 # ======================================================================

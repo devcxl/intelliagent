@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """PR2 runtime / service 测试。"""
 
-from unittest.mock import AsyncMock, Mock
-
 import src.runtime.agent_runtime as agent_runtime_module
 from src.config.unified_config import UnifiedConfig
-from src.runtime import AgentRuntime, RunService
+from src.runtime import AgentRuntime
 
 
 def test_agent_runtime_reuses_shared_components(monkeypatch):
@@ -49,44 +47,6 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
     assert first_engine.llm_client is second_engine.llm_client
 
 
-def test_run_service_sync_wrapper_uses_async_entry(monkeypatch):
-    runtime = Mock()
-    service = RunService(runtime, db_manager=Mock())
-
-    async def fake_run_task_async(**kwargs):
-        return {"success": True, "summary": "ok", "iterations": kwargs["max_iterations"]}
-
-    monkeypatch.setattr(service, "run_task_async", fake_run_task_async)
-
-    result = service.run_task(task="测试任务", max_iterations=3)
-
-    assert result["success"] is True
-    assert result["iterations"] == 3
-
-
-async def test_run_service_run_task_async_uses_engine_run():
-    engine = Mock(spec=["run", "iter_steps"])
-    engine.run = AsyncMock(return_value={"success": True, "summary": "ok", "num_turns": 1})
-
-    runtime = Mock()
-    runtime.create_engine.return_value = engine
-    service = RunService(runtime, db_manager=Mock())
-
-    result = await service.run_task_async(task="测试任务", max_iterations=3)
-
-    assert result["success"] is True
-    runtime.create_engine.assert_called_once_with(
-        api_key=None,
-        model=None,
-        max_iterations=3,
-    )
-    engine.run.assert_awaited_once_with(
-        "测试任务",
-        max_iterations=3,
-        history_context=None,
-    )
-
-
 def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
     created_engines = []
 
@@ -125,47 +85,6 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
     assert engine.max_steps == 3
     assert engine.permission_engine is not None
     assert engine.permission_callback is not None
-
-
-async def test_run_service_streams_steps_from_engine():
-    class FakeEngine:
-        async def iter_steps(self, task, max_iterations=None, **kwargs):
-            assert max_iterations == 2
-            yield {
-                "type": "thought",
-                "iteration": 1,
-                "data": {"reasoning": "先读取文件", "is_complete": False},
-            }
-            yield {
-                "type": "action",
-                "iteration": 1,
-                "data": {"tool": "read_file", "args": {"path": "a.txt"}},
-            }
-            yield {
-                "type": "observation",
-                "iteration": 1,
-                "data": {"status": "ok", "result": "content"},
-            }
-            yield {
-                "type": "answer",
-                "iteration": 2,
-                "data": {"answer": "done"},
-            }
-
-    runtime = Mock()
-    runtime.create_engine.return_value = FakeEngine()
-    service = RunService(runtime, db_manager=Mock())
-
-    steps = []
-    async for step in service.run_task_stream(task="测试任务", max_iterations=2):
-        steps.append(step)
-
-    assert [step["type"] for step in steps] == [
-        "thought",
-        "action",
-        "observation",
-        "answer",
-    ]
 
 
 # ============================================================================

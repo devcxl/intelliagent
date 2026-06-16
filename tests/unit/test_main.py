@@ -53,18 +53,6 @@ class FakeDatabaseManager:
         self.calls.append(("save_message", args, kwargs))
         return "msg-1"
 
-    async def create_run(self, *args, **kwargs):
-        self.calls.append(("create_run", args, kwargs))
-        return {"id": "run-1"}
-
-    async def save_trace(self, *args, **kwargs):
-        self.calls.append(("save_trace", args, kwargs))
-        return "trace-1"
-
-    async def update_run(self, *args, **kwargs):
-        self.calls.append(("update_run", args, kwargs))
-        return True
-
 
 class FakeEngine:
     def __init__(self, calls=None):

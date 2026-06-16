@@ -26,7 +26,7 @@ async def test_database_manager_creates_pr3_core_tables(tmp_path):
         table_rows = connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
 
     table_names = {row[0] for row in table_rows}
-    assert {"users", "conversations", "runs", "messages", "execution_traces"}.issubset(table_names)
+    assert {"conversations", "messages"}.issubset(table_names)
 
 
 async def test_database_manager_conversation_crud(tmp_path):
@@ -66,22 +66,8 @@ async def test_database_manager_conversation_crud(tmp_path):
     assert len(conversations) == 1
 
     await manager.save_message("conversation-1", "user", "hello")
-    await manager.create_run(
-        run_id="run-1",
-        conversation_id="conversation-1",
-        task_snapshot="测试任务",
-    )
-    await manager.save_trace(
-        trace_id="trace-1",
-        run_id="run-1",
-        iteration=1,
-        trace_type="answer",
-        data={"answer": "done"},
-    )
 
     deleted = await manager.delete_conversation("conversation-1")
     assert deleted is True
     assert await manager.get_conversation("conversation-1") is None
     assert await manager.get_messages("conversation-1") == []
-    assert await manager.get_run("run-1") is None
-    assert await manager.list_traces_by_run("run-1") == []
