@@ -3,6 +3,5 @@
 
 from src.runtime.agent_runtime import AgentRuntime
 from src.runtime.permission_callback import CliCallback
-from src.runtime.run_service import RunService
 
-__all__ = ["AgentRuntime", "CliCallback", "RunService"]
+__all__ = ["AgentRuntime", "CliCallback"]
