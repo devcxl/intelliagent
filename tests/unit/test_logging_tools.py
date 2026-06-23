@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from src.tools.file_tools import edit_file, read_file, write_file
-from src.tools.registry import call_tool
+from src.tools.registry import _default_registry
 from src.tools.shell_tool import run_shell
 
 
@@ -21,7 +21,7 @@ class TestToolRegistryDebugLogs:
     async def test_call_tool_logs_tool_name_and_args_len(self, caplog):
         """ToolRegistry.call_tool() 输出 tool_name 和 args_len"""
         caplog.set_level(logging.DEBUG, logger="intelliagent")
-        await call_tool("todo_write", todos='[{"content":"test","status":"pending"}]')
+        await _default_registry.call_tool("todo_write", todos='[{"content":"test","status":"pending"}]')
 
         assert "ToolRegistry - 调用工具" in caplog.text
         assert "tool=todo_write" in caplog.text

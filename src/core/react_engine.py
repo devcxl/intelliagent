@@ -138,14 +138,7 @@ class ReactEngine:
                         ensure_ascii=False,
                     )
 
-        fn = self._registry.get_tool_fn(name)
-        if fn is None:
-            return json.dumps({"status": "error", "error": f"未知工具: {name}"}, ensure_ascii=False)
-
-        try:
-            result = await fn(**args)
-        except Exception as e:
-            return json.dumps({"status": "error", "error": str(e)}, ensure_ascii=False)
+        result = await self._registry.call_tool(name, **args)
 
         if self.memory:
             self.memory.add_observation({"tool_name": name, "tool_args": args, "result": result})

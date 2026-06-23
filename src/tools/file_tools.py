@@ -16,6 +16,20 @@ FILE_READ_MAX_SIZE = 50000  # 文件读取最大字符数
 FILE_WRITE_MAX_SIZE = 1000000  # 文件写入最大字符数（1MB）
 
 
+def _validate_path_arg(path: str) -> tuple[str | None, str | None]:
+    """验证并规范化路径参数。
+
+    Returns:
+        (stripped_path, None) 成功，或 (None, error_response_json) 失败
+    """
+    if not path or not isinstance(path, str):
+        return None, error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
+    path = path.strip()
+    if not path:
+        return None, error_response("path 参数为空或仅包含空格", "EMPTY_PATH")
+    return path, None
+
+
 def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | None) -> str | None:
     """检查文件路径是否在工作区范围内。
 
@@ -59,15 +73,13 @@ async def read_file(path: str, workspace_root: str | None = None) -> str:
     Returns:
         JSON 格式的响应，成功时包含 content、size、truncated、path 字段
     """
-    if not path or not isinstance(path, str):
-        return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
-
-    path = path.strip()
-    if not path:
-        return error_response("path 参数为空或仅包含空格", "EMPTY_PATH")
+    stripped_path, error = _validate_path_arg(path)
+    if error is not None:
+        return error
+    assert stripped_path is not None
 
     try:
-        file_path = pathlib.Path(path).expanduser()
+        file_path = pathlib.Path(stripped_path).expanduser()
 
         boundary_error = _check_workspace_boundary(file_path, workspace_root)
         if boundary_error is not None:
@@ -113,12 +125,10 @@ async def write_file(path: str, content: str, workspace_root: str | None = None)
     Returns:
         JSON 格式的响应，成功时包含 message、path、size 字段
     """
-    if not path or not isinstance(path, str):
-        return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
-
-    path = path.strip()
-    if not path:
-        return error_response("path 参数为空或仅包含空格", "EMPTY_PATH")
+    stripped_path, error = _validate_path_arg(path)
+    if error is not None:
+        return error
+    assert stripped_path is not None
 
     if content is None:
         return error_response("content 参数为空", "EMPTY_CONTENT")
@@ -132,7 +142,7 @@ async def write_file(path: str, content: str, workspace_root: str | None = None)
         )
 
     try:
-        file_path = pathlib.Path(path).expanduser()
+        file_path = pathlib.Path(stripped_path).expanduser()
 
         boundary_error = _check_workspace_boundary(file_path, workspace_root)
         if boundary_error is not None:
@@ -171,12 +181,10 @@ async def edit_file(
     Returns:
         JSON 格式的响应，成功时包含 message、replacements、content、path、size 字段
     """
-    if not path or not isinstance(path, str):
-        return error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
-
-    path = path.strip()
-    if not path:
-        return error_response("path 参数为空或仅包含空格", "EMPTY_PATH")
+    stripped_path, error = _validate_path_arg(path)
+    if error is not None:
+        return error
+    assert stripped_path is not None
 
     if not oldString or not isinstance(oldString, str):
         return error_response("oldString 参数为空或非字符串类型", "EMPTY_OLD_STRING")
@@ -189,7 +197,7 @@ async def edit_file(
         newString = ""
 
     try:
-        file_path = pathlib.Path(path).expanduser()
+        file_path = pathlib.Path(stripped_path).expanduser()
 
         boundary_error = _check_workspace_boundary(file_path, workspace_root)
         if boundary_error is not None:

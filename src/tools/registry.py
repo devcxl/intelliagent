@@ -6,7 +6,9 @@ from typing import Any, Callable, Coroutine
 
 from src.utils.logger import logger
 
+from .file_tools import edit_file, read_file, write_file
 from .response import error_response, success_response
+from .shell_tool import run_shell
 
 ToolFn = Callable[..., Coroutine[Any, Any, str]]
 
@@ -173,50 +175,26 @@ class ToolRegistry:
 
 _default_registry = ToolRegistry()
 
-
-@_default_registry.tool(
+_default_registry.register(
+    fn=run_shell,
     name="run_shell",
     description="执行终端命令",
     parameters={
         "cmd": {"type": "string", "description": "要执行的 shell 命令", "required": True},
     },
 )
-async def _run_shell_tool(cmd: str) -> str:
-    """执行 shell 命令的工具封装。
 
-    Args:
-        cmd: 要执行的 shell 命令
-
-    Returns:
-        JSON 格式的执行结果
-    """
-    from .shell_tool import run_shell as _run_shell
-
-    return await _run_shell(cmd)
-
-
-@_default_registry.tool(
+_default_registry.register(
+    fn=read_file,
     name="read_file",
     description="读取文件内容",
     parameters={
         "path": {"type": "string", "description": "文件路径", "required": True},
     },
 )
-async def _read_file_tool(path: str) -> str:
-    """读取文件内容的工具封装。
 
-    Args:
-        path: 文件路径
-
-    Returns:
-        JSON 格式的文件内容
-    """
-    from .file_tools import read_file as _read_file
-
-    return await _read_file(path)
-
-
-@_default_registry.tool(
+_default_registry.register(
+    fn=write_file,
     name="write_file",
     description="写入文件内容",
     parameters={
@@ -224,22 +202,9 @@ async def _read_file_tool(path: str) -> str:
         "content": {"type": "string", "description": "文件内容", "required": True},
     },
 )
-async def _write_file_tool(path: str, content: str) -> str:
-    """写入文件内容的工具封装。
 
-    Args:
-        path: 文件路径
-        content: 要写入的内容
-
-    Returns:
-        JSON 格式的写入结果
-    """
-    from .file_tools import write_file as _write_file
-
-    return await _write_file(path, content)
-
-
-@_default_registry.tool(
+_default_registry.register(
+    fn=edit_file,
     name="edit_file",
     description="编辑文件内容（精确替换旧字符串为新字符串）",
     parameters={
@@ -249,24 +214,23 @@ async def _write_file_tool(path: str, content: str) -> str:
         "replaceAll": {"type": "boolean", "description": "是否替换所有匹配项（默认 false）", "required": False},
     },
 )
-async def _edit_file_tool(path: str, oldString: str, newString: str, replaceAll: bool = False) -> str:
-    """编辑文件内容的工具封装。
 
-    Args:
-        path: 文件路径
-        oldString: 要替换的旧字符串
-        newString: 新字符串
-        replaceAll: 是否替换所有匹配项
-
-    Returns:
-        JSON 格式的编辑结果
-    """
-    from .file_tools import edit_file as _edit_file
-
-    return await _edit_file(path, oldString, newString, replaceAll)
+# todo_write — 自包含工具，直接内联注册
 
 
-@_default_registry.tool(
+async def _todo_write_tool(todos: str) -> str:
+    """创建和更新任务列表的工具封装。"""
+    try:
+        items = json.loads(todos)
+        if not isinstance(items, list):
+            return error_response("todos 必须是 JSON 数组", "INVALID_PARAMETERS")
+        return success_response({"todos": items, "count": len(items)})
+    except json.JSONDecodeError as e:
+        return error_response(f"todos JSON 解析失败: {e}", "INVALID_PARAMETERS")
+
+
+_default_registry.register(
+    fn=_todo_write_tool,
     name="todo_write",
     description="创建和更新结构化任务列表，用于跟踪多步骤工作的进度",
     parameters={
@@ -277,93 +241,25 @@ async def _edit_file_tool(path: str, oldString: str, newString: str, replaceAll:
         },
     },
 )
-async def _todo_write_tool(todos: str) -> str:
-    """创建和更新任务列表的工具封装。
 
-    Args:
-        todos: JSON 格式的任务数组字符串
-
-    Returns:
-        JSON 格式的操作结果
-    """
-    try:
-        items = json.loads(todos)
-        if not isinstance(items, list):
-            return error_response("todos 必须是 JSON 数组", "INVALID_PARAMETERS")
-        return success_response({"todos": items, "count": len(items)})
-    except json.JSONDecodeError as e:
-        return error_response(f"todos JSON 解析失败: {e}", "INVALID_PARAMETERS")
-
-
-# ---------------------------------------------------------------------------
 # skill 工具 — 按需加载 skill 指令
-# ---------------------------------------------------------------------------
 
 
-@_default_registry.tool(
+async def _skill_tool(name: str) -> str:
+    """加载 skill 完整指令的工具封装。"""
+    from src.skills.tool import skill_tool as _skill_tool_impl
+
+    return await _skill_tool_impl(name=name)
+
+
+_default_registry.register(
+    fn=_skill_tool,
     name="skill",
     description="加载指定 skill 的完整指令。当任务匹配某个 skill 的描述时使用此工具获取详细指引。",
     parameters={
         "name": {"type": "string", "description": "skill 名称", "required": True},
     },
 )
-async def _skill_tool(name: str) -> str:
-    """加载 skill 完整指令的工具封装。
-
-    Args:
-        name: skill 名称
-
-    Returns:
-        JSON 格式的 skill 指令内容
-    """
-    from src.skills.tool import skill_tool as _skill_tool_impl
-
-    return await _skill_tool_impl(name=name)
 
 
-# ---------------------------------------------------------------------------
-# 向后兼容：模块级委托函数
-# ---------------------------------------------------------------------------
-
-
-def get_openai_tools() -> list[dict[str, Any]]:
-    """获取所有已注册工具的 OpenAI function calling 格式列表（委托默认注册表）。
-
-    Returns:
-        OpenAI 兼容的 function 定义列表
-    """
-    return _default_registry.get_openai_tools()
-
-
-def get_tool_fn(name: str) -> ToolFn | None:
-    """根据名称获取工具函数（委托默认注册表）。
-
-    Args:
-        name: 工具名称
-
-    Returns:
-        工具函数，不存在时返回 None
-    """
-    return _default_registry.get_tool_fn(name)
-
-
-def list_tool_names() -> list[str]:
-    """列出所有已注册的工具名称（委托默认注册表）。
-
-    Returns:
-        工具名称列表
-    """
-    return _default_registry.list_tool_names()
-
-
-async def call_tool(name: str, **kwargs) -> str:
-    """调用指定工具（委托默认注册表）。
-
-    Args:
-        name: 工具名称
-        **kwargs: 传递给工具函数的参数
-
-    Returns:
-        JSON 格式的工具执行结果
-    """
-    return await _default_registry.call_tool(name, **kwargs)
+__all__ = ["ToolDef", "ToolFn", "ToolRegistry", "_default_registry"]

@@ -22,6 +22,12 @@ class MockRegistry:
     def get_openai_tools(self):
         return []
 
+    async def call_tool(self, name: str, **kwargs):
+        fn = self.get_tool_fn(name)
+        if fn is None:
+            return '{"status": "error", "error": "未知工具: ' + name + '", "code": "UNKNOWN_TOOL"}'
+        return await fn(**kwargs)
+
 
 def _make_engine(rules: list[tuple[str, str]], callback=None, workspace=None):
     pe = PermissionEngine(rules=rules, workspace=workspace or Path.cwd())
