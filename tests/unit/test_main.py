@@ -5,7 +5,6 @@ from types import SimpleNamespace
 import pytest
 
 import src.runtime.conversation_orchestrator as orchestrator_module
-import src.main as main_module
 
 
 class FakeEngine:
@@ -34,7 +33,6 @@ class FakeAgentRuntime:
 
 
 def _patch_orchestrator_dependencies(monkeypatch, tmp_path, created=None):
-    """Patch orchestrator 模块中的依赖，使其使用真实内存 SQLite + fake runtime。"""
     settings = SimpleNamespace(DATABASE_URL=str(tmp_path / "test.db"))
 
     class RecordingAgentRuntime(FakeAgentRuntime):
@@ -54,17 +52,22 @@ def _patch_orchestrator_dependencies(monkeypatch, tmp_path, created=None):
     return settings
 
 
+def _make_orchestrator(monkeypatch, tmp_path, created=None):
+    _patch_orchestrator_dependencies(monkeypatch, tmp_path, created)
+    from src.runtime.conversation_orchestrator import ConversationOrchestrator
+
+    return ConversationOrchestrator()
+
+
 @pytest.mark.asyncio
 async def test_main_creates_engine_through_agent_runtime(monkeypatch, tmp_path):
     created = {}
+    orchestrator = _make_orchestrator(monkeypatch, tmp_path, created)
+    await orchestrator.initialize()
+    await orchestrator.setup_conversation("测试任务")
 
-    def fail_if_direct_llm_is_used(*args, **kwargs):
-        raise AssertionError("main.py must create engines through AgentRuntime")
-
-    _patch_orchestrator_dependencies(monkeypatch, tmp_path, created)
-    monkeypatch.setattr(orchestrator_module, "LLMClient", fail_if_direct_llm_is_used, raising=False)
-
-    await main_module.main(task="测试任务")
+    async for _ in orchestrator.execute("测试任务"):
+        pass
 
     assert created["config"] is None
     assert created["create_engine_called"] is True
@@ -73,65 +76,81 @@ async def test_main_creates_engine_through_agent_runtime(monkeypatch, tmp_path):
 @pytest.mark.asyncio
 async def test_main_passes_history_context_to_engine(monkeypatch, tmp_path):
     created = {}
-    _patch_orchestrator_dependencies(monkeypatch, tmp_path, created)
+    orchestrator = _make_orchestrator(monkeypatch, tmp_path, created)
 
-    # 先创建一条历史消息
-    await main_module.main(task="之前的任务")
+    await orchestrator.initialize()
+    await orchestrator.setup_conversation("之前的任务")
+    await orchestrator.save_message("user", "之前的任务")
+    await orchestrator.save_message("assistant", "已完成")
 
-    # 第二次调用应包含历史上下文（但因为是新 conversation，所以 history_context 为 None）
-    # 改为直接测试 resume 模式
     created.clear()
     created["engine_calls"] = []
-    await main_module.main(task="测试任务", resume=True)
+
+    history_ctx = await orchestrator.reload_history_context()
+    assert history_ctx is not None
+
+    async for _ in orchestrator.execute("后续任务", history_context=history_ctx):
+        pass
 
     assert created["engine_calls"][0][0] == "iter_steps"
-    assert "测试任务" in created["engine_calls"][0][1]
+    assert "后续任务" in created["engine_calls"][0][1]
 
 
 @pytest.mark.asyncio
 async def test_main_session_alias_updates_existing_conversation(monkeypatch, tmp_path):
-    _patch_orchestrator_dependencies(monkeypatch, tmp_path)
+    orchestrator = _make_orchestrator(monkeypatch, tmp_path)
+    await orchestrator.initialize()
 
-    # 先创建一个 conversation
-    await main_module.main(task="原始任务", session_id="conversation-1")
+    cid, _ = await orchestrator.setup_conversation("原始任务", session_id="conversation-1")
+    await orchestrator.save_message("user", "原始任务")
+    await orchestrator.save_message("assistant", "已处理")
 
-    # 再用相同 session_id 恢复
-    await main_module.main(task="新任务", session_id="conversation-1")
+    cid2, history_ctx = await orchestrator.setup_conversation("新任务", session_id="conversation-1")
+    assert cid2 == "conversation-1"
+    assert orchestrator.is_new is False
 
 
 @pytest.mark.asyncio
 async def test_main_session_alias_creates_missing_conversation(monkeypatch, tmp_path):
-    _patch_orchestrator_dependencies(monkeypatch, tmp_path)
+    orchestrator = _make_orchestrator(monkeypatch, tmp_path)
+    await orchestrator.initialize()
 
-    # session_id 不存在 → 创建新 conversation
-    await main_module.main(task="测试任务", session_id="conversation-new")
+    cid, _ = await orchestrator.setup_conversation("测试任务", session_id="conversation-new")
+    assert cid == "conversation-new"
+    assert orchestrator.is_new is True
+    assert len(orchestrator.warnings) == 1
 
 
 @pytest.mark.asyncio
 async def test_main_resume_uses_latest_conversation(monkeypatch, tmp_path):
-    _patch_orchestrator_dependencies(monkeypatch, tmp_path)
+    orchestrator = _make_orchestrator(monkeypatch, tmp_path)
+    await orchestrator.initialize()
 
-    # 先创建一个 conversation
-    await main_module.main(task="第一个任务")
+    cid1, _ = await orchestrator.setup_conversation("第一个任务")
+    await orchestrator.save_message("user", "第一个任务")
+    await orchestrator.save_message("assistant", "已完成")
 
-    # resume 应恢复最近的 conversation
-    await main_module.main(task="后续任务", resume=True)
+    cid2, _ = await orchestrator.setup_conversation("后续任务", resume=True)
+    assert cid2 == cid1
+    assert orchestrator.is_new is False
 
 
 @pytest.mark.asyncio
 async def test_main_history_lists_conversations(monkeypatch, tmp_path):
-    _patch_orchestrator_dependencies(monkeypatch, tmp_path)
+    orchestrator = _make_orchestrator(monkeypatch, tmp_path)
+    await orchestrator.initialize()
 
-    # 创建一个 conversation
-    await main_module.main(task="历史任务")
+    await orchestrator.setup_conversation("历史任务")
+    await orchestrator.save_message("user", "历史任务")
+    await orchestrator.save_message("assistant", "已完成")
 
-    # 查看历史
-    await main_module.main(task="", list_history=True)
+    conversations = await orchestrator.list_conversations()
+    assert len(conversations) == 1
+    assert conversations[0]["title"] == "历史任务"
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_uses_injected_runtime_factory(monkeypatch, tmp_path):
-    """注入 runtime_factory 后，execute 应使用注入的 runtime 而非默认 AgentRuntime。"""
     from src.runtime.conversation_orchestrator import ConversationOrchestrator
 
     settings = SimpleNamespace(DATABASE_URL=str(tmp_path / "test.db"))
@@ -160,12 +179,12 @@ async def test_orchestrator_uses_injected_runtime_factory(monkeypatch, tmp_path)
         assert event["type"] == "answer"
         assert event["data"]["answer"] == "done"
 
+    await orchestrator.shutdown()
     assert stop_called == [True]
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_stops_mcp_on_exception(monkeypatch, tmp_path):
-    """execute 抛异常时也应调用 stop_mcp。"""
     from src.runtime.conversation_orchestrator import ConversationOrchestrator
 
     settings = SimpleNamespace(DATABASE_URL=str(tmp_path / "test.db"))
@@ -199,4 +218,5 @@ async def test_orchestrator_stops_mcp_on_exception(monkeypatch, tmp_path):
         async for event in orchestrator.execute("测试任务"):
             pass
 
+    await orchestrator.shutdown()
     assert stop_called == [True]

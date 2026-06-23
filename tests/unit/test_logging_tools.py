@@ -28,7 +28,7 @@ class TestToolRegistryDebugLogs:
         factory = create_session_factory(engine)
         async with factory() as session:
             conv_repo = ConversationRepository(session)
-            await conv_repo.create("conv-test", title="test", task="test")
+            await conv_repo.create("conv-test", title="test")
         set_task_context(factory, "conv-test")
         yield
         set_task_context(None, None)

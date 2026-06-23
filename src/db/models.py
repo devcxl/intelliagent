@@ -21,7 +21,6 @@ class Conversation(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     title: Mapped[str] = mapped_column(String, default="")
-    task: Mapped[str] = mapped_column(String, default="")
     status: Mapped[str] = mapped_column(String, default="idle")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
@@ -29,18 +28,14 @@ class Conversation(Base):
     messages: Mapped[list[Message]] = relationship(
         "Message", back_populates="conversation", cascade="all, delete-orphan"
     )
-    tasks: Mapped[list[Task]] = relationship(
-        "Task", back_populates="conversation", cascade="all, delete-orphan"
-    )
+    tasks: Mapped[list[Task]] = relationship("Task", back_populates="conversation", cascade="all, delete-orphan")
 
 
 class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    conversation_id: Mapped[str] = mapped_column(
-        String, ForeignKey("conversations.id", ondelete="CASCADE")
-    )
+    conversation_id: Mapped[str] = mapped_column(String, ForeignKey("conversations.id", ondelete="CASCADE"))
     role: Mapped[str] = mapped_column(String)
     content: Mapped[str] = mapped_column(Text, default="")
     tool_call_id: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -55,14 +50,10 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    conversation_id: Mapped[str] = mapped_column(
-        String, ForeignKey("conversations.id", ondelete="CASCADE")
-    )
+    conversation_id: Mapped[str] = mapped_column(String, ForeignKey("conversations.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String, default="")
     content: Mapped[str] = mapped_column(Text, default="")
-    parent_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True
-    )
+    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     status: Mapped[str] = mapped_column(String, default="pending")
     priority: Mapped[str] = mapped_column(String, default="medium")
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

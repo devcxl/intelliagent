@@ -45,6 +45,7 @@ class ConversationOrchestrator:
         self._is_new: bool = True
         self._warnings: list[str] = []
         self._runtime_factory = runtime_factory or AgentRuntime
+        self._runtime: _RuntimeProtocol | None = None
 
     @property
     def conversation_id(self) -> str | None:
@@ -79,7 +80,7 @@ class ConversationOrchestrator:
                 if existing is None:
                     self._warnings.append(f"Conversation {session_id} 不存在，将创建新 Conversation。")
                     conversation_id = session_id
-                    await conv_repo.create(conversation_id, title=task[:80], task=task)
+                    await conv_repo.create(conversation_id, title=task[:80])
                     self._is_new = True
                 else:
                     conversation_id = session_id
@@ -94,11 +95,11 @@ class ConversationOrchestrator:
                 else:
                     self._warnings.append("没有历史 Conversation，将创建新 Conversation。")
                     conversation_id = f"conv-{int(time.time() * 1000)}"
-                    await conv_repo.create(conversation_id, title=task[:80], task=task)
+                    await conv_repo.create(conversation_id, title=task[:80])
                     self._is_new = True
             else:
                 conversation_id = f"conv-{int(time.time() * 1000)}"
-                await conv_repo.create(conversation_id, title=task[:80], task=task)
+                await conv_repo.create(conversation_id, title=task[:80])
                 self._is_new = True
 
             self._conversation_id = conversation_id
@@ -113,6 +114,14 @@ class ConversationOrchestrator:
             async with self._session_factory() as session:
                 msg_repo = MessageRepository(session)
                 await msg_repo.save(self._conversation_id, role, content)
+
+    async def reload_history_context(self) -> str | None:
+        if not self._conversation_id:
+            return None
+        async with self._session_factory() as session:
+            msg_repo = MessageRepository(session)
+            messages = await msg_repo.list_by_conversation(self._conversation_id)
+            return build_history_context(messages)
 
     async def list_conversations(self) -> list[dict[str, Any]]:
         async with self._session_factory() as session:
@@ -129,10 +138,13 @@ class ConversationOrchestrator:
         task: str,
         history_context: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        runtime = self._runtime_factory()
-        engine = await runtime.create_engine()
-        try:
-            async for event in engine.iter_steps(task, history_context=history_context):
-                yield event
-        finally:
-            await runtime.stop_mcp()
+        if self._runtime is None:
+            self._runtime = self._runtime_factory()
+        engine = await self._runtime.create_engine()
+        async for event in engine.iter_steps(task, history_context=history_context):
+            yield event
+
+    async def shutdown(self) -> None:
+        if self._runtime is not None:
+            await self._runtime.stop_mcp()
+            self._runtime = None

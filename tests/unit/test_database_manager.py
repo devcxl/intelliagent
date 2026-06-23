@@ -28,7 +28,7 @@ class TestSchema:
     async def test_creates_all_tables(self, session_factory):
         async with session_factory() as session:
             # 简单插入验证表存在
-            conv = Conversation(id="conv-1", title="test", task="test")
+            conv = Conversation(id="conv-1", title="test")
             session.add(conv)
             await session.commit()
 
@@ -42,7 +42,7 @@ class TestSchema:
 
     async def test_cascade_delete_messages_and_tasks(self, session_factory):
         async with session_factory() as session:
-            conv = Conversation(id="conv-1", title="test", task="test")
+            conv = Conversation(id="conv-1", title="test")
             session.add(conv)
             await session.commit()
 
@@ -65,7 +65,7 @@ class TestConversationRepository:
         return ConversationRepository(session)
 
     async def test_create_and_get(self, repo, session):
-        result = await repo.create("conv-1", title="测试", task="任务", status="idle")
+        result = await repo.create("conv-1", title="测试", status="idle")
         assert result["id"] == "conv-1"
 
         fetched = await repo.get("conv-1")
@@ -77,7 +77,7 @@ class TestConversationRepository:
         assert await repo.get("nonexistent") is None
 
     async def test_update(self, repo, session):
-        await repo.create("conv-1", title="旧", task="t")
+        await repo.create("conv-1", title="旧")
         await repo.update("conv-1", title="新", status="running")
 
         fetched = await repo.get("conv-1")
@@ -85,7 +85,7 @@ class TestConversationRepository:
         assert fetched["status"] == "running"
 
     async def test_delete_cascades(self, repo, session):
-        await repo.create("conv-1", title="test", task="t")
+        await repo.create("conv-1", title="test")
         msg_repo = MessageRepository(session)
         task_repo = TaskRepository(session)
         await msg_repo.save("conv-1", "user", "hello")

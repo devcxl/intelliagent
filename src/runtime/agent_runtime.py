@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any, Callable
 
@@ -161,7 +162,10 @@ class AgentRuntime:
         if self._mcp_manager is not None:
             mgr = self._mcp_manager
             self._mcp_manager = None
-            await mgr.__aexit__(None, None, None)
+            try:
+                await mgr.__aexit__(None, None, None)
+            except (asyncio.CancelledError, Exception):
+                pass
 
     async def create_engine(
         self,

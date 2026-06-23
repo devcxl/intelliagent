@@ -56,10 +56,9 @@ class ConversationRepository:
         self,
         conversation_id: str,
         title: str = "",
-        task: str = "",
         status: str = "idle",
     ) -> dict[str, Any]:
-        conv = Conversation(id=conversation_id, title=title, task=task, status=status)
+        conv = Conversation(id=conversation_id, title=title, status=status)
         self._session.add(conv)
         await self._session.commit()
         return {"id": conversation_id, "logs": []}
@@ -71,7 +70,6 @@ class ConversationRepository:
         return {
             "id": conv.id,
             "title": conv.title,
-            "task": conv.task,
             "status": conv.status,
             "created_at": conv.created_at.isoformat() if conv.created_at else "",
             "updated_at": conv.updated_at.isoformat() if conv.updated_at else "",
@@ -104,14 +102,11 @@ class ConversationRepository:
         return True
 
     async def list_all(self) -> list[dict[str, Any]]:
-        result = await self._session.execute(
-            select(Conversation).order_by(Conversation.updated_at.desc())
-        )
+        result = await self._session.execute(select(Conversation).order_by(Conversation.updated_at.desc()))
         return [
             {
                 "id": conv.id,
                 "title": conv.title,
-                "task": conv.task,
                 "status": conv.status,
                 "created_at": conv.created_at.isoformat() if conv.created_at else "",
                 "updated_at": conv.updated_at.isoformat() if conv.updated_at else "",
@@ -142,9 +137,7 @@ class MessageRepository:
 
     async def list_by_conversation(self, conversation_id: str) -> list[dict[str, Any]]:
         result = await self._session.execute(
-            select(Message)
-            .where(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.asc())
+            select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at.asc())
         )
         return [
             {
@@ -259,9 +252,7 @@ class TaskRepository:
         return True
 
     async def delete_by_conversation(self, conversation_id: str) -> None:
-        result = await self._session.execute(
-            select(Task).where(Task.conversation_id == conversation_id)
-        )
+        result = await self._session.execute(select(Task).where(Task.conversation_id == conversation_id))
         for task in result.scalars():
             await self._session.delete(task)
         await self._session.commit()

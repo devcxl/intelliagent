@@ -40,7 +40,6 @@ def format_event(event: dict[str, Any]) -> None:
 
 
 def format_conversation_header(
-    task: str,
     history_count: int,
     conversation_id: str,
     is_new: bool,
@@ -51,11 +50,9 @@ def format_conversation_header(
     else:
         print(f"[继续] Conversation: {conversation_id}")
 
-    print(f"\n{'=' * 60}")
-    print(f"任务: {task}")
     if history_count > 0:
         print(f"（已加载 {history_count} 条历史消息作为上下文）")
-    print(f"{'=' * 60}\n")
+    print()
 
 
 def format_history_conversation(conversation: dict[str, Any], msg_count: int) -> None:
@@ -89,4 +86,4 @@ async def show_history(
 def show_save_info(conversation_id: str) -> None:
     """打印保存信息。"""
     print(f"已保存到 Conversation: {conversation_id}")
-    print(f'下次继续请使用: python -m src.main --session {conversation_id} "新任务"')
+    print(f"下次继续请使用: python -m src.main --session {conversation_id}")

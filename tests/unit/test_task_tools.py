@@ -21,7 +21,7 @@ async def session_factory(tmp_path):
     # 创建测试用 conversation
     async with factory() as session:
         conv_repo = ConversationRepository(session)
-        await conv_repo.create("conv-1", title="测试", task="测试任务")
+        await conv_repo.create("conv-1", title="测试")
 
     yield factory
     await engine.dispose()
@@ -160,11 +160,13 @@ class TestTaskTools:
     @pytest.mark.asyncio
     async def test_task_write_batch(self, task_ctx):
         result = await task_write(
-            tasks=json.dumps([
-                {"title": "任务1", "priority": "high"},
-                {"title": "任务2", "content": "描述2"},
-                {"title": "任务3", "priority": "low"},
-            ])
+            tasks=json.dumps(
+                [
+                    {"title": "任务1", "priority": "high"},
+                    {"title": "任务2", "content": "描述2"},
+                    {"title": "任务3", "priority": "low"},
+                ]
+            )
         )
         data = json.loads(result)
         assert data["status"] == "ok"
@@ -239,11 +241,13 @@ class TestTaskTools:
     @pytest.mark.asyncio
     async def test_task_write_skips_items_without_title(self, task_ctx):
         result = await task_write(
-            tasks=json.dumps([
-                {"title": "有效任务"},
-                {"content": "没有标题的项"},
-                {"title": "另一个有效任务"},
-            ])
+            tasks=json.dumps(
+                [
+                    {"title": "有效任务"},
+                    {"content": "没有标题的项"},
+                    {"title": "另一个有效任务"},
+                ]
+            )
         )
         data = json.loads(result)
         assert data["status"] == "ok"
