@@ -4,24 +4,40 @@
 from __future__ import annotations
 
 import time
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Callable, Protocol, runtime_checkable
 
 from src.config.settings import get_settings
 from src.core.constants import build_history_context
 from src.db.manager import DatabaseManager
-from src.runtime import AgentRuntime
+from src.runtime.agent_runtime import AgentRuntime
+
+
+@runtime_checkable
+class _RuntimeProtocol(Protocol):
+    async def create_engine(self) -> Any: ...
+    async def stop_mcp(self) -> None: ...
+    async def start_mcp(self, registry: Any = None) -> None: ...
 
 
 class ConversationOrchestrator:
-    """管理 Conversation 生命周期：创建/恢复/执行/状态更新。"""
+    """管理 Conversation 生命周期：创建/恢复/执行/状态更新。
 
-    def __init__(self, settings: Any | None = None) -> None:
+    通过 runtime_factory 注入 AgentRuntime 创建方式，支持 CLI/Web/GUI 等
+    不同调用方式使用各自的权限确认回调。
+    """
+
+    def __init__(
+        self,
+        settings: Any | None = None,
+        runtime_factory: Callable[[], _RuntimeProtocol] | None = None,
+    ) -> None:
         self._settings = settings or get_settings()
         db_url = self._settings.DATABASE_URL
         self._db = DatabaseManager(db_url)
         self._conversation_id: str | None = None
         self._is_new: bool = True
         self._warnings: list[str] = []
+        self._runtime_factory = runtime_factory or AgentRuntime
 
     @property
     def conversation_id(self) -> str | None:
@@ -95,7 +111,7 @@ class ConversationOrchestrator:
         task: str,
         history_context: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        runtime = AgentRuntime()
+        runtime = self._runtime_factory()
         engine = await runtime.create_engine()
         try:
             async for event in engine.iter_steps(task, history_context=history_context):
