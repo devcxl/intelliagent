@@ -81,12 +81,11 @@ def _scan_paths(paths: Sequence[Path]) -> list[SkillDef]:
     seen: set[str] = set()
 
     for base in paths:
-        resolved = base.expanduser().resolve()
-        if not resolved.exists() or not resolved.is_dir():
-            logger.debug("Skill 扫描目录不存在，跳过: %s", resolved)
+        if not base.exists() or not base.is_dir():
+            logger.debug("Skill 扫描目录不存在，跳过: %s", base)
             continue
 
-        for skill_file in sorted(resolved.rglob("SKILL.md")):
+        for skill_file in sorted(base.rglob("SKILL.md")):
             sd = _parse_skill_file(skill_file)
             if sd is None:
                 continue

@@ -75,7 +75,7 @@ class ReactEngine:
     def _build_system_message(self) -> dict[str, Any]:
         """构建 system message，注入 available_skills（如有）。"""
         content = DEFAULT_SYSTEM_PROMPT
-        if self._skill_registry:
+        if self._skill_registry and self._skill_registry.list_names():
             xml = self._skill_registry.generate_available_skills_xml()
             content += (
                 "\n\n" + xml + "\n\n"

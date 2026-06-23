@@ -59,11 +59,10 @@ def test_system_prompt_without_skill_registry():
 
 
 def test_system_prompt_empty_registry():
-    """空注册表时 system prompt 包含空 XML 块。"""
+    """空注册表时 system prompt 不含 XML 块（避免浪费 token）。"""
     reg = SkillRegistry()
     engine = ReactEngine(llm_client=MagicMock(), skill_registry=reg)
     msg = engine._build_system_message()
     content = msg["content"]
-    assert "<available_skills>" in content
-    assert "</available_skills>" in content
-    assert "<name>" not in content  # 无 skill 条目
+    assert content == DEFAULT_SYSTEM_PROMPT
+    assert "<available_skills>" not in content
