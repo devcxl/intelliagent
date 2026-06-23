@@ -17,6 +17,7 @@ from src.permission import (
 from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
 from src.skills.tool import set_registry as set_skill_registry
+from src.tools.agent_team_tools import set_agent_team_context
 from src.tools.registry import ToolRegistry, _default_registry
 from src.types.llm import LLMClientProtocol
 
@@ -167,6 +168,21 @@ class AgentRuntime:
             except (asyncio.CancelledError, Exception):
                 pass
 
+    def _resolve_agent_team_db_path(self) -> str:
+        """将 UnifiedConfig.database.url 转换为 agent-team 可用的文件路径。
+
+        database.url 格式为 "sqlite:///relative/path" 或 "sqlite:////absolute/path"。
+        去除协议前缀后解析为绝对路径。
+        """
+        db_url = self._config.database.url
+        if db_url.startswith("sqlite:///"):
+            path_part = db_url[len("sqlite:///"):]
+            if path_part.startswith("/"):
+                return path_part
+            workspace = self._config.workspace.dir or "."
+            return str(Path(workspace) / path_part)
+        return db_url  # 非标准格式时原样返回
+
     async def create_engine(
         self,
         api_key: str | None = None,
@@ -190,6 +206,12 @@ class AgentRuntime:
         llm = self.get_llm_client()
         permission_engine = self._permission_engine_factory()
         permission_callback = self._permission_callback_factory()
+
+        # 注入 agent-team 上下文
+        db_path = self._resolve_agent_team_db_path()
+        agent_id = getattr(self._config, "agent_id", None) or "agent-001"
+        set_agent_team_context(db_path, agent_id)
+
         return ReactEngine(
             llm_client=llm,
             context_limit=self._config.get_model_context_limit(),
