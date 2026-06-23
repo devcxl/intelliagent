@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import src.cli.orchestrator as orchestrator_module
+import src.runtime.conversation_orchestrator as orchestrator_module
 import src.main as main_module
 
 
@@ -181,3 +181,78 @@ async def test_main_history_lists_conversations(monkeypatch):
     await main_module.main(task="", list_history=True)
 
     assert ("list_conversations",) in fake_db.calls
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_uses_injected_runtime_factory(monkeypatch):
+    """注入 runtime_factory 后，execute 应使用注入的 runtime 而非默认 AgentRuntime。"""
+    from src.runtime.conversation_orchestrator import ConversationOrchestrator
+
+    fake_db = FakeDatabaseManager()
+    settings = SimpleNamespace(DATABASE_URL=":memory:")
+    monkeypatch.setattr(orchestrator_module, "DatabaseManager", lambda _: fake_db)
+
+    stop_called = []
+
+    class InjectedRuntime:
+        async def create_engine(self):
+            return FakeEngine()
+
+        async def start_mcp(self, registry=None):
+            pass
+
+        async def stop_mcp(self):
+            stop_called.append(True)
+
+    orchestrator = ConversationOrchestrator(
+        settings=settings,
+        runtime_factory=InjectedRuntime,
+    )
+    await orchestrator.initialize()
+    await orchestrator.setup_conversation("测试任务")
+
+    async for event in orchestrator.execute("测试任务"):
+        assert event["type"] == "answer"
+        assert event["data"]["answer"] == "done"
+
+    assert stop_called == [True]
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_stops_mcp_on_exception(monkeypatch):
+    """execute 抛异常时也应调用 stop_mcp。"""
+    from src.runtime.conversation_orchestrator import ConversationOrchestrator
+
+    fake_db = FakeDatabaseManager()
+    settings = SimpleNamespace(DATABASE_URL=":memory:")
+    monkeypatch.setattr(orchestrator_module, "DatabaseManager", lambda _: fake_db)
+
+    stop_called = []
+
+    class FaultyEngine:
+        async def iter_steps(self, task, **kwargs):
+            yield
+            raise RuntimeError("模拟失败")
+
+    class FaultyRuntime:
+        async def create_engine(self):
+            return FaultyEngine()
+
+        async def start_mcp(self, registry=None):
+            pass
+
+        async def stop_mcp(self):
+            stop_called.append(True)
+
+    orchestrator = ConversationOrchestrator(
+        settings=settings,
+        runtime_factory=FaultyRuntime,
+    )
+    await orchestrator.initialize()
+    await orchestrator.setup_conversation("测试任务")
+
+    with pytest.raises(RuntimeError, match="模拟失败"):
+        async for event in orchestrator.execute("测试任务"):
+            pass
+
+    assert stop_called == [True]

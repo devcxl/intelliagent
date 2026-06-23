@@ -21,7 +21,7 @@ from __future__ import annotations
 import asyncio
 import sys
 
-from src.cli.orchestrator import ConversationOrchestrator
+from src.runtime import ConversationOrchestrator
 from src.cli.parser import build_parser, parse_args
 from src.cli.presenter import (
     format_conversation_header,
