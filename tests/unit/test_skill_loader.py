@@ -141,3 +141,57 @@ def test_source_path_set_correctly(skill_dirs):
     )
     git = next(s for s in skills if s.frontmatter.name == "git-release")
     assert git.source_path == skill_dirs["project"] / "git-release"
+
+
+def test_recursive_discovery(tmp_path):
+    """递归扫描嵌套目录结构中的 SKILL.md。"""
+    nested = tmp_path / ".agents" / "skills" / "category" / "nested-skill"
+    nested.mkdir(parents=True)
+    (nested / "SKILL.md").write_text(
+        "---\n"
+        "name: nested-skill\n"
+        "description: Nested in category\n"
+        "---\n"
+        "# Nested skill"
+    )
+    skills = SkillLoader.load(
+        project_paths=[tmp_path / ".agents" / "skills"],
+        user_paths=[],
+    )
+    names = {s.frontmatter.name for s in skills}
+    assert "nested-skill" in names
+
+
+def test_invalid_yaml_syntax_skipped(tmp_path):
+    """YAML 语法错误的 SKILL.md 被跳过。"""
+    d = tmp_path / "skills" / "bad-yaml"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(
+        "---\n"
+        "name: [broken: syntax\n"
+        "---\n"
+        "Body."
+    )
+    skills = SkillLoader.load(
+        project_paths=[tmp_path / "skills"],
+        user_paths=[],
+    )
+    assert len(skills) == 0
+
+
+def test_frontmatter_is_not_object_skipped(tmp_path):
+    """frontmatter 内容不是对象时跳过。"""
+    d = tmp_path / "skills" / "bad-fm"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(
+        "---\n"
+        "- item1\n"
+        "- item2\n"
+        "---\n"
+        "Body."
+    )
+    skills = SkillLoader.load(
+        project_paths=[tmp_path / "skills"],
+        user_paths=[],
+    )
+    assert len(skills) == 0

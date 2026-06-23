@@ -105,8 +105,9 @@ class AgentRuntime:
         if not cfg.enabled:
             return
 
-        project_paths = [Path(p) for p in cfg.project_paths]
-        user_paths = [Path(p) for p in cfg.user_paths]
+        workspace = Path(self._config.workspace.dir) if self._config.workspace.dir else Path.cwd()
+        project_paths = [(workspace / p).expanduser().resolve() for p in cfg.project_paths]
+        user_paths = [Path(p).expanduser().resolve() for p in cfg.user_paths]
 
         skills = SkillLoader.load(
             project_paths=project_paths,

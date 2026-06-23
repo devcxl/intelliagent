@@ -52,9 +52,17 @@ def _parse_skill_file(filepath: Path) -> SkillDef | None:
         logger.warning("SKILL.md 缺少 name 或 description: %s", filepath)
         return None
 
+    if not isinstance(name, str):
+        logger.warning("SKILL.md name 必须是字符串，实际类型: %s, file=%s", type(name).__name__, filepath)
+        return None
+
+    if not isinstance(description, str):
+        logger.warning("SKILL.md description 必须是字符串，实际类型: %s, file=%s", type(description).__name__, filepath)
+        return None
+
     fm = SkillFrontmatter(
-        name=str(name),
-        description=str(description),
+        name=name,
+        description=description,
         license=raw.get("license"),
         compatibility=raw.get("compatibility"),
         metadata=raw.get("metadata", {}),
@@ -78,13 +86,7 @@ def _scan_paths(paths: Sequence[Path]) -> list[SkillDef]:
             logger.debug("Skill 扫描目录不存在，跳过: %s", resolved)
             continue
 
-        for skill_dir in sorted(resolved.iterdir()):
-            if not skill_dir.is_dir():
-                continue
-            skill_file = skill_dir / "SKILL.md"
-            if not skill_file.exists():
-                continue
-
+        for skill_file in sorted(resolved.rglob("SKILL.md")):
             sd = _parse_skill_file(skill_file)
             if sd is None:
                 continue
