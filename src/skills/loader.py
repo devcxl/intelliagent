@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Sequence
 
 import yaml
 
@@ -14,44 +14,23 @@ from src.skills.model import SkillDef, SkillFrontmatter
 logger = logging.getLogger(__name__)
 
 
-def _parse_frontmatter_lines(text: str) -> dict[str, Any] | None:
-    """手动逐行解析 YAML frontmatter，仅支持已知字段。
+def _quote_yaml_values(text: str) -> str:
+    """预处理 YAML 文本，对包含 ': ' 的纯文本标量值自动加引号。
 
-    当 yaml.safe_load 失败时用作 fallback。支持：
-      - key: value（单行标量）
-      - metadata: 以缩进为 key: value 的子块
-
-    不支持列表、嵌套结构、多行值。
+    YAML 规范不允许纯文本标量中出现 ': '（会被误解为 mapping 分隔符），
+    如 ``description: Use when: (1) reviewing code`` 会导致解析失败。
+    此函数将这类值自动包裹为双引号字符串。
     """
-    result: dict[str, Any] = {}
-    known_keys = {"name", "description", "license", "compatibility", "metadata"}
-    meta_prefix = "metadata"
-
+    lines = []
     for line in text.split("\n"):
-        stripped = line.rstrip()
-        if not stripped:
-            continue
-
-        # 检查 metadata 缩进子行
-        if stripped.startswith("  ") and meta_prefix in result:
-            m = re.match(r"  (\S+):\s*(.*)", stripped)
-            if m:
-                result.setdefault(meta_prefix, {})[m.group(1)] = m.group(2).strip()
-            continue
-
-        m = re.match(r"(\S+):\s*(.*)", stripped)
-        if not m:
-            continue
-
-        key = m.group(1)
-        if key not in known_keys:
-            continue
-        if key == meta_prefix:
-            result[key] = {}
+        m = re.match(r"^(\w[\w-]*):\s+(.+)$", line)
+        if m and ": " in m.group(2):
+            # key: value — value 含 ': ' 需要引号包裹
+            value = m.group(2).replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(f'{m.group(1)}: "{value}"')
         else:
-            result[key] = m.group(2).strip()
-
-    return result
+            lines.append(line)
+    return "\n".join(lines)
 
 
 def _parse_skill_file(filepath: Path) -> SkillDef | None:
@@ -76,14 +55,12 @@ def _parse_skill_file(filepath: Path) -> SkillDef | None:
     body_start = end_idx + 4  # skip "\n---"
     body = rest[body_start:].strip()
 
+    # 预处理：自动给含 ': ' 的纯文本值加引号，再喂给 YAML 解析器
     try:
-        raw = yaml.safe_load(yaml_block)
-    except yaml.YAMLError:
-        logger.debug("SKILL.md YAML 解析失败，尝试手动 fallback: %s", filepath)
-        raw = _parse_frontmatter_lines(yaml_block)
-        if raw is None:
-            logger.warning("SKILL.md YAML fallback 也失败: %s", filepath)
-            return None
+        raw = yaml.safe_load(_quote_yaml_values(yaml_block))
+    except yaml.YAMLError as e:
+        logger.warning("SKILL.md YAML 解析失败: %s, error=%s", filepath, e)
+        return None
 
     if not isinstance(raw, dict):
         logger.warning("SKILL.md frontmatter 不是对象: %s", filepath)
