@@ -9,15 +9,15 @@ from typing import Any, Callable
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
 from src.mcp.config import MCPConfig
+from src.permission import (
+    PermissionCallbackProtocol,
+    PermissionEngineProtocol,
+)
 from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
 from src.skills.tool import set_registry as set_skill_registry
 from src.tools.registry import ToolRegistry, _default_registry
 from src.types.llm import LLMClientProtocol
-from src.permission import (
-    PermissionCallbackProtocol,
-    PermissionEngineProtocol,
-)
 
 
 class AgentRuntime:
