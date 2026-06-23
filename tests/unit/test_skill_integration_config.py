@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from src.config.unified_config import SkillsConfig, UnifiedConfig
-from src.core.permission_engine import PermissionEngine
+from src.permission import PermissionEngine
 
 # ============================================================================
 # SkillsConfig

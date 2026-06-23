@@ -4,7 +4,7 @@ import fnmatch
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Sequence
 
-from src.types.permission import Decision, PermissionAction
+from src.permission.types import Decision, PermissionAction
 
 if TYPE_CHECKING:
     from src.config.unified_config import PermissionsConfig

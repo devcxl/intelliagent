@@ -9,15 +9,15 @@ from typing import Any, Callable
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
 from src.mcp.config import MCPConfig
+from src.permission import (
+    PermissionCallbackProtocol,
+    PermissionEngineProtocol,
+)
 from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
 from src.skills.tool import set_registry as set_skill_registry
 from src.tools.registry import ToolRegistry, _default_registry
 from src.types.llm import LLMClientProtocol
-from src.types.permission import (
-    PermissionCallbackProtocol,
-    PermissionEngineProtocol,
-)
 
 
 class AgentRuntime:
@@ -78,7 +78,7 @@ class AgentRuntime:
         Returns:
             基于 UnifiedConfig 中 permissions 字段和 workspace 目录构建的权限引擎
         """
-        from src.core.permission_engine import load_permission_engine
+        from src.permission import load_permission_engine
 
         return load_permission_engine(
             self._config.permissions,
@@ -91,7 +91,7 @@ class AgentRuntime:
         Returns:
             超时时间为 120 秒的 CliCallback 实例
         """
-        from src.runtime.permission_callback import CliCallback
+        from src.permission import CliCallback
 
         return CliCallback(timeout=120.0)
 

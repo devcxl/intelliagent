@@ -2,6 +2,5 @@
 """Runtime composition root."""
 
 from src.runtime.agent_runtime import AgentRuntime
-from src.runtime.permission_callback import CliCallback
 
-__all__ = ["AgentRuntime", "CliCallback"]
+__all__ = ["AgentRuntime"]

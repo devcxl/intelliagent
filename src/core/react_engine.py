@@ -4,14 +4,14 @@ import json
 from typing import Any, AsyncGenerator
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
+from src.permission import (
+    PermissionCallbackProtocol,
+    PermissionEngineProtocol,
+)
 from src.skills.registry import SkillRegistry
 from src.tools.registry import _default_registry
 from src.types.llm import LLMClientProtocol
 from src.types.memory import MemoryProtocol
-from src.types.permission import (
-    PermissionCallbackProtocol,
-    PermissionEngineProtocol,
-)
 from src.utils.logger import logger
 
 MAX_STEPS = 50
