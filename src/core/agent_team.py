@@ -12,21 +12,25 @@ class AgentTeamError(Exception):
 
 class AgentNotFoundError(AgentTeamError):
     """Agent 不存在。"""
+
     code = "AGENT_NOT_FOUND"
 
 
 class EmptyContentError(AgentTeamError):
     """消息内容为空。"""
+
     code = "EMPTY_CONTENT"
 
 
 class DuplicateNameError(AgentTeamError):
     """同名 Agent 已存在。"""
+
     code = "DUPLICATE_NAME"
 
 
 class InvalidStatusError(AgentTeamError):
     """状态值不合法。"""
+
     code = "INVALID_STATUS"
 
 
