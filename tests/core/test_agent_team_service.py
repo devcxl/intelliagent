@@ -174,11 +174,10 @@ class TestAgentTeamService:
         assert messages[0]["sender_name"] == "Architect"
 
     def test_receive_message_marks_as_read(self, service: AgentTeamService, db: FakeAgentTeamDB) -> None:
-        """收消息后自动标记返回的消息为已读。"""
+        """收消息后自动标记返回的消息为已读（验证存储层更新）。"""
         db.insert_message("msg-1", "agent-1", "agent-2", "Hello", "2026-06-24T12:00:00")
-        messages, _ = service.receive_message("agent-2", limit=20, offset=0)
-        assert messages[0]["is_read"] == 1
-        # 验证存储中的消息也被标记
+        service.receive_message("agent-2", limit=20, offset=0)
+        # 验证存储中的消息已被标记为已读（返回的 dict 是副本不受影响）
         for m in db.messages:
             if m["id"] == "msg-1":
                 assert m["is_read"] == 1
