@@ -39,6 +39,20 @@ class PermissionsConfig(BaseModel):
     external_directories: list[str] = Field(default_factory=list)
 
 
+class SkillsConfig(BaseModel):
+    """Skill 系统配置。
+
+    Attributes:
+        enabled: 是否启用 skills 功能
+        project_paths: 项目级 skill 扫描路径
+        user_paths: 用户级 skill 扫描路径
+    """
+
+    enabled: bool = True
+    project_paths: list[str] = Field(default_factory=lambda: [".agents/skills"])
+    user_paths: list[str] = Field(default_factory=lambda: ["~/.config/opencode/skills"])
+
+
 class UnifiedConfig(BaseModel):
     """统一配置模型 — 涵盖所有子配置域。
 
@@ -55,6 +69,7 @@ class UnifiedConfig(BaseModel):
     workspace: WorkspaceConfig = Field(default_factory=WorkspaceConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
+    skills: SkillsConfig = Field(default_factory=SkillsConfig)
     mcp: dict[str, Any] = Field(default_factory=dict)
 
     def get_model_context_limit(self) -> int | None:
