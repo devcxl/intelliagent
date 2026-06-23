@@ -9,6 +9,9 @@ from typing import Any, Callable
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
 from src.mcp.config import MCPConfig
+from src.skills.loader import SkillLoader
+from src.skills.registry import SkillRegistry
+from src.skills.tool import set_registry as set_skill_registry
 from src.tools.registry import ToolRegistry, _default_registry
 from src.types.llm import LLMClientProtocol
 from src.types.permission import (
@@ -37,6 +40,8 @@ class AgentRuntime:
         self._permission_callback_factory = permission_callback_factory or self._default_permission_callback_factory
         self._llm_client: LLMClientProtocol | None = None
         self._mcp_manager: Any = None
+        self._skill_registry: SkillRegistry | None = None
+        self._load_skills()
 
     # ------------------------------------------------------------------
     # 默认工厂
@@ -89,6 +94,32 @@ class AgentRuntime:
         from src.runtime.permission_callback import CliCallback
 
         return CliCallback(timeout=120.0)
+
+    # ------------------------------------------------------------------
+    # Skill 加载
+    # ------------------------------------------------------------------
+
+    def _load_skills(self) -> None:
+        """根据配置加载 skills 并设置全局 skill 工具引用。"""
+        cfg = self._config.skills
+        if not cfg.enabled:
+            return
+
+        project_paths = [Path(p) for p in cfg.project_paths]
+        user_paths = [Path(p) for p in cfg.user_paths]
+
+        skills = SkillLoader.load(
+            project_paths=project_paths,
+            user_paths=user_paths,
+        )
+
+        if not skills:
+            return
+
+        registry = SkillRegistry()
+        registry.load_all(skills)
+        self._skill_registry = registry
+        set_skill_registry(registry)
 
     # ------------------------------------------------------------------
     # 公共方法
@@ -160,6 +191,7 @@ class AgentRuntime:
             max_steps=max_iterations if max_iterations else 50,
             permission_engine=permission_engine,
             permission_callback=permission_callback,
+            skill_registry=self._skill_registry,
         )
 
 

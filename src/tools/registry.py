@@ -294,6 +294,32 @@ async def _todo_write_tool(todos: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# skill 工具 — 按需加载 skill 指令
+# ---------------------------------------------------------------------------
+
+
+@_default_registry.tool(
+    name="skill",
+    description="加载指定 skill 的完整指令。当任务匹配某个 skill 的描述时使用此工具获取详细指引。",
+    parameters={
+        "name": {"type": "string", "description": "skill 名称", "required": True},
+    },
+)
+async def _skill_tool(name: str) -> str:
+    """加载 skill 完整指令的工具封装。
+
+    Args:
+        name: skill 名称
+
+    Returns:
+        JSON 格式的 skill 指令内容
+    """
+    from src.skills.tool import skill_tool as _skill_tool_impl
+
+    return await _skill_tool_impl(name=name)
+
+
+# ---------------------------------------------------------------------------
 # 向后兼容：模块级委托函数
 # ---------------------------------------------------------------------------
 

@@ -4,6 +4,7 @@ import json
 from typing import Any, AsyncGenerator
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
+from src.skills.registry import SkillRegistry
 from src.tools.registry import _default_registry
 from src.types.llm import LLMClientProtocol
 from src.types.memory import MemoryProtocol
@@ -40,12 +41,14 @@ class ReactEngine:
         permission_callback: PermissionCallbackProtocol | None = None,
         context_limit: int | None = None,
         max_steps: int = MAX_STEPS,
+        skill_registry: SkillRegistry | None = None,
     ):
         self.llm_client = llm_client
         self._registry = tools_registry if tools_registry is not None else _default_registry
         self.memory = memory
         self._permission_engine = permission_engine
         self._permission_callback = permission_callback
+        self._skill_registry = skill_registry
 
         self.max_context_tokens = context_limit or 128_000
         self.max_steps = max_steps
@@ -68,6 +71,17 @@ class ReactEngine:
 
     def add_tool_message(self, tool_call_id: str, content: str):
         self.messages.append({"role": "tool", "tool_call_id": tool_call_id, "content": content})
+
+    def _build_system_message(self) -> dict[str, Any]:
+        """构建 system message，注入 available_skills（如有）。"""
+        content = DEFAULT_SYSTEM_PROMPT
+        if self._skill_registry:
+            xml = self._skill_registry.generate_available_skills_xml()
+            content += (
+                "\n\n" + xml + "\n\n"
+                "当任务匹配某个 skill 的描述时，使用 skill 工具加载其完整指令。"
+            )
+        return {"role": "system", "content": content}
 
     def _check_token_limit(self) -> bool:
         return self.total_tokens >= self.max_context_tokens
@@ -212,7 +226,7 @@ class ReactEngine:
         max_steps: int | None = None,
         history_context: str | None = None,
     ) -> dict[str, Any]:
-        self.messages = [{"role": "system", "content": DEFAULT_SYSTEM_PROMPT}]
+        self.messages = [self._build_system_message()]
 
         user_content = task
         if history_context:
@@ -235,7 +249,7 @@ class ReactEngine:
         seed_observations: list[dict[str, Any]] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         if reset_state:
-            self.messages = [{"role": "system", "content": DEFAULT_SYSTEM_PROMPT}]
+            self.messages = [self._build_system_message()]
 
         user_content = task
         if history_context:
