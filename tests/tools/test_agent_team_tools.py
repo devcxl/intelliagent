@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -274,6 +273,16 @@ class TestCreateAgentTool:
         assert data["status"] == "ok"
         assert data["agent"]["desc"] == ""
         assert data["agent"]["prompt"] == ""
+
+    @pytest.mark.asyncio
+    async def test_create_empty_name(self, agent_ctx: str):
+        data = json.loads(await create_agent(name=""))
+        assert data["status"] == "error" and data["code"] == "INVALID_PARAMETERS"
+
+    @pytest.mark.asyncio
+    async def test_create_whitespace_name(self, agent_ctx: str):
+        data = json.loads(await create_agent(name="   "))
+        assert data["status"] == "error" and data["code"] == "INVALID_PARAMETERS"
 
 
 # ── delete_agent ───────────────────────────────────────────────────────────

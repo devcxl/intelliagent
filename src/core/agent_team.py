@@ -50,6 +50,10 @@ class AgentTeamService:
         """注入 DB 层实例。"""
         self._db = db
 
+    def close(self) -> None:
+        """关闭底层数据库连接。"""
+        self._db.close()
+
     def send_message(self, sender_id: str, to_agent_id: str, content: str) -> dict:
         """发送消息给指定 Agent。"""
         if not content.strip():
