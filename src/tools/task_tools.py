@@ -1,35 +1,43 @@
-"""任务管理工具 — task_write / task_add / task_update / task_finish。"""
+"""任务管理工具 — task_write / task_add / task_update / task_finish。
+
+通过 session_factory 创建 AsyncSession，使用 TaskRepository 进行持久化。
+"""
 
 from __future__ import annotations
 
 import json
 from typing import Any
 
-from src.db.manager import DatabaseManager
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from src.db.repositories import TaskRepository
 from src.utils.logger import logger
 
 from .response import error_response, success_response
 
-_db: DatabaseManager | None = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
 _conversation_id: str | None = None
 
 
-def set_task_context(db: DatabaseManager | None, conversation_id: str | None) -> None:
+def set_task_context(
+    session_factory: async_sessionmaker[AsyncSession] | None,
+    conversation_id: str | None,
+) -> None:
     """设置或清除任务工具的持久化上下文。
 
     Args:
-        db: DatabaseManager 实例，None 时清除
+        session_factory: async session factory，None 时清除
         conversation_id: 当前 Conversation ID，None 时清除
     """
-    global _db, _conversation_id
-    _db = db
+    global _session_factory, _conversation_id
+    _session_factory = session_factory
     _conversation_id = conversation_id
 
 
-def _ensure_context() -> tuple[DatabaseManager, str]:
-    if _db is None or _conversation_id is None:
+def _ensure_context() -> tuple[async_sessionmaker[AsyncSession], str]:
+    if _session_factory is None or _conversation_id is None:
         raise RuntimeError("任务系统未初始化，缺少数据库或 Conversation 上下文")
-    return _db, _conversation_id
+    return _session_factory, _conversation_id
 
 
 async def task_write(tasks: str) -> str:
@@ -52,27 +60,29 @@ async def task_write(tasks: str) -> str:
         return error_response(f"tasks JSON 解析失败: {e}", "INVALID_PARAMETERS")
 
     try:
-        db, conv_id = _ensure_context()
+        factory, conv_id = _ensure_context()
     except RuntimeError as e:
         return error_response(str(e), "CONTEXT_NOT_INITIALIZED")
 
-    # 先查出当前已存在的任务数，用于 sort_order 偏移
-    existing = await db.list_tasks(conv_id)
-    base_order = len(existing)
+    async with factory() as session:
+        repo = TaskRepository(session)
 
-    created: list[dict[str, Any]] = []
-    for idx, item in enumerate(items):
-        if not isinstance(item, dict) or "title" not in item:
-            continue
-        result = await db.add_task(
-            conversation_id=conv_id,
-            title=str(item["title"]),
-            content=str(item.get("content", "")),
-            parent_id=item.get("parent_id"),
-            priority=str(item.get("priority", "medium")),
-            sort_order=base_order + idx,
-        )
-        created.append({"id": result["id"], "title": item["title"], "task_status": "pending"})
+        existing = await repo.list_by_conversation(conv_id)
+        base_order = len(existing)
+
+        created: list[dict[str, Any]] = []
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict) or "title" not in item:
+                continue
+            result = await repo.add(
+                conversation_id=conv_id,
+                title=str(item["title"]),
+                content=str(item.get("content", "")),
+                parent_id=item.get("parent_id"),
+                priority=str(item.get("priority", "medium")),
+                sort_order=base_order + idx,
+            )
+            created.append({"id": result["id"], "title": item["title"], "task_status": "pending"})
 
     logger.debug("TaskTools - task_write | count=%d", len(created))
     return success_response({"tasks": created, "count": len(created)})
@@ -93,28 +103,30 @@ async def task_add(
         parent_id: 父任务 ID，空字符串表示顶级任务
 
     Returns:
-        JSON 格式的创建结果，包含 id、title、status
+        JSON 格式的创建结果，包含 id、title、task_status
     """
     title = title.strip()
     if not title:
         return error_response("title 不能为空", "EMPTY_TITLE")
 
     try:
-        db, conv_id = _ensure_context()
+        factory, conv_id = _ensure_context()
     except RuntimeError as e:
         return error_response(str(e), "CONTEXT_NOT_INITIALIZED")
 
-    existing = await db.list_tasks(conv_id)
-    sort_order = len(existing)
+    async with factory() as session:
+        repo = TaskRepository(session)
+        existing = await repo.list_by_conversation(conv_id)
+        sort_order = len(existing)
 
-    result = await db.add_task(
-        conversation_id=conv_id,
-        title=title,
-        content=content,
-        parent_id=parent_id or None,
-        priority=priority,
-        sort_order=sort_order,
-    )
+        result = await repo.add(
+            conversation_id=conv_id,
+            title=title,
+            content=content,
+            parent_id=parent_id or None,
+            priority=priority,
+            sort_order=sort_order,
+        )
 
     logger.debug("TaskTools - task_add | id=%s title=%s", result["id"], title)
     return success_response({"id": result["id"], "title": title, "task_status": "pending"})
@@ -143,21 +155,23 @@ async def task_update(
         return error_response("id 不能为空", "EMPTY_TASK_ID")
 
     try:
-        db, _ = _ensure_context()
+        factory, _ = _ensure_context()
     except RuntimeError as e:
         return error_response(str(e), "CONTEXT_NOT_INITIALIZED")
 
-    existing = await db.get_task(id)
-    if existing is None:
-        return error_response(f"任务不存在: {id}", "TASK_NOT_FOUND")
+    async with factory() as session:
+        repo = TaskRepository(session)
+        existing = await repo.get(id)
+        if existing is None:
+            return error_response(f"任务不存在: {id}", "TASK_NOT_FOUND")
 
-    updated = await db.update_task(
-        task_id=id,
-        title=title if title else None,
-        content=content if content else None,
-        status=status if status else None,
-        priority=priority if priority else None,
-    )
+        updated = await repo.update(
+            task_id=id,
+            title=title if title else None,
+            content=content if content else None,
+            status=status if status else None,
+            priority=priority if priority else None,
+        )
 
     logger.debug("TaskTools - task_update | id=%s updated=%s", id, updated)
     return success_response({"id": id, "updated": updated})
@@ -178,15 +192,17 @@ async def task_finish(id: str) -> str:
         return error_response("id 不能为空", "EMPTY_TASK_ID")
 
     try:
-        db, _ = _ensure_context()
+        factory, _ = _ensure_context()
     except RuntimeError as e:
         return error_response(str(e), "CONTEXT_NOT_INITIALIZED")
 
-    existing = await db.get_task(id)
-    if existing is None:
-        return error_response(f"任务不存在: {id}", "TASK_NOT_FOUND")
+    async with factory() as session:
+        repo = TaskRepository(session)
+        existing = await repo.get(id)
+        if existing is None:
+            return error_response(f"任务不存在: {id}", "TASK_NOT_FOUND")
 
-    await db.update_task(task_id=id, status="completed")
+        await repo.update(task_id=id, status="completed")
 
     logger.debug("TaskTools - task_finish | id=%s", id)
     return success_response({"id": id, "task_status": "completed"})

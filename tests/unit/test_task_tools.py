@@ -6,125 +6,138 @@ import json
 
 import pytest
 
-from src.db.manager import DatabaseManager
-from src.db.repositories import TaskRepository
+from src.db.engine import create_engine, create_session_factory, init_db
+from src.db.repositories import ConversationRepository, TaskRepository
 from src.tools.task_tools import set_task_context, task_add, task_finish, task_update, task_write
 
 
 @pytest.fixture
-def db_path(tmp_path):
-    return tmp_path / "test_task.db"
+async def session_factory(tmp_path):
+    db_path = tmp_path / "test_task.db"
+    engine = create_engine(str(db_path))
+    await init_db(engine)
+    factory = create_session_factory(engine)
+
+    # 创建测试用 conversation
+    async with factory() as session:
+        conv_repo = ConversationRepository(session)
+        await conv_repo.create("conv-1", title="测试", task="测试任务")
+
+    yield factory
+    await engine.dispose()
 
 
 @pytest.fixture
-async def db_manager(db_path):
-    db = DatabaseManager(str(db_path))
-    await db.initialize()
-    await db.create_conversation("conv-1", title="测试", task="测试任务")
-    return db
-
-
-@pytest.fixture
-def task_ctx(db_manager):
-    set_task_context(db_manager, "conv-1")
+def task_ctx(session_factory):
+    set_task_context(session_factory, "conv-1")
     yield
     set_task_context(None, None)
 
 
 class TestTaskRepository:
     @pytest.mark.asyncio
-    async def test_add_and_get(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        result = await repo.add("conv-1", title="设计API", content="设计REST接口", priority="high")
-        assert result["status"] == "pending"
-        assert result["id"].startswith("task-")
+    async def test_add_and_get(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            result = await repo.add("conv-1", title="设计API", content="设计REST接口", priority="high")
+            assert result["status"] == "pending"
+            assert result["id"].startswith("task-")
 
-        task = await repo.get(result["id"])
-        assert task is not None
-        assert task["title"] == "设计API"
-        assert task["content"] == "设计REST接口"
-        assert task["priority"] == "high"
-        assert task["status"] == "pending"
-        assert task["parent_id"] is None
-        assert task["completed_at"] is None
-
-    @pytest.mark.asyncio
-    async def test_add_with_parent(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        parent = await repo.add("conv-1", title="父任务")
-        child = await repo.add("conv-1", title="子任务", parent_id=parent["id"])
-        assert child["status"] == "pending"
-
-        task = await repo.get(child["id"])
-        assert task is not None
-        assert task["parent_id"] == parent["id"]
+            task = await repo.get(result["id"])
+            assert task is not None
+            assert task["title"] == "设计API"
+            assert task["content"] == "设计REST接口"
+            assert task["priority"] == "high"
+            assert task["status"] == "pending"
+            assert task["parent_id"] is None
+            assert task["completed_at"] is None
 
     @pytest.mark.asyncio
-    async def test_list_by_conversation(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        await repo.add("conv-1", title="任务1", sort_order=0)
-        await repo.add("conv-1", title="任务2", sort_order=1)
-        await repo.add("conv-1", title="任务3", sort_order=2)
+    async def test_add_with_parent(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            parent = await repo.add("conv-1", title="父任务")
+            child = await repo.add("conv-1", title="子任务", parent_id=parent["id"])
+            assert child["status"] == "pending"
 
-        tasks = await repo.list_by_conversation("conv-1")
-        assert len(tasks) == 3
-        assert tasks[0]["title"] == "任务1"
-        assert tasks[1]["title"] == "任务2"
-        assert tasks[2]["title"] == "任务3"
-
-    @pytest.mark.asyncio
-    async def test_get_not_found(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        assert await repo.get("nonexistent") is None
+            task = await repo.get(child["id"])
+            assert task is not None
+            assert task["parent_id"] == parent["id"]
 
     @pytest.mark.asyncio
-    async def test_update_title(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        result = await repo.add("conv-1", title="旧标题")
-        await repo.update(result["id"], title="新标题")
-        task = await repo.get(result["id"])
-        assert task is not None
-        assert task["title"] == "新标题"
+    async def test_list_by_conversation(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            await repo.add("conv-1", title="任务1", sort_order=0)
+            await repo.add("conv-1", title="任务2", sort_order=1)
+            await repo.add("conv-1", title="任务3", sort_order=2)
+
+            tasks = await repo.list_by_conversation("conv-1")
+            assert len(tasks) == 3
+            assert tasks[0]["title"] == "任务1"
+            assert tasks[1]["title"] == "任务2"
+            assert tasks[2]["title"] == "任务3"
 
     @pytest.mark.asyncio
-    async def test_update_status_to_completed(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        result = await repo.add("conv-1", title="待完成")
-        await repo.update(result["id"], status="completed")
-        task = await repo.get(result["id"])
-        assert task is not None
-        assert task["status"] == "completed"
-        assert task["completed_at"] is not None
+    async def test_get_not_found(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            assert await repo.get("nonexistent") is None
 
     @pytest.mark.asyncio
-    async def test_update_multiple_fields(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        result = await repo.add("conv-1", title="原始", content="原始内容", priority="low")
-        await repo.update(result["id"], title="新标题", priority="high")
-        task = await repo.get(result["id"])
-        assert task is not None
-        assert task["title"] == "新标题"
-        assert task["priority"] == "high"
-        assert task["content"] == "原始内容"
+    async def test_update_title(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            result = await repo.add("conv-1", title="旧标题")
+            await repo.update(result["id"], title="新标题")
+            task = await repo.get(result["id"])
+            assert task is not None
+            assert task["title"] == "新标题"
 
     @pytest.mark.asyncio
-    async def test_delete_by_conversation(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        await repo.add("conv-1", title="任务A")
-        await repo.add("conv-1", title="任务B")
-        assert len(await repo.list_by_conversation("conv-1")) == 2
-
-        await repo.delete_by_conversation("conv-1")
-        assert len(await repo.list_by_conversation("conv-1")) == 0
+    async def test_update_status_to_completed(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            result = await repo.add("conv-1", title="待完成")
+            await repo.update(result["id"], status="completed")
+            task = await repo.get(result["id"])
+            assert task is not None
+            assert task["status"] == "completed"
+            assert task["completed_at"] is not None
 
     @pytest.mark.asyncio
-    async def test_isolated_conversations(self, db_manager):
-        repo = TaskRepository(str(db_manager.db_path))
-        await db_manager.create_conversation("conv-2", title="conv2")
-        await repo.add("conv-1", title="conv1任务")
-        await repo.add("conv-2", title="conv2任务")
-        assert len(await repo.list_by_conversation("conv-1")) == 1
-        assert len(await repo.list_by_conversation("conv-2")) == 1
+    async def test_update_multiple_fields(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            result = await repo.add("conv-1", title="原始", content="原始内容", priority="low")
+            await repo.update(result["id"], title="新标题", priority="high")
+            task = await repo.get(result["id"])
+            assert task is not None
+            assert task["title"] == "新标题"
+            assert task["priority"] == "high"
+            assert task["content"] == "原始内容"
+
+    @pytest.mark.asyncio
+    async def test_delete_by_conversation(self, session_factory):
+        async with session_factory() as session:
+            repo = TaskRepository(session)
+            await repo.add("conv-1", title="任务A")
+            await repo.add("conv-1", title="任务B")
+            assert len(await repo.list_by_conversation("conv-1")) == 2
+
+            await repo.delete_by_conversation("conv-1")
+            assert len(await repo.list_by_conversation("conv-1")) == 0
+
+    @pytest.mark.asyncio
+    async def test_isolated_conversations(self, session_factory):
+        async with session_factory() as session:
+            conv_repo = ConversationRepository(session)
+            await conv_repo.create("conv-2", title="conv2")
+            repo = TaskRepository(session)
+            await repo.add("conv-1", title="conv1任务")
+            await repo.add("conv-2", title="conv2任务")
+            assert len(await repo.list_by_conversation("conv-1")) == 1
+            assert len(await repo.list_by_conversation("conv-2")) == 1
 
 
 class TestTaskTools:

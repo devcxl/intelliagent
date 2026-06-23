@@ -8,7 +8,12 @@ from typing import Any, AsyncGenerator, Callable, Protocol, runtime_checkable
 
 from src.config.settings import get_settings
 from src.core.constants import build_history_context
-from src.db.manager import DatabaseManager
+from src.db.engine import create_engine, create_session_factory, init_db
+from src.db.repositories import (
+    ConversationRepository,
+    MessageRepository,
+    TaskRepository,
+)
 from src.runtime.agent_runtime import AgentRuntime
 from src.tools.task_tools import set_task_context
 
@@ -34,7 +39,8 @@ class ConversationOrchestrator:
     ) -> None:
         self._settings = settings or get_settings()
         db_url = self._settings.DATABASE_URL
-        self._db = DatabaseManager(db_url)
+        self._engine = create_engine(db_url)
+        self._session_factory = create_session_factory(self._engine)
         self._conversation_id: str | None = None
         self._is_new: bool = True
         self._warnings: list[str] = []
@@ -53,7 +59,7 @@ class ConversationOrchestrator:
         return self._warnings
 
     async def initialize(self) -> None:
-        await self._db.initialize()
+        await init_db(self._engine)
 
     async def setup_conversation(
         self,
@@ -64,49 +70,59 @@ class ConversationOrchestrator:
         self._warnings = []
         conversation_id: str
 
-        if session_id:
-            existing = await self._db.get_conversation(session_id)
-            if existing is None:
-                self._warnings.append(f"Conversation {session_id} 不存在，将创建新 Conversation。")
-                conversation_id = session_id
-                await self._db.create_conversation(conversation_id, title=task[:80], task=task)
-                self._is_new = True
+        async with self._session_factory() as session:
+            conv_repo = ConversationRepository(session)
+            msg_repo = MessageRepository(session)
+
+            if session_id:
+                existing = await conv_repo.get(session_id)
+                if existing is None:
+                    self._warnings.append(f"Conversation {session_id} 不存在，将创建新 Conversation。")
+                    conversation_id = session_id
+                    await conv_repo.create(conversation_id, title=task[:80], task=task)
+                    self._is_new = True
+                else:
+                    conversation_id = session_id
+                    await conv_repo.update(conversation_id, status="running")
+                    self._is_new = False
+            elif resume:
+                latest = await conv_repo.get_latest()
+                if latest:
+                    conversation_id = latest["id"]
+                    await conv_repo.update(conversation_id, status="running")
+                    self._is_new = False
+                else:
+                    self._warnings.append("没有历史 Conversation，将创建新 Conversation。")
+                    conversation_id = f"conv-{int(time.time() * 1000)}"
+                    await conv_repo.create(conversation_id, title=task[:80], task=task)
+                    self._is_new = True
             else:
-                conversation_id = session_id
-                await self._db.update_conversation(conversation_id, status="running")
-                self._is_new = False
-        elif resume:
-            latest = await self._db.get_latest_conversation()
-            if latest:
-                conversation_id = latest["id"]
-                await self._db.update_conversation(conversation_id, status="running")
-                self._is_new = False
-            else:
-                self._warnings.append("没有历史 Conversation，将创建新 Conversation。")
                 conversation_id = f"conv-{int(time.time() * 1000)}"
-                await self._db.create_conversation(conversation_id, title=task[:80], task=task)
+                await conv_repo.create(conversation_id, title=task[:80], task=task)
                 self._is_new = True
-        else:
-            conversation_id = f"conv-{int(time.time() * 1000)}"
-            await self._db.create_conversation(conversation_id, title=task[:80], task=task)
-            self._is_new = True
 
-        self._conversation_id = conversation_id
-        set_task_context(self._db, conversation_id)
+            self._conversation_id = conversation_id
+            set_task_context(self._session_factory, conversation_id)
 
-        history_messages = await self._db.get_messages(conversation_id)
-        history_context = build_history_context(history_messages)
-        return conversation_id, history_context
+            history_messages = await msg_repo.list_by_conversation(conversation_id)
+            history_context = build_history_context(history_messages)
+            return conversation_id, history_context
 
     async def save_message(self, role: str, content: str) -> None:
         if self._conversation_id:
-            await self._db.save_message(self._conversation_id, role, content)
+            async with self._session_factory() as session:
+                msg_repo = MessageRepository(session)
+                await msg_repo.save(self._conversation_id, role, content)
 
     async def list_conversations(self) -> list[dict[str, Any]]:
-        return await self._db.list_conversations()
+        async with self._session_factory() as session:
+            conv_repo = ConversationRepository(session)
+            return await conv_repo.list_all()
 
     async def get_message_count(self, conversation_id: str) -> int:
-        return len(await self._db.get_messages(conversation_id))
+        async with self._session_factory() as session:
+            msg_repo = MessageRepository(session)
+            return len(await msg_repo.list_by_conversation(conversation_id))
 
     async def execute(
         self,

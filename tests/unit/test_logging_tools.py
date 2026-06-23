@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from src.db.manager import DatabaseManager
+from src.db.engine import create_engine, create_session_factory, init_db
+from src.db.repositories import ConversationRepository
 from src.tools.file_tools import edit_file, read_file, write_file
 from src.tools.registry import _default_registry
 from src.tools.shell_tool import run_shell
@@ -22,12 +23,16 @@ class TestToolRegistryDebugLogs:
     @pytest.fixture(autouse=True)
     async def setup_task_context(self, tmp_path):
         db_path = tmp_path / "test.db"
-        db = DatabaseManager(str(db_path))
-        await db.initialize()
-        await db.create_conversation("conv-test", title="test", task="test")
-        set_task_context(db, "conv-test")
+        engine = create_engine(str(db_path))
+        await init_db(engine)
+        factory = create_session_factory(engine)
+        async with factory() as session:
+            conv_repo = ConversationRepository(session)
+            await conv_repo.create("conv-test", title="test", task="test")
+        set_task_context(factory, "conv-test")
         yield
-        set_task_context(None, None)  # type: ignore[arg-type]
+        set_task_context(None, None)
+        await engine.dispose()
 
     @pytest.mark.asyncio
     async def test_call_tool_logs_tool_name_and_args_len(self, caplog):

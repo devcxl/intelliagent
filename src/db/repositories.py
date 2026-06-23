@@ -1,68 +1,56 @@
-#!/usr/bin/env python3
-"""独立仓储类 — 每张表一个仓储，职责单一。"""
+"""ORM 仓储类 — 基于 SQLAlchemy AsyncSession。"""
 
 from __future__ import annotations
 
-import sqlite3
 import threading
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# ======================================================================
-# 内部工具函数
-# ======================================================================
-def _now() -> str:
-    """返回 ISO 格式的当前 UTC 时间字符串。
+from src.db.models import Conversation, Message, Task
 
-    Returns:
-        格式为 "YYYY-MM-DDTHH:MM:SS.ffffff+00:00" 的时间字符串。
-    """
-    return datetime.now(timezone.utc).isoformat()
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _now_ts() -> int:
-    """返回当前 UTC 时间戳（毫秒）。
-
-    Returns:
-        自 Unix 纪元以来的毫秒数。
-    """
     return int(datetime.now(timezone.utc).timestamp() * 1000)
 
 
-# 消息 ID 生成：线程安全计数器 + 时间戳
-# 保证同一毫秒内不碰撞，且格式确定可复现
+# ID 生成器
 _msg_id_counter = 0
 _msg_id_lock = threading.Lock()
 
 
 def _next_msg_id() -> str:
-    """生成下一条消息的唯一 ID。
-
-    格式为 "msg-{毫秒时间戳}-{递增序号}"，线程安全，保证同一毫秒内不碰撞。
-
-    Returns:
-        格式为 "msg-{ts}-{seq}" 的唯一消息 ID。
-    """
     global _msg_id_counter
     with _msg_id_lock:
         _msg_id_counter += 1
         return f"msg-{_now_ts()}-{_msg_id_counter:04d}"
 
 
+_task_id_counter = 0
+_task_id_lock = threading.Lock()
+
+
+def _next_task_id() -> str:
+    global _task_id_counter
+    with _task_id_lock:
+        _task_id_counter += 1
+        return f"task-{_now_ts()}-{_task_id_counter:04d}"
+
+
 # ======================================================================
 # ConversationRepository
 # ======================================================================
 class ConversationRepository:
-    """conversations 表 CRUD。"""
+    """conversations 表 CRUD — 基于 ORM。"""
 
-    def __init__(self, db_path: str) -> None:
-        """初始化 Conversation 仓储。
-
-        Args:
-            db_path: SQLite 数据库文件路径。
-        """
-        self.db_path = db_path
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
     async def create(
         self,
@@ -71,49 +59,22 @@ class ConversationRepository:
         task: str = "",
         status: str = "idle",
     ) -> dict[str, Any]:
-        """创建新 Conversation。
-
-        Args:
-            conversation_id: Conversation 唯一 ID。
-            title: 标题，默认为空字符串。
-            task: 任务描述，默认为空字符串。
-            status: 初始状态，默认 "idle"。
-
-        Returns:
-            包含 id 和 logs 字段的字典。
-        """
-        now = _now()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """INSERT INTO conversations (id, title, task, status, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (conversation_id, title, task, status, now, now),
-            )
+        conv = Conversation(id=conversation_id, title=title, task=task, status=status)
+        self._session.add(conv)
+        await self._session.commit()
         return {"id": conversation_id, "logs": []}
 
     async def get(self, conversation_id: str) -> dict[str, Any] | None:
-        """获取单个 Conversation。
-
-        Args:
-            conversation_id: Conversation ID。
-
-        Returns:
-            Conversation 字典，不存在时返回 None。
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT id, title, task, status, created_at, updated_at FROM conversations WHERE id = ?",
-                (conversation_id,),
-            ).fetchone()
-        if row is None:
+        conv = await self._session.get(Conversation, conversation_id)
+        if conv is None:
             return None
         return {
-            "id": row[0],
-            "title": row[1],
-            "task": row[2],
-            "status": row[3],
-            "created_at": row[4],
-            "updated_at": row[5],
+            "id": conv.id,
+            "title": conv.title,
+            "task": conv.task,
+            "status": conv.status,
+            "created_at": conv.created_at.isoformat() if conv.created_at else "",
+            "updated_at": conv.updated_at.isoformat() if conv.updated_at else "",
             "logs": [],
         }
 
@@ -124,75 +85,41 @@ class ConversationRepository:
         status: str | None = None,
         logs: list[dict[str, Any]] | None = None,
     ) -> bool:
-        """更新 Conversation 信息。
-
-        Args:
-            conversation_id: Conversation ID。
-            title: 新标题，None 表示不更新。
-            status: 新状态，None 表示不更新。
-            logs: 日志列表（当前未持久化到数据库），None 表示不更新。
-
-        Returns:
-            始终返回 True。
-        """
-        now = _now()
-        fields = []
-        values: list[Any] = []
-
+        conv = await self._session.get(Conversation, conversation_id)
+        if conv is None:
+            return False
         if title is not None:
-            fields.append("title = ?")
-            values.append(title)
+            conv.title = title
         if status is not None:
-            fields.append("status = ?")
-            values.append(status)
-
-        fields.append("updated_at = ?")
-        values.append(now)
-        values.append(conversation_id)
-
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                f"UPDATE conversations SET {', '.join(fields)} WHERE id = ?",
-                values,
-            )
+            conv.status = status
+        conv.updated_at = _now()
+        await self._session.commit()
         return True
 
     async def delete(self, conversation_id: str) -> bool:
-        """删除 Conversation 及关联的 messages 和 tasks。"""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
-            conn.execute("DELETE FROM tasks WHERE conversation_id = ?", (conversation_id,))
-            conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+        conv = await self._session.get(Conversation, conversation_id)
+        if conv is not None:
+            await self._session.delete(conv)
+            await self._session.commit()
         return True
 
     async def list_all(self) -> list[dict[str, Any]]:
-        """获取所有 Conversation 列表，按更新时间降序。
-
-        Returns:
-            Conversation 字典列表，按 updated_at 降序排列。
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT id, title, task, status, created_at, updated_at FROM conversations ORDER BY updated_at DESC"
-            ).fetchall()
+        result = await self._session.execute(
+            select(Conversation).order_by(Conversation.updated_at.desc())
+        )
         return [
             {
-                "id": r[0],
-                "title": r[1],
-                "task": r[2],
-                "status": r[3],
-                "created_at": r[4],
-                "updated_at": r[5],
+                "id": conv.id,
+                "title": conv.title,
+                "task": conv.task,
+                "status": conv.status,
+                "created_at": conv.created_at.isoformat() if conv.created_at else "",
+                "updated_at": conv.updated_at.isoformat() if conv.updated_at else "",
             }
-            for r in rows
+            for conv in result.scalars()
         ]
 
     async def get_latest(self) -> dict[str, Any] | None:
-        """获取最近更新的 Conversation。
-
-        Returns:
-            最近更新的 Conversation 字典，无记录时返回 None。
-        """
         conversations = await self.list_all()
         return conversations[0] if conversations else None
 
@@ -201,80 +128,43 @@ class ConversationRepository:
 # MessageRepository
 # ======================================================================
 class MessageRepository:
-    """messages 表 CRUD。"""
+    """messages 表 CRUD — 基于 ORM。"""
 
-    def __init__(self, db_path: str) -> None:
-        """初始化 Message 仓储。
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
-        Args:
-            db_path: SQLite 数据库文件路径。
-        """
-        self.db_path = db_path
-
-    async def save(
-        self,
-        conversation_id: str,
-        role: str,
-        content: str,
-    ) -> str:
-        """保存一条消息。
-
-        Args:
-            conversation_id: 目标 Conversation ID。
-            role: 消息角色（如 "user"、"assistant"、"system"）。
-            content: 消息正文。
-
-        Returns:
-            新生成的消息 ID。
-        """
+    async def save(self, conversation_id: str, role: str, content: str) -> str:
         msg_id = _next_msg_id()
-        now = _now()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """INSERT INTO messages (id, conversation_id, role, content, created_at)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (msg_id, conversation_id, role, content, now),
-            )
+        msg = Message(id=msg_id, conversation_id=conversation_id, role=role, content=content)
+        self._session.add(msg)
+        await self._session.commit()
         return msg_id
 
     async def list_by_conversation(self, conversation_id: str) -> list[dict[str, Any]]:
-        """获取某个 Conversation 的所有消息。
-
-        Args:
-            conversation_id: 目标 Conversation ID。
-
-        Returns:
-            消息列表，按创建时间升序排列。
-        """
-        with sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC",
-                (conversation_id,),
-            ).fetchall()
-        return [{"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]} for r in rows]
-
-
-# 任务 ID 生成
-_task_id_counter = 0
-_task_id_lock = threading.Lock()
-
-
-def _next_task_id() -> str:
-    """生成下一条任务的唯一 ID。"""
-    global _task_id_counter
-    with _task_id_lock:
-        _task_id_counter += 1
-        return f"task-{_now_ts()}-{_task_id_counter:04d}"
+        result = await self._session.execute(
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.asc())
+        )
+        return [
+            {
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat() if msg.created_at else "",
+            }
+            for msg in result.scalars()
+        ]
 
 
 # ======================================================================
 # TaskRepository
 # ======================================================================
 class TaskRepository:
-    """tasks 表 CRUD。"""
+    """tasks 表 CRUD — 基于 ORM。"""
 
-    def __init__(self, db_path: str) -> None:
-        self.db_path = db_path
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
     async def add(
         self,
@@ -286,48 +176,58 @@ class TaskRepository:
         sort_order: int = 0,
     ) -> dict[str, Any]:
         task_id = _next_task_id()
-        now = _now()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                """INSERT INTO tasks (id, conversation_id, title, content, parent_id, status, priority,
-                   sort_order, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
-                (task_id, conversation_id, title, content, parent_id, priority, sort_order, now, now),
-            )
+        task = Task(
+            id=task_id,
+            conversation_id=conversation_id,
+            title=title,
+            content=content,
+            parent_id=parent_id,
+            priority=priority,
+            sort_order=sort_order,
+        )
+        self._session.add(task)
+        await self._session.commit()
         return {"id": task_id, "status": "pending"}
 
     async def get(self, task_id: str) -> dict[str, Any] | None:
-        with sqlite3.connect(self.db_path) as conn:
-            row = conn.execute(
-                "SELECT id, conversation_id, title, content, parent_id, status, priority, "
-                "sort_order, created_at, updated_at, completed_at FROM tasks WHERE id = ?",
-                (task_id,),
-            ).fetchone()
-        if row is None:
+        task = await self._session.get(Task, task_id)
+        if task is None:
             return None
         return {
-            "id": row[0], "conversation_id": row[1], "title": row[2],
-            "content": row[3], "parent_id": row[4], "status": row[5],
-            "priority": row[6], "sort_order": row[7],
-            "created_at": row[8], "updated_at": row[9], "completed_at": row[10],
+            "id": task.id,
+            "conversation_id": task.conversation_id,
+            "title": task.title,
+            "content": task.content,
+            "parent_id": task.parent_id,
+            "status": task.status,
+            "priority": task.priority,
+            "sort_order": task.sort_order,
+            "created_at": task.created_at.isoformat() if task.created_at else "",
+            "updated_at": task.updated_at.isoformat() if task.updated_at else "",
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
         }
 
     async def list_by_conversation(self, conversation_id: str) -> list[dict[str, Any]]:
-        with sqlite3.connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT id, conversation_id, title, content, parent_id, status, priority, "
-                "sort_order, created_at, updated_at, completed_at FROM tasks "
-                "WHERE conversation_id = ? ORDER BY sort_order ASC, created_at ASC",
-                (conversation_id,),
-            ).fetchall()
+        result = await self._session.execute(
+            select(Task)
+            .where(Task.conversation_id == conversation_id)
+            .order_by(Task.sort_order.asc(), Task.created_at.asc())
+        )
         return [
             {
-                "id": r[0], "conversation_id": r[1], "title": r[2],
-                "content": r[3], "parent_id": r[4], "status": r[5],
-                "priority": r[6], "sort_order": r[7],
-                "created_at": r[8], "updated_at": r[9], "completed_at": r[10],
+                "id": t.id,
+                "conversation_id": t.conversation_id,
+                "title": t.title,
+                "content": t.content,
+                "parent_id": t.parent_id,
+                "status": t.status,
+                "priority": t.priority,
+                "sort_order": t.sort_order,
+                "created_at": t.created_at.isoformat() if t.created_at else "",
+                "updated_at": t.updated_at.isoformat() if t.updated_at else "",
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None,
             }
-            for r in rows
+            for t in result.scalars()
         ]
 
     async def update(
@@ -339,40 +239,29 @@ class TaskRepository:
         priority: str | None = None,
         sort_order: int | None = None,
     ) -> bool:
-        now = _now()
-        fields = []
-        values: list[Any] = []
-
+        task = await self._session.get(Task, task_id)
+        if task is None:
+            return False
         if title is not None:
-            fields.append("title = ?")
-            values.append(title)
+            task.title = title
         if content is not None:
-            fields.append("content = ?")
-            values.append(content)
+            task.content = content
         if status is not None:
-            fields.append("status = ?")
-            values.append(status)
+            task.status = status
             if status == "completed":
-                fields.append("completed_at = ?")
-                values.append(now)
+                task.completed_at = _now()
         if priority is not None:
-            fields.append("priority = ?")
-            values.append(priority)
+            task.priority = priority
         if sort_order is not None:
-            fields.append("sort_order = ?")
-            values.append(sort_order)
-
-        fields.append("updated_at = ?")
-        values.append(now)
-        values.append(task_id)
-
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                f"UPDATE tasks SET {', '.join(fields)} WHERE id = ?",
-                values,
-            )
+            task.sort_order = sort_order
+        task.updated_at = _now()
+        await self._session.commit()
         return True
 
     async def delete_by_conversation(self, conversation_id: str) -> None:
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM tasks WHERE conversation_id = ?", (conversation_id,))
+        result = await self._session.execute(
+            select(Task).where(Task.conversation_id == conversation_id)
+        )
+        for task in result.scalars():
+            await self._session.delete(task)
+        await self._session.commit()
