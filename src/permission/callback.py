@@ -4,7 +4,7 @@ import asyncio
 import json
 from typing import Any
 
-from src.types.permission import PermissionCallback
+from src.permission.types import PermissionCallback
 
 
 class CliCallback(PermissionCallback):

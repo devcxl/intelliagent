@@ -8,7 +8,7 @@ from src.skills.registry import SkillRegistry
 from src.tools.registry import _default_registry
 from src.types.llm import LLMClientProtocol
 from src.types.memory import MemoryProtocol
-from src.types.permission import (
+from src.permission import (
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )

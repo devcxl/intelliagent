@@ -4,9 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from src.core.permission_engine import PermissionEngine
 from src.core.react_engine import ReactEngine
-from src.runtime.permission_callback import CliCallback
+from src.permission import CliCallback, PermissionEngine
 
 
 class MockLLMClient:

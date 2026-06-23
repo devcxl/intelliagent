@@ -2,7 +2,7 @@
 
 from src.types.llm import LLMClientProtocol, LLMResponseProto
 from src.types.memory import MemoryProtocol
-from src.types.permission import Decision, PermissionAction, PermissionCallback
+from src.permission import Decision, PermissionAction, PermissionCallback
 
 __all__ = [
     "PermissionAction",

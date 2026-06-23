@@ -130,7 +130,7 @@ def test_agent_runtime_from_unified_config_uses_provider_fields(monkeypatch):
 
 def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
     """AgentRuntime 从 UnifiedConfig 构造时，权限引擎应使用 permissions 子模型。"""
-    from src.core.permission_engine import PermissionEngine
+    from src.permission import PermissionEngine
 
     config = UnifiedConfig.model_validate(
         {
@@ -154,7 +154,7 @@ def test_agent_runtime_from_unified_config_workspace(monkeypatch):
     """AgentRuntime 从 UnifiedConfig 构造时，workspace 应从配置读取。"""
     from pathlib import Path
 
-    from src.core.permission_engine import PermissionEngine
+    from src.permission import PermissionEngine
 
     config = UnifiedConfig.model_validate(
         {

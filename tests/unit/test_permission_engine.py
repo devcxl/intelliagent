@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.core.permission_engine import PermissionEngine, load_permission_engine
-from src.types.permission import PermissionAction
+from src.permission import PermissionAction, PermissionEngine, load_permission_engine
 
 # ============================================================================
 # 切片 1：PermissionAction 枚举 — ask 存在，prompt 已移除
