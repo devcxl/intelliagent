@@ -167,7 +167,7 @@ class TestReactEngineIterSteps:
             events.append(event)
 
         types = [e["type"] for e in events]
-        assert types == ["thought", "action", "observation", "thought", "answer"]
+        assert types == ["thought", "action", "observation", "answer"]
 
     @pytest.mark.asyncio
     async def test_iter_steps_max_steps(self, mock_engine):

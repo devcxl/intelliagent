@@ -22,10 +22,10 @@ class MockRegistry:
     def get_openai_tools(self):
         return []
 
-    async def call_tool(self, name: str, **kwargs):
-        fn = self.get_tool_fn(name)
+    async def call_tool(self, tool_name: str, **kwargs):
+        fn = self.get_tool_fn(tool_name)
         if fn is None:
-            return '{"status": "error", "error": "未知工具: ' + name + '", "code": "UNKNOWN_TOOL"}'
+            return '{"status": "error", "error": "未知工具: ' + tool_name + '", "code": "UNKNOWN_TOOL"}'
         return await fn(**kwargs)
 
 

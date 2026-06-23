@@ -115,7 +115,7 @@ class ReactEngine:
     # ------------------------------------------------------------------
 
     async def execute_tool(self, tool_call: dict[str, Any]) -> str:
-        name = tool_call.get("function", {}).get("name", "")
+        tool_name = tool_call.get("function", {}).get("name", "")
         args_raw = tool_call.get("function", {}).get("arguments", "{}")
 
         try:
@@ -124,12 +124,12 @@ class ReactEngine:
             args = {}
 
         if self._permission_engine:
-            decision = self._permission_engine.check(name, args)
+            decision = self._permission_engine.check(tool_name, args)
             if decision.action == "deny":
                 return json.dumps({"status": "error", "error": f"权限拒绝: {decision.reason}"}, ensure_ascii=False)
             if decision.action == "ask":
                 if self._permission_callback:
-                    approved = await self._permission_callback.on_prompt(name, args, decision.reason)
+                    approved = await self._permission_callback.on_prompt(tool_name, args, decision.reason)
                     if not approved:
                         return json.dumps({"status": "error", "error": "用户拒绝执行"}, ensure_ascii=False)
                 else:
@@ -138,10 +138,10 @@ class ReactEngine:
                         ensure_ascii=False,
                     )
 
-        result = await self._registry.call_tool(name, **args)
+        result = await self._registry.call_tool(tool_name=tool_name, **args)
 
         if self.memory:
-            self.memory.add_observation({"tool_name": name, "tool_args": args, "result": result})
+            self.memory.add_observation({"tool_name": tool_name, "tool_args": args, "result": result})
 
         return result
 
@@ -272,12 +272,6 @@ class ReactEngine:
 
             self.add_assistant_message(content=content, tool_calls=tool_calls)
 
-            yield {
-                "type": "thought",
-                "iteration": step,
-                "data": {"content": content, "has_tool_calls": bool(tool_calls)},
-            }
-
             if not tool_calls:
                 yield {
                     "type": "answer",
@@ -285,6 +279,12 @@ class ReactEngine:
                     "data": {"answer": content or ""},
                 }
                 return
+
+            yield {
+                "type": "thought",
+                "iteration": step,
+                "data": {"content": content, "has_tool_calls": True},
+            }
 
             for tc in tool_calls:
                 tool_name = tc["function"]["name"]

@@ -120,6 +120,6 @@ async def test_iter_steps_streaming(engine):
         events.append(event)
 
     types = [e["type"] for e in events]
-    assert types[0] == "thought"
+    assert types[0] == "answer"
     assert types[-1] == "answer"
     assert "4" in events[-1]["data"]["answer"]

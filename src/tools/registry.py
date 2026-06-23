@@ -147,20 +147,20 @@ class ToolRegistry:
         """
         return list(self._tools.keys())
 
-    async def call_tool(self, name: str, **kwargs) -> str:
+    async def call_tool(self, tool_name: str, **kwargs) -> str:
         """调用指定工具。
 
         Args:
-            name: 工具名称
+            tool_name: 工具名称
             **kwargs: 传递给工具函数的参数
 
         Returns:
             JSON 格式的工具执行结果
         """
-        if name not in self._tools:
-            return error_response(f"未知工具: {name}", "UNKNOWN_TOOL")
-        logger.debug("ToolRegistry - 调用工具 | tool=%s args_len=%d", name, len(kwargs))
-        tool = self._tools[name]
+        if tool_name not in self._tools:
+            return error_response(f"未知工具: {tool_name}", "UNKNOWN_TOOL")
+        logger.debug("ToolRegistry - 调用工具 | tool=%s args_len=%d", tool_name, len(kwargs))
+        tool = self._tools[tool_name]
         try:
             return await tool.function(**kwargs)
         except TypeError as e:
@@ -251,7 +251,11 @@ _default_registry.register(
         "id": {"type": "string", "description": "任务 ID", "required": True},
         "title": {"type": "string", "description": "新标题，空字符串不更新", "required": False},
         "content": {"type": "string", "description": "新内容，空字符串不更新", "required": False},
-        "status": {"type": "string", "description": "新状态（pending/in_progress/completed/cancelled），空字符串不更新", "required": False},
+        "status": {
+            "type": "string",
+            "description": "新状态（pending/in_progress/completed/cancelled），空字符串不更新",
+            "required": False,
+        },
         "priority": {"type": "string", "description": "新优先级，空字符串不更新", "required": False},
     },
 )
