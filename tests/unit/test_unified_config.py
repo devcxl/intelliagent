@@ -4,6 +4,7 @@
 import json
 
 import pytest
+
 from src.config.unified_config import (
     DatabaseConfig,
     PermissionRule,
@@ -11,7 +12,6 @@ from src.config.unified_config import (
     UnifiedConfig,
     WorkspaceConfig,
 )
-
 
 # ============================================================================
 # 子模型默认值

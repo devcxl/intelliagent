@@ -2,12 +2,11 @@
 """ProviderRegistry 单元测试。"""
 
 import json
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from src.config.provider_registry import CACHE_FILE, ProviderRegistry
+from src.config.provider_registry import ProviderRegistry
 
 SAMPLE_DATA = {
     "openai": {

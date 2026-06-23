@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import ssl
 import urllib.request
 from pathlib import Path

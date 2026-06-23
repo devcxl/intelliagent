@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 DEFAULT_SYSTEM_PROMPT = """你是一个代码开发助手。"""
 
 DEFAULT_AGENT_PROMPT = """你的任务是理解用户需求，使用可用工具完成任务。

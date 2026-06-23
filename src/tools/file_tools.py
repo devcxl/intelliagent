@@ -12,7 +12,7 @@ try:
 except ImportError:
     HAS_AIOFILES = False
 
-FILE_READ_MAX_SIZE = 50000   # 文件读取最大字符数
+FILE_READ_MAX_SIZE = 50000  # 文件读取最大字符数
 FILE_WRITE_MAX_SIZE = 1000000  # 文件写入最大字符数（1MB）
 
 
