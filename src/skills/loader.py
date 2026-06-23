@@ -3,14 +3,55 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence
 
 import yaml
 
 from src.skills.model import SkillDef, SkillFrontmatter
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_frontmatter_lines(text: str) -> dict[str, Any] | None:
+    """手动逐行解析 YAML frontmatter，仅支持已知字段。
+
+    当 yaml.safe_load 失败时用作 fallback。支持：
+      - key: value（单行标量）
+      - metadata: 以缩进为 key: value 的子块
+
+    不支持列表、嵌套结构、多行值。
+    """
+    result: dict[str, Any] = {}
+    known_keys = {"name", "description", "license", "compatibility", "metadata"}
+    meta_prefix = "metadata"
+
+    for line in text.split("\n"):
+        stripped = line.rstrip()
+        if not stripped:
+            continue
+
+        # 检查 metadata 缩进子行
+        if stripped.startswith("  ") and meta_prefix in result:
+            m = re.match(r"  (\S+):\s*(.*)", stripped)
+            if m:
+                result.setdefault(meta_prefix, {})[m.group(1)] = m.group(2).strip()
+            continue
+
+        m = re.match(r"(\S+):\s*(.*)", stripped)
+        if not m:
+            continue
+
+        key = m.group(1)
+        if key not in known_keys:
+            continue
+        if key == meta_prefix:
+            result[key] = {}
+        else:
+            result[key] = m.group(2).strip()
+
+    return result
 
 
 def _parse_skill_file(filepath: Path) -> SkillDef | None:
@@ -37,9 +78,12 @@ def _parse_skill_file(filepath: Path) -> SkillDef | None:
 
     try:
         raw = yaml.safe_load(yaml_block)
-    except yaml.YAMLError as e:
-        logger.warning("SKILL.md YAML 解析失败: %s, error=%s", filepath, e)
-        return None
+    except yaml.YAMLError:
+        logger.debug("SKILL.md YAML 解析失败，尝试手动 fallback: %s", filepath)
+        raw = _parse_frontmatter_lines(yaml_block)
+        if raw is None:
+            logger.warning("SKILL.md YAML fallback 也失败: %s", filepath)
+            return None
 
     if not isinstance(raw, dict):
         logger.warning("SKILL.md frontmatter 不是对象: %s", filepath)
