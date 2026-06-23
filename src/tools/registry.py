@@ -6,7 +6,7 @@ from typing import Any, Callable, Coroutine
 from src.utils.logger import logger
 
 from .file_tools import edit_file, read_file, write_file
-from .response import error_response, success_response
+from .response import error_response
 from .shell_tool import run_shell
 from .task_tools import task_add, task_finish, task_update, task_write
 
@@ -288,5 +288,88 @@ _default_registry.register(
     },
 )
 
+# agent-team 工具 — Agent 间通信与团队管理
+
+
+def _register_agent_team_tools() -> None:
+    """惰性注册 agent-team 工具，避免循环引用。
+
+    agent_team_tools → src.core.agent_team → ReactEngine → _default_registry
+    的循环依赖要求在 _default_registry 完全初始化后才能导入 agent_team_tools。
+    """
+    from .agent_team_tools import (
+        create_agent,
+        delete_agent,
+        get_contact_detail,
+        get_contacts,
+        receive_message,
+        send_message,
+    )
+
+    _default_registry.register(
+        fn=send_message,
+        name="send_message",
+        description="向指定 Agent 发送消息。需要目标 Agent ID 和消息内容。发送方身份由系统上下文自动确定。",
+        parameters={
+            "to_agent_id": {"type": "string", "description": "目标 Agent ID", "required": True},
+            "content": {"type": "string", "description": "消息内容", "required": True},
+        },
+    )
+
+    _default_registry.register(
+        fn=receive_message,
+        name="receive_message",
+        description="接收发送给当前 Agent 的消息（收件箱）。返回的消息会自动标记为已读。支持分页和未读过滤。",
+        parameters={
+            "limit": {"type": "integer", "description": "返回消息数量上限，默认 20", "required": False},
+            "offset": {"type": "integer", "description": "分页偏移量，默认 0", "required": False},
+            "unread_only": {"type": "boolean", "description": "仅返回未读消息，默认 false", "required": False},
+        },
+    )
+
+    _default_registry.register(
+        fn=get_contacts,
+        name="get_contacts",
+        description="获取 Agent 通讯录列表。返回所有 Agent（排除当前 Agent），可按在线状态筛选。",
+        parameters={
+            "status": {
+                "type": "string",
+                "description": "按状态筛选：online / offline / busy。不传则返回全部。",
+                "required": False,
+            },
+        },
+    )
+
+    _default_registry.register(
+        fn=get_contact_detail,
+        name="get_contact_detail",
+        description="获取指定 Agent 的详细信息，包括名称、描述、状态等。",
+        parameters={
+            "agent_id": {"type": "string", "description": "Agent ID", "required": True},
+        },
+    )
+
+    _default_registry.register(
+        fn=create_agent,
+        name="create_agent",
+        description="创建一个新的 Agent。Agent ID 由系统自动生成，只需提供名称、描述和系统 Prompt。",
+        parameters={
+            "name": {"type": "string", "description": "Agent 名称（必须唯一）", "required": True},
+            "desc": {"type": "string", "description": "Agent 描述", "required": False},
+            "prompt": {"type": "string", "description": "Agent 系统 Prompt", "required": False},
+        },
+    )
+
+    _default_registry.register(
+        fn=delete_agent,
+        name="delete_agent",
+        description="删除指定 Agent。执行软删除（状态标记为 deleted），历史消息保留。",
+        parameters={
+            "agent_id": {"type": "string", "description": "要删除的 Agent ID", "required": True},
+        },
+    )
+
+
+_register_agent_team_tools()
 
 __all__ = ["ToolDef", "ToolFn", "ToolRegistry", "_default_registry"]
