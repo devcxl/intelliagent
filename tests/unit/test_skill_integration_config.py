@@ -5,7 +5,6 @@ from pathlib import Path
 from src.config.unified_config import SkillsConfig, UnifiedConfig
 from src.core.permission_engine import PermissionEngine
 
-
 # ============================================================================
 # SkillsConfig
 # ============================================================================
@@ -40,9 +39,7 @@ def test_unified_config_has_skills():
 def test_unified_config_load_with_skills(tmp_path):
     """从 JSON 加载时 skills 配置被正确解析。"""
     cfg_file = tmp_path / "test-config.json"
-    cfg_file.write_text(
-        '{"skills": {"enabled": false, "project_paths": ["custom/path"]}}'
-    )
+    cfg_file.write_text('{"skills": {"enabled": false, "project_paths": ["custom/path"]}}')
     uc = UnifiedConfig.load(cfg_file)
     assert uc.skills.enabled is False
     assert uc.skills.project_paths == ["custom/path"]

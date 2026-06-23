@@ -39,9 +39,7 @@ async def test_allow_executes_directly():
     engine = _make_engine(
         [("run_shell", "allow")],
     )
-    result = await engine.execute_tool(
-        {"function": {"name": "run_shell", "arguments": '{"cmd": "ls"}'}}
-    )
+    result = await engine.execute_tool({"function": {"name": "run_shell", "arguments": '{"cmd": "ls"}'}})
     assert "success" in result
 
 
@@ -50,9 +48,7 @@ async def test_deny_blocks():
     engine = _make_engine(
         [("run_shell", "deny")],
     )
-    result = await engine.execute_tool(
-        {"function": {"name": "run_shell", "arguments": '{"cmd": "rm -rf /"}'}}
-    )
+    result = await engine.execute_tool({"function": {"name": "run_shell", "arguments": '{"cmd": "rm -rf /"}'}})
     assert "权限拒绝" in result
     assert "error" in result
 
@@ -65,9 +61,7 @@ async def test_ask_approved_executes(monkeypatch):
         [("run_shell", "ask")],
         callback=cb,
     )
-    result = await engine.execute_tool(
-        {"function": {"name": "run_shell", "arguments": '{"cmd": "rm -rf /"}'}}
-    )
+    result = await engine.execute_tool({"function": {"name": "run_shell", "arguments": '{"cmd": "rm -rf /"}'}})
     assert "success" in result
 
 
@@ -79,9 +73,7 @@ async def test_ask_rejected_blocks(monkeypatch):
         [("run_shell", "ask")],
         callback=cb,
     )
-    result = await engine.execute_tool(
-        {"function": {"name": "run_shell", "arguments": '{"cmd": "ls"}'}}
-    )
+    result = await engine.execute_tool({"function": {"name": "run_shell", "arguments": '{"cmd": "ls"}'}})
     assert "用户拒绝执行" in result
 
 
@@ -91,9 +83,7 @@ async def test_no_permission_engine_executes_directly():
         llm_client=MockLLMClient(),
         tools_registry=MockRegistry(),
     )
-    result = await engine.execute_tool(
-        {"function": {"name": "run_shell", "arguments": '{"cmd": "ls"}'}}
-    )
+    result = await engine.execute_tool({"function": {"name": "run_shell", "arguments": '{"cmd": "ls"}'}})
     assert "success" in result
 
 
@@ -105,9 +95,7 @@ async def test_path_in_workspace_allows(tmp_path):
         [("read *", "allow")],
         workspace=tmp_path,
     )
-    result = await engine.execute_tool(
-        {"function": {"name": "read_file", "arguments": f'{{"path": "{test_file}"}}'}}
-    )
+    result = await engine.execute_tool({"function": {"name": "read_file", "arguments": f'{{"path": "{test_file}"}}'}})
     assert "success" in result
 
 
@@ -117,7 +105,5 @@ async def test_path_outside_workspace_denies(tmp_path):
         [],
         workspace=tmp_path,
     )
-    result = await engine.execute_tool(
-        {"function": {"name": "read_file", "arguments": '{"path": "/etc/passwd"}'}}
-    )
+    result = await engine.execute_tool({"function": {"name": "read_file", "arguments": '{"path": "/etc/passwd"}'}})
     assert "权限拒绝" in result

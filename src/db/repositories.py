@@ -158,8 +158,7 @@ class ConversationRepository:
         return True
 
     async def delete(self, conversation_id: str) -> bool:
-        """删除 Conversation 及关联的 messages。
-        """
+        """删除 Conversation 及关联的 messages。"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
             conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
@@ -252,6 +251,3 @@ class MessageRepository:
                 (conversation_id,),
             ).fetchall()
         return [{"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]} for r in rows]
-
-
-

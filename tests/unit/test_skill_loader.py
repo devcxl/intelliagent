@@ -44,20 +44,10 @@ def skill_dirs(tmp_path: Path) -> dict[str, Path]:
     # 同名 skill（项目级应优先）
     (project / "duplicate").mkdir()
     (project / "duplicate" / "SKILL.md").write_text(
-        "---\n"
-        "name: duplicate\n"
-        "description: project level\n"
-        "---\n"
-        "Project version."
+        "---\nname: duplicate\ndescription: project level\n---\nProject version."
     )
     (user / "duplicate").mkdir()
-    (user / "duplicate" / "SKILL.md").write_text(
-        "---\n"
-        "name: duplicate\n"
-        "description: user level\n"
-        "---\n"
-        "User version."
-    )
+    (user / "duplicate" / "SKILL.md").write_text("---\nname: duplicate\ndescription: user level\n---\nUser version.")
 
     return {"project": project, "user": user}
 
@@ -120,12 +110,7 @@ def test_missing_name_or_description_skipped(tmp_path):
     """缺少 name 或 description 的 skill 被跳过。"""
     d = tmp_path / "skills" / "no-name"
     d.mkdir(parents=True)
-    (d / "SKILL.md").write_text(
-        "---\n"
-        "description: no name here\n"
-        "---\n"
-        "Body."
-    )
+    (d / "SKILL.md").write_text("---\ndescription: no name here\n---\nBody.")
     skills = SkillLoader.load(
         project_paths=[tmp_path / "skills"],
         user_paths=[],
@@ -147,13 +132,7 @@ def test_recursive_discovery(tmp_path):
     """递归扫描嵌套目录结构中的 SKILL.md。"""
     nested = tmp_path / ".agents" / "skills" / "category" / "nested-skill"
     nested.mkdir(parents=True)
-    (nested / "SKILL.md").write_text(
-        "---\n"
-        "name: nested-skill\n"
-        "description: Nested in category\n"
-        "---\n"
-        "# Nested skill"
-    )
+    (nested / "SKILL.md").write_text("---\nname: nested-skill\ndescription: Nested in category\n---\n# Nested skill")
     skills = SkillLoader.load(
         project_paths=[tmp_path / ".agents" / "skills"],
         user_paths=[],
@@ -166,12 +145,7 @@ def test_invalid_yaml_syntax_skipped(tmp_path):
     """YAML 语法错误的 SKILL.md 被跳过。"""
     d = tmp_path / "skills" / "bad-yaml"
     d.mkdir(parents=True)
-    (d / "SKILL.md").write_text(
-        "---\n"
-        "name: [broken: syntax\n"
-        "---\n"
-        "Body."
-    )
+    (d / "SKILL.md").write_text("---\nname: [broken: syntax\n---\nBody.")
     skills = SkillLoader.load(
         project_paths=[tmp_path / "skills"],
         user_paths=[],
@@ -183,13 +157,7 @@ def test_frontmatter_is_not_object_skipped(tmp_path):
     """frontmatter 内容不是对象时跳过。"""
     d = tmp_path / "skills" / "bad-fm"
     d.mkdir(parents=True)
-    (d / "SKILL.md").write_text(
-        "---\n"
-        "- item1\n"
-        "- item2\n"
-        "---\n"
-        "Body."
-    )
+    (d / "SKILL.md").write_text("---\n- item1\n- item2\n---\nBody.")
     skills = SkillLoader.load(
         project_paths=[tmp_path / "skills"],
         user_paths=[],

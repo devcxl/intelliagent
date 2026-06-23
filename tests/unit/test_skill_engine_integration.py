@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
 from src.core.react_engine import ReactEngine

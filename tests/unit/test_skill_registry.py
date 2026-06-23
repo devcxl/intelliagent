@@ -64,7 +64,7 @@ def test_generate_available_skills_xml():
 def test_generate_xml_with_special_chars():
     """XML 特殊字符被正确转义。"""
     reg = SkillRegistry()
-    reg.register(_make_skill("test", "Use foo & bar < baz > \"qux\""))
+    reg.register(_make_skill("test", 'Use foo & bar < baz > "qux"'))
     xml = reg.generate_available_skills_xml()
     assert "&amp;" in xml
     assert "&lt;" in xml

@@ -77,10 +77,7 @@ class ReactEngine:
         content = DEFAULT_SYSTEM_PROMPT
         if self._skill_registry and self._skill_registry.list_names():
             xml = self._skill_registry.generate_available_skills_xml()
-            content += (
-                "\n\n" + xml + "\n\n"
-                "当任务匹配某个 skill 的描述时，使用 skill 工具加载其完整指令。"
-            )
+            content += "\n\n" + xml + "\n\n当任务匹配某个 skill 的描述时，使用 skill 工具加载其完整指令。"
         return {"role": "system", "content": content}
 
     def _check_token_limit(self) -> bool:
@@ -97,8 +94,8 @@ class ReactEngine:
         system = self.messages[0] if self.messages and self.messages[0]["role"] == "system" else None
         kept = [system] if system else []
 
-        recent = self.messages[-6:] if len(self.messages) > 6 else self.messages[-len(self.messages):]
-        middle = self.messages[len(kept):-len(recent)] if len(self.messages) > len(kept) + len(recent) else []
+        recent = self.messages[-6:] if len(self.messages) > 6 else self.messages[-len(self.messages) :]
+        middle = self.messages[len(kept) : -len(recent)] if len(self.messages) > len(kept) + len(recent) else []
 
         if middle:
             prompt = "请将以下对话压缩为一段简洁的中文摘要：\n\n" + json.dumps(middle, ensure_ascii=False)
@@ -136,7 +133,10 @@ class ReactEngine:
                     if not approved:
                         return json.dumps({"status": "error", "error": "用户拒绝执行"}, ensure_ascii=False)
                 else:
-                    return json.dumps({"status": "error", "error": f"需要确认但无回调: {decision.reason}"}, ensure_ascii=False)
+                    return json.dumps(
+                        {"status": "error", "error": f"需要确认但无回调: {decision.reason}"},
+                        ensure_ascii=False,
+                    )
 
         fn = self._registry.get_tool_fn(name)
         if fn is None:
@@ -184,7 +184,8 @@ class ReactEngine:
                     total_cached += cached
 
             content = getattr(response, "content", None)
-            tool_calls = _to_tool_call_list(getattr(response, "tool_calls", None) or []) if getattr(response, "tool_calls", None) else None
+            raw_tc = getattr(response, "tool_calls", None)
+            tool_calls = _to_tool_call_list(raw_tc) if raw_tc else None
 
             self.add_assistant_message(content=content, tool_calls=tool_calls)
 
@@ -273,7 +274,8 @@ class ReactEngine:
                 self.total_tokens += getattr(usage, "total_tokens", 0) or 0
 
             content = getattr(response, "content", None)
-            tool_calls = _to_tool_call_list(getattr(response, "tool_calls", None) or []) if getattr(response, "tool_calls", None) else None
+            raw_tc = getattr(response, "tool_calls", None)
+            tool_calls = _to_tool_call_list(raw_tc) if raw_tc else None
 
             self.add_assistant_message(content=content, tool_calls=tool_calls)
 

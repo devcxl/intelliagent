@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from src.runtime.agent_runtime import AgentRuntime
 
@@ -32,11 +31,7 @@ async def test_runtime_create_engine_with_skills(tmp_path):
     skill_dir = tmp_path / ".agents" / "skills" / "test-skill"
     skill_dir.mkdir(parents=True)
     (skill_dir / "SKILL.md").write_text(
-        "---\n"
-        "name: test-skill\n"
-        "description: A test skill\n"
-        "---\n"
-        "# Test Skill\n\nInstructions."
+        "---\nname: test-skill\ndescription: A test skill\n---\n# Test Skill\n\nInstructions."
     )
 
     config = MagicMock()

@@ -21,6 +21,7 @@ class ToolDef:
         function: 异步工具函数
         parameters: 参数定义字典，key 为参数名，value 为包含 type/description/required 的字典
     """
+
     name: str
     description: str
     function: ToolFn
@@ -101,6 +102,7 @@ class ToolRegistry:
         Returns:
             装饰器函数
         """
+
         def decorator(fn: ToolFn) -> ToolFn:
             self.register(fn, name, description, parameters)
             return fn
