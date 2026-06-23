@@ -158,9 +158,10 @@ class ConversationRepository:
         return True
 
     async def delete(self, conversation_id: str) -> bool:
-        """删除 Conversation 及关联的 messages。"""
+        """删除 Conversation 及关联的 messages 和 tasks。"""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
+            conn.execute("DELETE FROM tasks WHERE conversation_id = ?", (conversation_id,))
             conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
         return True
 
@@ -251,3 +252,127 @@ class MessageRepository:
                 (conversation_id,),
             ).fetchall()
         return [{"id": r[0], "role": r[1], "content": r[2], "created_at": r[3]} for r in rows]
+
+
+# 任务 ID 生成
+_task_id_counter = 0
+_task_id_lock = threading.Lock()
+
+
+def _next_task_id() -> str:
+    """生成下一条任务的唯一 ID。"""
+    global _task_id_counter
+    with _task_id_lock:
+        _task_id_counter += 1
+        return f"task-{_now_ts()}-{_task_id_counter:04d}"
+
+
+# ======================================================================
+# TaskRepository
+# ======================================================================
+class TaskRepository:
+    """tasks 表 CRUD。"""
+
+    def __init__(self, db_path: str) -> None:
+        self.db_path = db_path
+
+    async def add(
+        self,
+        conversation_id: str,
+        title: str,
+        content: str = "",
+        parent_id: str | None = None,
+        priority: str = "medium",
+        sort_order: int = 0,
+    ) -> dict[str, Any]:
+        task_id = _next_task_id()
+        now = _now()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """INSERT INTO tasks (id, conversation_id, title, content, parent_id, status, priority,
+                   sort_order, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)""",
+                (task_id, conversation_id, title, content, parent_id, priority, sort_order, now, now),
+            )
+        return {"id": task_id, "status": "pending"}
+
+    async def get(self, task_id: str) -> dict[str, Any] | None:
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT id, conversation_id, title, content, parent_id, status, priority, "
+                "sort_order, created_at, updated_at, completed_at FROM tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0], "conversation_id": row[1], "title": row[2],
+            "content": row[3], "parent_id": row[4], "status": row[5],
+            "priority": row[6], "sort_order": row[7],
+            "created_at": row[8], "updated_at": row[9], "completed_at": row[10],
+        }
+
+    async def list_by_conversation(self, conversation_id: str) -> list[dict[str, Any]]:
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, conversation_id, title, content, parent_id, status, priority, "
+                "sort_order, created_at, updated_at, completed_at FROM tasks "
+                "WHERE conversation_id = ? ORDER BY sort_order ASC, created_at ASC",
+                (conversation_id,),
+            ).fetchall()
+        return [
+            {
+                "id": r[0], "conversation_id": r[1], "title": r[2],
+                "content": r[3], "parent_id": r[4], "status": r[5],
+                "priority": r[6], "sort_order": r[7],
+                "created_at": r[8], "updated_at": r[9], "completed_at": r[10],
+            }
+            for r in rows
+        ]
+
+    async def update(
+        self,
+        task_id: str,
+        title: str | None = None,
+        content: str | None = None,
+        status: str | None = None,
+        priority: str | None = None,
+        sort_order: int | None = None,
+    ) -> bool:
+        now = _now()
+        fields = []
+        values: list[Any] = []
+
+        if title is not None:
+            fields.append("title = ?")
+            values.append(title)
+        if content is not None:
+            fields.append("content = ?")
+            values.append(content)
+        if status is not None:
+            fields.append("status = ?")
+            values.append(status)
+            if status == "completed":
+                fields.append("completed_at = ?")
+                values.append(now)
+        if priority is not None:
+            fields.append("priority = ?")
+            values.append(priority)
+        if sort_order is not None:
+            fields.append("sort_order = ?")
+            values.append(sort_order)
+
+        fields.append("updated_at = ?")
+        values.append(now)
+        values.append(task_id)
+
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                f"UPDATE tasks SET {', '.join(fields)} WHERE id = ?",
+                values,
+            )
+        return True
+
+    async def delete_by_conversation(self, conversation_id: str) -> None:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM tasks WHERE conversation_id = ?", (conversation_id,))

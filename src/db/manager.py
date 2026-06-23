@@ -10,6 +10,7 @@ from typing import Any
 from src.db.repositories import (
     ConversationRepository,
     MessageRepository,
+    TaskRepository,
 )
 
 
@@ -30,6 +31,7 @@ class DatabaseManager:
         self.db_path = db_path
         self.conversations = ConversationRepository(db_path)
         self.messages = MessageRepository(db_path)
+        self.tasks = TaskRepository(db_path)
 
     # ------------------------------------------------------------------
     # 初始化
@@ -155,6 +157,37 @@ class DatabaseManager:
         return await self.messages.list_by_conversation(conversation_id)
 
     # ------------------------------------------------------------------
+    # 任务（Task）CRUD（委托）
+    # ------------------------------------------------------------------
+    async def add_task(
+        self,
+        conversation_id: str,
+        title: str,
+        content: str = "",
+        parent_id: str | None = None,
+        priority: str = "medium",
+        sort_order: int = 0,
+    ) -> dict[str, Any]:
+        return await self.tasks.add(conversation_id, title, content, parent_id, priority, sort_order)
+
+    async def get_task(self, task_id: str) -> dict[str, Any] | None:
+        return await self.tasks.get(task_id)
+
+    async def list_tasks(self, conversation_id: str) -> list[dict[str, Any]]:
+        return await self.tasks.list_by_conversation(conversation_id)
+
+    async def update_task(
+        self,
+        task_id: str,
+        title: str | None = None,
+        content: str | None = None,
+        status: str | None = None,
+        priority: str | None = None,
+        sort_order: int | None = None,
+    ) -> bool:
+        return await self.tasks.update(task_id, title, content, status, priority, sort_order)
+
+    # ------------------------------------------------------------------
     # 便捷查询
     # ------------------------------------------------------------------
     async def get_latest_conversation(self) -> dict[str, Any] | None:
@@ -184,6 +217,22 @@ CREATE TABLE IF NOT EXISTS messages (
     tool_args TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    parent_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    priority TEXT NOT NULL DEFAULT 'medium',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (parent_id) REFERENCES tasks(id)
 );
 """
 

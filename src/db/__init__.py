@@ -5,11 +5,13 @@ from src.db.manager import DatabaseManager, resolve_sqlite_database_path
 from src.db.repositories import (
     ConversationRepository,
     MessageRepository,
+    TaskRepository,
 )
 
 __all__ = [
     "DatabaseManager",
     "ConversationRepository",
     "MessageRepository",
+    "TaskRepository",
     "resolve_sqlite_database_path",
 ]

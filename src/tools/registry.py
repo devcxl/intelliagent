@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any, Callable, Coroutine
 
@@ -9,6 +8,7 @@ from src.utils.logger import logger
 from .file_tools import edit_file, read_file, write_file
 from .response import error_response, success_response
 from .shell_tool import run_shell
+from .task_tools import task_add, task_finish, task_update, task_write
 
 ToolFn = Callable[..., Coroutine[Any, Any, str]]
 
@@ -215,30 +215,53 @@ _default_registry.register(
     },
 )
 
-# todo_write — 自包含工具，直接内联注册
-
-
-async def _todo_write_tool(todos: str) -> str:
-    """创建和更新任务列表的工具封装。"""
-    try:
-        items = json.loads(todos)
-        if not isinstance(items, list):
-            return error_response("todos 必须是 JSON 数组", "INVALID_PARAMETERS")
-        return success_response({"todos": items, "count": len(items)})
-    except json.JSONDecodeError as e:
-        return error_response(f"todos JSON 解析失败: {e}", "INVALID_PARAMETERS")
+# task 工具 — 任务 CRUD，持久化到 SQLite
 
 
 _default_registry.register(
-    fn=_todo_write_tool,
-    name="todo_write",
-    description="创建和更新结构化任务列表，用于跟踪多步骤工作的进度",
+    fn=task_write,
+    name="task_write",
+    description="批量创建任务列表，用于跟踪多步骤工作的进度。每项含 title(必填)/content/priority/parent_id",
     parameters={
-        "todos": {
+        "tasks": {
             "type": "string",
-            "description": "JSON 字符串，任务数组，每项含 content/status/priority 字段",
+            "description": "JSON 字符串，任务数组，每项含 title/content/priority/parent_id 字段",
             "required": True,
         },
+    },
+)
+
+_default_registry.register(
+    fn=task_add,
+    name="task_add",
+    description="创建单条任务",
+    parameters={
+        "title": {"type": "string", "description": "任务标题", "required": True},
+        "content": {"type": "string", "description": "任务详细描述", "required": False},
+        "priority": {"type": "string", "description": "优先级（high/medium/low），默认 medium", "required": False},
+        "parent_id": {"type": "string", "description": "父任务 ID，空字符串为顶级任务", "required": False},
+    },
+)
+
+_default_registry.register(
+    fn=task_update,
+    name="task_update",
+    description="更新单条任务，只更新传入的非空字段",
+    parameters={
+        "id": {"type": "string", "description": "任务 ID", "required": True},
+        "title": {"type": "string", "description": "新标题，空字符串不更新", "required": False},
+        "content": {"type": "string", "description": "新内容，空字符串不更新", "required": False},
+        "status": {"type": "string", "description": "新状态（pending/in_progress/completed/cancelled），空字符串不更新", "required": False},
+        "priority": {"type": "string", "description": "新优先级，空字符串不更新", "required": False},
+    },
+)
+
+_default_registry.register(
+    fn=task_finish,
+    name="task_finish",
+    description="标记任务为已完成",
+    parameters={
+        "id": {"type": "string", "description": "任务 ID", "required": True},
     },
 )
 

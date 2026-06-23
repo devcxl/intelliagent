@@ -10,6 +10,7 @@ from src.config.settings import get_settings
 from src.core.constants import build_history_context
 from src.db.manager import DatabaseManager
 from src.runtime.agent_runtime import AgentRuntime
+from src.tools.task_tools import set_task_context
 
 
 @runtime_checkable
@@ -91,6 +92,7 @@ class ConversationOrchestrator:
             self._is_new = True
 
         self._conversation_id = conversation_id
+        set_task_context(self._db, conversation_id)
 
         history_messages = await self._db.get_messages(conversation_id)
         history_context = build_history_context(history_messages)

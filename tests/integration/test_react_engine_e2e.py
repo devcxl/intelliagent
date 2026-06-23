@@ -82,10 +82,10 @@ async def test_tool_call_shell(engine):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_todo_write_and_plan(engine):
-    """TodoWrite 工具：任务规划。"""
+async def test_task_write_and_plan(engine):
+    """task_write 工具：任务规划。"""
     result = await engine.run(
-        "用 todo_write 工具列出以下任务的步骤，然后告诉我计划是什么：\n"
+        "用 task_write 工具列出以下任务的步骤，然后告诉我计划是什么：\n"
         "任务：创建一个 Python 脚本来计算斐波那契数列前 10 项\n"
         "只需要列出计划，不需要实际执行。"
     )

@@ -11,20 +11,32 @@ from pathlib import Path
 
 import pytest
 
+from src.db.manager import DatabaseManager
 from src.tools.file_tools import edit_file, read_file, write_file
 from src.tools.registry import _default_registry
 from src.tools.shell_tool import run_shell
+from src.tools.task_tools import set_task_context
 
 
 class TestToolRegistryDebugLogs:
+    @pytest.fixture(autouse=True)
+    async def setup_task_context(self, tmp_path):
+        db_path = tmp_path / "test.db"
+        db = DatabaseManager(str(db_path))
+        await db.initialize()
+        await db.create_conversation("conv-test", title="test", task="test")
+        set_task_context(db, "conv-test")
+        yield
+        set_task_context(None, None)  # type: ignore[arg-type]
+
     @pytest.mark.asyncio
     async def test_call_tool_logs_tool_name_and_args_len(self, caplog):
         """ToolRegistry.call_tool() 输出 tool_name 和 args_len"""
         caplog.set_level(logging.DEBUG, logger="intelliagent")
-        await _default_registry.call_tool("todo_write", todos='[{"content":"test","status":"pending"}]')
+        await _default_registry.call_tool("task_write", tasks='[{"title":"test","priority":"high"}]')
 
         assert "ToolRegistry - 调用工具" in caplog.text
-        assert "tool=todo_write" in caplog.text
+        assert "tool=task_write" in caplog.text
         assert "args_len=1" in caplog.text
 
 
