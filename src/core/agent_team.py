@@ -34,8 +34,6 @@ class InvalidStatusError(AgentTeamError):
     code = "INVALID_STATUS"
 
 
-_VALID_STATUSES = frozenset({"online", "offline", "busy", "deleted"})
-
 _CONTACT_STATUSES = frozenset({"online", "offline", "busy"})
 
 

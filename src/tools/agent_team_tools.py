@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 
 # ── 上下文 ──────────────────────────────────────────────────────────────────
 # ContextVar 存储 (db_path, agent_id)，None 表示未初始化
-_agent_team_ctx: ContextVar[tuple[str, str] | None] = ContextVar(
-    "agent_team_ctx", default=None
-)
+_agent_team_ctx: ContextVar[tuple[str, str] | None] = ContextVar("agent_team_ctx", default=None)
 
 
 def set_agent_team_context(db_path: str | None, agent_id: str | None) -> None:
@@ -91,23 +89,33 @@ async def send_message(to_agent_id: str, content: str) -> str:
         return _context_error()
 
     try:
-        result = service.send_message(
-            sender_id=agent_id, to_agent_id=to_agent_id, content=content
+        result = service.send_message(sender_id=agent_id, to_agent_id=to_agent_id, content=content)
+        logger.debug(
+            "AgentTeam - send_message | from=%s to=%s msg_id=%s",
+            agent_id,
+            to_agent_id,
+            result["id"],
         )
-        return success_response({
-            "message_id": result["id"],
-            "created_at": result["created_at"],
-        })
+        return success_response(
+            {
+                "message_id": result["id"],
+                "created_at": result["created_at"],
+            }
+        )
     except (AgentNotFoundError, EmptyContentError) as e:
         desc, code = _EXCEPTION_MAP[type(e)]
+        logger.debug(
+            "AgentTeam - send_message error | from=%s to=%s code=%s",
+            agent_id,
+            to_agent_id,
+            code,
+        )
         return error_response(desc, code)
     finally:
         service.close()
 
 
-async def receive_message(
-    limit: int = 20, offset: int = 0, unread_only: bool = False
-) -> str:
+async def receive_message(limit: int = 20, offset: int = 0, unread_only: bool = False) -> str:
     try:
         service, agent_id = _get_service()
     except LookupError:
@@ -116,6 +124,13 @@ async def receive_message(
     try:
         messages, total = service.receive_message(
             receiver_id=agent_id, limit=limit, offset=offset, unread_only=unread_only
+        )
+        logger.debug(
+            "AgentTeam - receive_message | receiver=%s count=%d total=%d unread_only=%s",
+            agent_id,
+            len(messages),
+            total,
+            unread_only,
         )
         return success_response({"messages": messages, "total": total})
     finally:
@@ -129,12 +144,21 @@ async def get_contacts(status: str | None = None) -> str:
         return _context_error()
 
     try:
-        contacts = service.get_contacts(
-            current_agent_id=agent_id, status_filter=status
+        contacts = service.get_contacts(current_agent_id=agent_id, status_filter=status)
+        logger.debug(
+            "AgentTeam - get_contacts | agent=%s count=%d filter=%s",
+            agent_id,
+            len(contacts),
+            status,
         )
         return success_response({"contacts": contacts})
     except InvalidStatusError as e:
         desc, code = _EXCEPTION_MAP[type(e)]
+        logger.debug(
+            "AgentTeam - get_contacts error | agent=%s code=%s",
+            agent_id,
+            code,
+        )
         return error_response(desc, code)
     finally:
         service.close()
@@ -148,9 +172,15 @@ async def get_contact_detail(agent_id: str) -> str:
 
     try:
         agent = service.get_contact_detail(agent_id=agent_id)
+        logger.debug("AgentTeam - get_contact_detail | target=%s", agent_id)
         return success_response({"agent": agent})
     except AgentNotFoundError as e:
         desc, code = _EXCEPTION_MAP[type(e)]
+        logger.debug(
+            "AgentTeam - get_contact_detail error | target=%s code=%s",
+            agent_id,
+            code,
+        )
         return error_response(desc, code)
     finally:
         service.close()
@@ -164,9 +194,27 @@ async def create_agent(name: str, desc: str = "", prompt: str = "") -> str:
 
     try:
         agent = service.create_agent(name=name, desc=desc, prompt=prompt)
+        logger.debug(
+            "AgentTeam - create_agent | name=%s id=%s",
+            name,
+            agent["id"],
+        )
         return success_response({"agent": agent})
-    except (DuplicateNameError, ValueError) as e:
+    except DuplicateNameError as e:
         desc, code = _EXCEPTION_MAP[type(e)]
+        logger.debug(
+            "AgentTeam - create_agent error | name=%s code=%s",
+            name,
+            code,
+        )
+        return error_response(desc, code)
+    except ValueError as e:
+        desc, code = _EXCEPTION_MAP[type(e)]
+        logger.debug(
+            "AgentTeam - create_agent error | name=%r code=%s",
+            name,
+            code,
+        )
         return error_response(desc.format(str(e)), code)
     finally:
         service.close()
@@ -180,9 +228,19 @@ async def delete_agent(agent_id: str) -> str:
 
     try:
         deleted = service.delete_agent(agent_id=agent_id)
+        logger.debug(
+            "AgentTeam - delete_agent | target=%s deleted=%s",
+            agent_id,
+            deleted,
+        )
         return success_response({"deleted": deleted})
     except AgentNotFoundError as e:
         desc, code = _EXCEPTION_MAP[type(e)]
+        logger.debug(
+            "AgentTeam - delete_agent error | target=%s code=%s",
+            agent_id,
+            code,
+        )
         return error_response(desc, code)
     finally:
         service.close()
