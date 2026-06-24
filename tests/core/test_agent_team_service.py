@@ -201,6 +201,19 @@ class TestAgentTeamService:
         assert total == 5
         assert len(page2) == 2
 
+    def test_receive_message_receiver_not_found(self, service: AgentTeamService, db: FakeAgentTeamDB) -> None:
+        """receiver Agent 不存在时抛 AgentNotFoundError。"""
+        with pytest.raises(AgentNotFoundError):
+            service.receive_message("nonexistent-agent")
+
+    def test_receive_message_sender_deleted(self, service: AgentTeamService, db: FakeAgentTeamDB) -> None:
+        """sender 被软删除后，消息的 sender_name 仍然有效。"""
+        db.delete_agent("agent-1")
+        db.insert_message("msg-1", "agent-1", "agent-2", "Hello", "2026-06-24T12:00:00")
+        messages, total = service.receive_message("agent-2")
+        assert total == 1
+        assert messages[0]["sender_name"] == "Architect"
+
     def test_receive_message_unread_only(self, service: AgentTeamService, db: FakeAgentTeamDB) -> None:
         """只查询未读消息。"""
         db.insert_message("msg-1", "agent-1", "agent-2", "已读", "2026-06-24T12:00:00")

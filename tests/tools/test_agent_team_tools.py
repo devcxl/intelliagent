@@ -38,10 +38,19 @@ def empty_db(db_path: str) -> str:
 
 @pytest.fixture
 def initialized_db(db_path: str) -> str:
-    """初始化数据库 + 预置一个接收方 Agent。"""
+    """初始化数据库 + 预置当前 Agent 和一个接收方 Agent。"""
     db = AgentTeamDB(db_path)
     db.init_db()
     now = datetime.now(timezone.utc).isoformat()
+    db.insert_agent(
+        id=_TESTER_ID,
+        name="Tester",
+        desc="测试者",
+        prompt="",
+        status="online",
+        created_at=now,
+        updated_at=now,
+    )
     db.insert_agent(
         id=_RECEIVER_ID,
         name="Receiver",
@@ -347,7 +356,6 @@ class TestEndToEndFlow:
         # 创建 AgentA
         a = json.loads(await create_agent(name="AgentA", desc="A"))
         assert a["status"] == "ok"
-        agent_a_id = a["agent"]["id"]
 
         # 创建 AgentB
         b = json.loads(await create_agent(name="AgentB", desc="B"))

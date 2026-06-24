@@ -78,6 +78,8 @@ class AgentTeamService:
         unread_only: bool = False,
     ) -> tuple[list[dict], int]:
         """收件箱查询，自动标记返回的消息为已读。"""
+        if self._db.get_agent(receiver_id) is None:
+            raise AgentNotFoundError()
         messages, total = self._db.list_messages(receiver_id, limit, offset, unread_only)
         if messages:
             self._db.mark_as_read([m["id"] for m in messages])
