@@ -182,6 +182,22 @@ class TestAgentCRUD:
         assert len(result) == 2
         assert all(r["status"] == "online" for r in result)
 
+    def test_list_agents_exclude_and_status_filter(self, db: AgentTeamDB) -> None:
+        """同时使用 exclude_id 和 status_filter。"""
+        for spec in [
+            ("a1", "Alpha", "online"),
+            ("a2", "Beta", "online"),
+            ("a3", "Gamma", "offline"),
+        ]:
+            db.insert_agent(
+                id=spec[0], name=spec[1], desc="", prompt="",
+                status=spec[2], created_at="t", updated_at="t",
+            )
+
+        result = db.list_agents(exclude_id="a2", status_filter="online")
+        assert len(result) == 1
+        assert result[0]["id"] == "a1"
+
     def test_delete_agent_success(self, db: AgentTeamDB) -> None:
         db.insert_agent(**self._AGENT)
         result = db.delete_agent(self._AGENT["id"])
@@ -430,7 +446,7 @@ class TestEdgeCases:
                 updated_at="t",
             )
 
-    def test_wal_mode_enabled(self, tmp_path: object) -> None:
+    def test_wal_mode_enabled(self, tmp_path) -> None:
         db_path = tmp_path / "test_wal.db"
         agent_db = AgentTeamDB(str(db_path))
         agent_db.init_db()

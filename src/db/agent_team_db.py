@@ -138,14 +138,11 @@ class AgentTeamDB:
             (id, sender_id, receiver_id, content, created_at),
         )
         self._conn.commit()
-        return {
-            "id": id,
-            "sender_id": sender_id,
-            "receiver_id": receiver_id,
-            "content": content,
-            "is_read": 0,
-            "created_at": created_at,
-        }
+        row = self._conn.execute(
+            "SELECT id, sender_id, receiver_id, content, is_read, created_at "
+            "FROM agent_messages WHERE id = ?", (id,)
+        ).fetchone()
+        return dict(row)
 
     def list_messages(
         self,
