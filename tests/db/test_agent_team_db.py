@@ -190,8 +190,13 @@ class TestAgentCRUD:
             ("a3", "Gamma", "offline"),
         ]:
             db.insert_agent(
-                id=spec[0], name=spec[1], desc="", prompt="",
-                status=spec[2], created_at="t", updated_at="t",
+                id=spec[0],
+                name=spec[1],
+                desc="",
+                prompt="",
+                status=spec[2],
+                created_at="t",
+                updated_at="t",
             )
 
         result = db.list_agents(exclude_id="a2", status_filter="online")

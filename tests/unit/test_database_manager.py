@@ -1,7 +1,6 @@
 """数据库 ORM 模型与仓储测试。"""
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.engine import create_engine, create_session_factory, init_db
 from src.db.models import Conversation, Message, Task

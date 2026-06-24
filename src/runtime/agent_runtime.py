@@ -176,7 +176,7 @@ class AgentRuntime:
         """
         db_url = self._config.database.url
         if db_url.startswith("sqlite:///"):
-            path_part = db_url[len("sqlite:///"):]
+            path_part = db_url[len("sqlite:///") :]
             if path_part.startswith("/"):
                 return path_part
             workspace = self._config.workspace.dir or "."

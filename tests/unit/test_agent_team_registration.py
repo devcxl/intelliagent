@@ -6,8 +6,7 @@ def test_agent_team_tools_registered_in_default_registry():
     from src.tools.registry import _default_registry
 
     names = _default_registry.list_tool_names()
-    expected = {"send_message", "receive_message", "get_contacts",
-                "get_contact_detail", "create_agent", "delete_agent"}
+    expected = {"send_message", "receive_message", "get_contacts", "get_contact_detail", "create_agent", "delete_agent"}
     for name in expected:
         assert name in names, f"{name} 未在 _default_registry 中"
 
@@ -54,7 +53,11 @@ def test_get_openai_tools_contains_agent_team_tools():
 
     tools = _default_registry.get_openai_tools()
     agent_team_names = {t["function"]["name"] for t in tools} & {
-        "send_message", "receive_message", "get_contacts",
-        "get_contact_detail", "create_agent", "delete_agent",
+        "send_message",
+        "receive_message",
+        "get_contacts",
+        "get_contact_detail",
+        "create_agent",
+        "delete_agent",
     }
     assert len(agent_team_names) == 6

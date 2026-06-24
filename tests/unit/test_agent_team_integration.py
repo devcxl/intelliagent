@@ -39,10 +39,12 @@ def test_create_engine_injects_agent_team_context(monkeypatch, tmp_path):
     """AgentRuntime.create_engine() 应注入 (db_path, agent_id) 到 _agent_team_ctx。"""
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", _FakeReactEngine)
     db_file = tmp_path / "test.db"
-    config = UnifiedConfig.model_validate({
-        "database": {"url": f"sqlite:///{db_file}"},
-        "workspace": {"dir": str(tmp_path)},
-    })
+    config = UnifiedConfig.model_validate(
+        {
+            "database": {"url": f"sqlite:///{db_file}"},
+            "workspace": {"dir": str(tmp_path)},
+        }
+    )
 
     async def _run():
         runtime = _make_runtime(config)
@@ -61,10 +63,12 @@ def test_create_engine_with_custom_agent_id(monkeypatch, tmp_path):
     """验证从 config 获取自定义 agent_id。"""
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", _FakeReactEngine)
     db_file = tmp_path / "test.db"
-    config = UnifiedConfig.model_validate({
-        "database": {"url": f"sqlite:///{db_file}"},
-        "workspace": {"dir": str(tmp_path)},
-    })
+    config = UnifiedConfig.model_validate(
+        {
+            "database": {"url": f"sqlite:///{db_file}"},
+            "workspace": {"dir": str(tmp_path)},
+        }
+    )
     # UnifiedConfig 无 agent_id 字段，通过 object.__setattr__ 注入
     object.__setattr__(config, "agent_id", "custom-agent-42")
 
@@ -84,10 +88,12 @@ def test_tool_calls_after_context_injection(monkeypatch, tmp_path):
     """Engine 创建后，tool 不再返回 CONTEXT_NOT_INITIALIZED。"""
     monkeypatch.setattr(agent_runtime_module, "ReactEngine", _FakeReactEngine)
     db_file = tmp_path / "test.db"
-    config = UnifiedConfig.model_validate({
-        "database": {"url": f"sqlite:///{db_file}"},
-        "workspace": {"dir": str(tmp_path)},
-    })
+    config = UnifiedConfig.model_validate(
+        {
+            "database": {"url": f"sqlite:///{db_file}"},
+            "workspace": {"dir": str(tmp_path)},
+        }
+    )
 
     async def _run():
         runtime = _make_runtime(config)

@@ -12,7 +12,6 @@ from src.db.engine import create_engine, create_session_factory, init_db
 from src.db.repositories import (
     ConversationRepository,
     MessageRepository,
-    TaskRepository,
 )
 from src.runtime.agent_runtime import AgentRuntime
 from src.tools.task_tools import set_task_context

@@ -139,8 +139,7 @@ class AgentTeamDB:
         )
         self._conn.commit()
         row = self._conn.execute(
-            "SELECT id, sender_id, receiver_id, content, is_read, created_at "
-            "FROM agent_messages WHERE id = ?", (id,)
+            "SELECT id, sender_id, receiver_id, content, is_read, created_at FROM agent_messages WHERE id = ?", (id,)
         ).fetchone()
         return dict(row)
 
