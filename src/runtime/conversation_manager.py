@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 
@@ -95,13 +96,31 @@ class ConversationManager:
         self._is_new = True
         return conversation_id
 
-    async def save_message(self, role: str, content: str) -> None:
+    async def save_message(
+        self,
+        role: str,
+        content: str,
+        *,
+        tool_call_id: str | None = None,
+        tool_name: str | None = None,
+        tool_args: str | None = None,
+        tool_calls: str | None = None,
+    ) -> None:
         if self._conversation_id is None:
             return
         async with self._session_factory() as session:
             msg_repo = MessageRepository(session)
             await msg_repo.save(
-                Message(id=new_uuid(), conversation_id=self._conversation_id, role=role, content=content)
+                Message(
+                    id=new_uuid(),
+                    conversation_id=self._conversation_id,
+                    role=role,
+                    content=content,
+                    tool_call_id=tool_call_id,
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                    tool_calls=tool_calls,
+                )
             )
 
     async def load_history_messages(self) -> list[dict[str, Any]]:
@@ -110,7 +129,40 @@ class ConversationManager:
         async with self._session_factory() as session:
             msg_repo = MessageRepository(session)
             messages = await msg_repo.list_by_conversation(self._conversation_id)
-        return [{"role": msg.role, "content": msg.content} for msg in messages]
+        result = []
+        for msg in messages:
+            entry: dict[str, Any] = {"role": msg.role, "content": msg.content, "_msg_id": msg.id}
+            if msg.tool_call_id:
+                entry["tool_call_id"] = msg.tool_call_id
+            if msg.tool_calls:
+                entry["tool_calls"] = json.loads(msg.tool_calls)
+            if msg.tool_name:
+                entry["tool_name"] = msg.tool_name
+            if msg.tool_args:
+                entry["tool_args"] = msg.tool_args
+            result.append(entry)
+        return result
+
+    async def compact_messages(self, msg_ids: list[str], summary: str) -> None:
+        """删除被压缩的消息，写入一条 summary 消息。
+        
+        Args:
+            msg_ids: 被压缩的原始消息 DB ID 列表
+            summary: LLM 生成的摘要内容
+        """
+        if self._conversation_id is None or not msg_ids:
+            return
+        async with self._session_factory() as session:
+            msg_repo = MessageRepository(session)
+            await msg_repo.delete_by_ids(self._conversation_id, msg_ids)
+            await msg_repo.save(
+                Message(
+                    id=new_uuid(),
+                    conversation_id=self._conversation_id,
+                    role="system",
+                    content=f"以下是被压缩的上下文摘要：{summary}",
+                )
+            )
 
     async def list_conversations(self) -> list[dict[str, Any]]:
         async with self._session_factory() as session:
