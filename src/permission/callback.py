@@ -4,10 +4,8 @@ import asyncio
 import json
 from typing import Any
 
-from src.permission.types import PermissionCallback
 
-
-class CliCallback(PermissionCallback):
+class CliCallback:
     """CLI 交互式权限确认回调。
 
     在终端中向用户展示工具调用详情并等待 y/N 确认，

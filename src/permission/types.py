@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any, Protocol
 
@@ -33,16 +32,6 @@ class Decision(BaseModel):
     reason: str = ""
 
 
-class PermissionCallback(ABC):
-    """权限确认回调抽象基类。
-
-    子类需实现 on_prompt 方法，在 ask 决策时向用户发起确认。
-    """
-
-    @abstractmethod
-    async def on_prompt(self, tool_name: str, args: dict[str, Any], reason: str) -> bool: ...
-
-
 # ---------------------------------------------------------------------------
 # Protocol 定义 — 为 ReactEngine 提供类型契约
 # ---------------------------------------------------------------------------
@@ -59,7 +48,6 @@ class PermissionCallbackProtocol(Protocol):
 __all__ = [
     "PermissionAction",
     "Decision",
-    "PermissionCallback",
     "PermissionEngineProtocol",
     "PermissionCallbackProtocol",
 ]

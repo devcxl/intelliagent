@@ -33,11 +33,9 @@ def _make_response(content: str | None = None, tool_calls: list | None = None, t
 @pytest.fixture
 def mock_engine():
     llm = AsyncMock()
-    memory = Mock()
 
     engine = ReactEngine(
         llm_client=llm,
-        memory=memory,
         context_limit=10000,
     )
     return engine
@@ -124,21 +122,6 @@ class TestReactEngineToolCalls:
         assert result["success"] is True
         assert result["num_turns"] == 5
         assert result["answer"] == "所有文件已处理"
-
-
-class TestReactEngineMemory:
-    @pytest.mark.asyncio
-    async def test_adds_observation_on_tool_call(self, mock_engine):
-        mock_engine.llm_client.chat_async.side_effect = [
-            _make_response(tool_calls=[_make_tool_call("c1", "read_file", '{"path": "a.txt"}')]),
-            _make_response(content="完成"),
-        ]
-
-        await mock_engine.run("读取文件")
-
-        assert mock_engine.memory.add_observation.call_count == 1
-        obs = mock_engine.memory.add_observation.call_args[0][0]
-        assert obs["tool_name"] == "read_file"
 
 
 class TestReactEngineIterSteps:

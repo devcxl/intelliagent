@@ -48,10 +48,8 @@ def _make_response(
 @pytest.fixture
 def mock_engine():
     llm = AsyncMock()
-    memory = Mock()
     engine = ReactEngine(
         llm_client=llm,
-        memory=memory,
         context_limit=10000,
     )
     return engine

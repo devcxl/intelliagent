@@ -56,6 +56,7 @@ class Message(Base):
     tool_call_id: Mapped[str | None] = mapped_column(String, nullable=True)
     tool_name: Mapped[str | None] = mapped_column(String, nullable=True)
     tool_args: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tool_calls: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array, assistant role only
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")

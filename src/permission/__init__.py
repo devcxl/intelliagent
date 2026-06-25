@@ -5,7 +5,6 @@ from src.permission.engine import PermissionEngine, load_permission_engine
 from src.permission.types import (
     Decision,
     PermissionAction,
-    PermissionCallback,
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )
@@ -13,7 +12,6 @@ from src.permission.types import (
 __all__ = [
     "PermissionAction",
     "Decision",
-    "PermissionCallback",
     "PermissionCallbackProtocol",
     "PermissionEngineProtocol",
     "PermissionEngine",
