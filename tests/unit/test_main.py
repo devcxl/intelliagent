@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from unittest.mock import ANY
+
 import pytest
 
 import src.runtime.engine_factory as engine_factory_module
@@ -97,8 +99,8 @@ async def test_runtime_loads_structured_history_before_execute(monkeypatch, tmp_
     assert created["engine_calls"][0] == (
         "load_history",
         [
-            {"role": "user", "content": "之前的任务"},
-            {"role": "assistant", "content": "已完成"},
+            {"role": "user", "content": "之前的任务", "_msg_id": ANY},
+            {"role": "assistant", "content": "已完成", "_msg_id": ANY},
         ],
         None,
     )
