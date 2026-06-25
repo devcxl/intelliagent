@@ -32,33 +32,27 @@ from src.cli.presenter import (
     show_history,
     show_save_info,
 )
-from src.runtime import ConversationOrchestrator
+from src.runtime import AgentRuntime
 
 _PROMPT = "\n> "
 
 
 async def _run_single_turn(
-    orchestrator: ConversationOrchestrator,
+    runtime: AgentRuntime,
     user_input: str,
-    history_context: str | None,
 ) -> str | None:
     """执行一轮对话，返回 assistant 的完整回复内容。"""
-    await orchestrator.save_message("user", user_input)
-
     assistant_content = ""
-    async for event in orchestrator.execute(user_input, history_context=history_context):
+    async for event in runtime.execute(user_input):
         format_event(event)
         if event["type"] == "answer":
             assistant_content = event["data"]["answer"]
-
-    if assistant_content:
-        await orchestrator.save_message("assistant", assistant_content)
 
     return assistant_content if assistant_content else None
 
 
 async def _repl_loop(
-    orchestrator: ConversationOrchestrator,
+    runtime: AgentRuntime,
 ) -> None:
     """多轮对话循环，读取用户输入并逐轮执行。"""
     while True:
@@ -81,8 +75,7 @@ async def _repl_loop(
             print("  直接输入任务描述即可与 AI 对话")
             continue
 
-        history_context = await orchestrator.reload_history_context()
-        await _run_single_turn(orchestrator, user_input, history_context)
+        await _run_single_turn(runtime, user_input)
 
 
 async def main(
@@ -90,26 +83,24 @@ async def main(
     resume: bool = False,
     list_history: bool = False,
 ) -> None:
-    orchestrator = ConversationOrchestrator()
-    await orchestrator.initialize()
+    runtime = AgentRuntime()
+    await runtime.initialize()
 
     if list_history:
-        conversations = await orchestrator.list_conversations()
-        await show_history(conversations, orchestrator.get_message_count)
+        conversations = await runtime.list_conversations()
+        await show_history(conversations, runtime.get_message_count)
         return
 
-    conversation_id, history_context = await orchestrator.setup_conversation(
-        task="", session_id=session_id, resume=resume
-    )
-    for warning in orchestrator.warnings:
+    conversation_id = await runtime.setup_conversation(task="", session_id=session_id, resume=resume)
+    for warning in runtime.warnings:
         print(f"⚠️  {warning}")
 
-    history_count = await orchestrator.get_message_count(conversation_id)
-    format_conversation_header(history_count, conversation_id, orchestrator.is_new)
+    history_count = await runtime.get_message_count(conversation_id)
+    format_conversation_header(history_count, conversation_id, runtime.is_new)
 
-    await _repl_loop(orchestrator)
+    await _repl_loop(runtime)
 
-    await orchestrator.shutdown()
+    await runtime.shutdown()
     show_save_info(conversation_id)
 
 

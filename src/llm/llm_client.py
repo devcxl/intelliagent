@@ -5,7 +5,6 @@ LLM 客户端模块
 """
 
 import asyncio
-import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -39,17 +38,18 @@ class LLMClient:
         """初始化 LLM 客户端。
 
         Args:
-            api_key: OpenAI API Key，未提供时从环境变量 OPENAI_API_KEY 读取。
-            base_url: API 基础 URL，未提供时从环境变量 OPENAI_API_BASE 读取。
+            api_key: OpenAI API Key。
+            base_url: API 基础 URL。
             model: 模型名称，默认 "gpt-4o-mini"。
 
         Raises:
-            ValueError: api_key 和环境变量 OPENAI_API_KEY 均为空时抛出。
+            ValueError: api_key 为空时抛出。
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
-        self.base_url = base_url or os.getenv("OPENAI_API_BASE")
+        # 配置解析统一放在 UnifiedConfig/Runtime；LLMClient 只接收显式参数。
+        self.api_key = api_key
+        self.base_url = base_url
         if not self.api_key:
-            raise ValueError("未找到 OPENAI_API_KEY，请设置环境变量或传入参数")
+            raise ValueError("未找到 API key，请通过配置或参数传入")
 
         self.model = model
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)

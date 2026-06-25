@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""AgentRuntime — 管理 LLM 客户端和引擎的创建与复用。"""
+"""AgentRuntime — 运行时组合根，管理 conversation 生命周期和 ReAct 引擎。"""
 
 from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, AsyncGenerator, Callable
 
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
@@ -14,16 +14,16 @@ from src.permission import (
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )
+from src.runtime.conversation_manager import ConversationManager
 from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
 from src.skills.tool import set_registry as set_skill_registry
-from src.tools.agent_team_tools import set_agent_team_context
-from src.tools.registry import ToolRegistry, _default_registry
+from src.tools.registry import ToolRegistry, _default_registry, register_agent_team_tools
 from src.types.llm import LLMClientProtocol
 
 
 class AgentRuntime:
-    """Agent 运行时 — 单例管理 LLM 客户端，每次创建独立 ReactEngine。
+    """Agent 运行时 — 管理会话状态、共享依赖和独立 ReactEngine。
 
     通过 UnifiedConfig 构造。未传入 config 时自动从 intelliagent.json 加载。
     """
@@ -43,6 +43,8 @@ class AgentRuntime:
         self._llm_client: LLMClientProtocol | None = None
         self._mcp_manager: Any = None
         self._skill_registry: SkillRegistry | None = None
+        # ConversationManager 是 Runtime 下面唯一允许直接碰 conversation DB 的对象。
+        self._conversation_manager = ConversationManager(self._config.database.url)
         self._load_skills()
 
     # ------------------------------------------------------------------
@@ -128,6 +130,87 @@ class AgentRuntime:
     # 公共方法
     # ------------------------------------------------------------------
 
+    @property
+    def conversation_id(self) -> str | None:
+        """当前 conversation ID，setup_conversation 后可用。"""
+        return self._conversation_manager.conversation_id
+
+    @property
+    def is_new(self) -> bool:
+        """当前 conversation 是否为新建。"""
+        return self._conversation_manager.is_new
+
+    @property
+    def warnings(self) -> list[str]:
+        """setup_conversation 过程中产生的警告列表。"""
+        return self._conversation_manager.warnings
+
+    async def initialize(self) -> None:
+        """初始化数据库表结构。首次使用前必须调用。"""
+        await self._conversation_manager.initialize()
+
+    async def setup_conversation(
+        self,
+        task: str,
+        session_id: str | None = None,
+        resume: bool = False,
+    ) -> str:
+        """创建或恢复 conversation 并注入 task/agent-team 上下文。
+
+        Args:
+            task: 初始任务描述（用作对话标题）
+            session_id: 指定 conversation ID 继续
+            resume: 从最近一次对话恢复
+
+        Returns:
+            conversation ID
+        """
+        return await self._conversation_manager.setup_conversation(task, session_id, resume)
+
+    async def save_message(self, role: str, content: str) -> None:
+        """将用户或 assistant 消息持久化到当前 conversation。
+
+        Args:
+            role: user 或 assistant
+            content: 消息内容
+        """
+        await self._conversation_manager.save_message(role, content)
+
+    async def list_conversations(self) -> list[dict[str, Any]]:
+        """列出所有历史 conversation。"""
+        return await self._conversation_manager.list_conversations()
+
+    async def get_message_count(self, conversation_id: str) -> int:
+        """获取指定 conversation 的消息数。"""
+        return await self._conversation_manager.get_message_count(conversation_id)
+
+    async def execute(self, task: str) -> AsyncGenerator[dict[str, Any], None]:
+        """执行一轮对话：加载历史 → 创建引擎 → 流式执行 → 持久化回答。
+
+        Args:
+            task: 用户输入
+
+        Yields:
+            引擎事件流（thought/action/observation/answer）
+        """
+        if self.conversation_id is None:
+            await self.setup_conversation(task)
+
+        history_messages = await self._conversation_manager.load_history_messages()
+        await self.save_message("user", task)
+
+        engine = await self.create_engine()
+        engine.load_history(history_messages)
+
+        assistant_content = ""
+        async for event in engine.iter_steps(task, reset_state=False):
+            if event["type"] == "answer":
+                assistant_content = event["data"]["answer"]
+            yield event
+
+        if assistant_content:
+            await self.save_message("assistant", assistant_content)
+
     def get_llm_client(self) -> LLMClientProtocol:
         """获取 LLM 客户端（懒加载单例）。
 
@@ -168,26 +251,15 @@ class AgentRuntime:
             except (asyncio.CancelledError, Exception):
                 pass
 
-    def _resolve_agent_team_db_path(self) -> str:
-        """将 UnifiedConfig.database.url 转换为 agent-team 可用的文件路径。
-
-        database.url 格式为 "sqlite:///relative/path" 或 "sqlite:////absolute/path"。
-        去除协议前缀后解析为绝对路径。
-        """
-        db_url = self._config.database.url
-        if db_url.startswith("sqlite:///"):
-            path_part = db_url[len("sqlite:///") :]
-            if path_part.startswith("/"):
-                return path_part
-            workspace = self._config.workspace.dir or "."
-            return str(Path(workspace) / path_part)
-        return db_url  # 非标准格式时原样返回
+    async def shutdown(self) -> None:
+        """关闭 MCP 连接，释放运行时资源。"""
+        await self.stop_mcp()
+        await self._conversation_manager.shutdown()
 
     async def create_engine(
         self,
         api_key: str | None = None,
         model: str | None = None,
-        max_iterations: int | None = None,
     ) -> ReactEngine:
         """创建新的 ReactEngine 实例。
 
@@ -197,25 +269,21 @@ class AgentRuntime:
         Args:
             api_key: 覆盖默认 API Key（None 则使用配置值）
             model: 覆盖默认模型（None 则使用配置值）
-            max_iterations: 最大迭代次数（None 则使用引擎默认值）
 
         Returns:
             组装完成的 ReactEngine 实例
         """
+        # agent-team 工具依赖 service 层，必须在 runtime 组装阶段显式接入，避免 core 导入 tools。
+        register_agent_team_tools(_default_registry)
         await self.start_mcp()
         llm = self.get_llm_client()
         permission_engine = self._permission_engine_factory()
         permission_callback = self._permission_callback_factory()
 
-        # 注入 agent-team 上下文
-        db_path = self._resolve_agent_team_db_path()
-        agent_id = getattr(self._config, "agent_id", None) or "agent-001"
-        set_agent_team_context(db_path, agent_id)
-
         return ReactEngine(
             llm_client=llm,
+            tools_registry=_default_registry,
             context_limit=self._config.get_model_context_limit(),
-            max_steps=max_iterations if max_iterations else 50,
             permission_engine=permission_engine,
             permission_callback=permission_callback,
             skill_registry=self._skill_registry,

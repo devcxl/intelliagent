@@ -7,8 +7,33 @@ import json
 import pytest
 
 from src.db.engine import create_engine, create_session_factory, init_db
+from src.db.models import Conversation, Task
 from src.db.repositories import ConversationRepository, TaskRepository
 from src.tools.task_tools import set_task_context, task_add, task_finish, task_update, task_write
+
+
+def _conversation(id: str, title: str = "") -> Conversation:
+    return Conversation(id=id, title=title)
+
+
+def _task(
+    id: str,
+    conversation_id: str = "conv-1",
+    title: str = "task",
+    content: str = "",
+    parent_id: str | None = None,
+    priority: str = "medium",
+    sort_order: int = 0,
+) -> Task:
+    return Task(
+        id=id,
+        conversation_id=conversation_id,
+        title=title,
+        content=content,
+        parent_id=parent_id,
+        priority=priority,
+        sort_order=sort_order,
+    )
 
 
 @pytest.fixture
@@ -21,7 +46,7 @@ async def session_factory(tmp_path):
     # 创建测试用 conversation
     async with factory() as session:
         conv_repo = ConversationRepository(session)
-        await conv_repo.create("conv-1", title="测试")
+        await conv_repo.save(_conversation("conv-1", title="测试"))
 
     yield factory
     await engine.dispose()
@@ -39,9 +64,9 @@ class TestTaskRepository:
     async def test_add_and_get(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
-            result = await repo.add("conv-1", title="设计API", content="设计REST接口", priority="high")
+            result = await repo.save(_task("task-1", title="设计API", content="设计REST接口", priority="high"))
             assert result["status"] == "pending"
-            assert result["id"].startswith("task-")
+            assert len(result["id"]) > 0
 
             task = await repo.get(result["id"])
             assert task is not None
@@ -56,8 +81,8 @@ class TestTaskRepository:
     async def test_add_with_parent(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
-            parent = await repo.add("conv-1", title="父任务")
-            child = await repo.add("conv-1", title="子任务", parent_id=parent["id"])
+            parent = await repo.save(_task("parent", title="父任务"))
+            child = await repo.save(_task("child", title="子任务", parent_id=parent["id"]))
             assert child["status"] == "pending"
 
             task = await repo.get(child["id"])
@@ -68,9 +93,9 @@ class TestTaskRepository:
     async def test_list_by_conversation(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
-            await repo.add("conv-1", title="任务1", sort_order=0)
-            await repo.add("conv-1", title="任务2", sort_order=1)
-            await repo.add("conv-1", title="任务3", sort_order=2)
+            await repo.save(_task("task-1", title="任务1", sort_order=0))
+            await repo.save(_task("task-2", title="任务2", sort_order=1))
+            await repo.save(_task("task-3", title="任务3", sort_order=2))
 
             tasks = await repo.list_by_conversation("conv-1")
             assert len(tasks) == 3
@@ -88,7 +113,7 @@ class TestTaskRepository:
     async def test_update_title(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
-            result = await repo.add("conv-1", title="旧标题")
+            result = await repo.save(_task("task-1", title="旧标题"))
             await repo.update(result["id"], title="新标题")
             task = await repo.get(result["id"])
             assert task is not None
@@ -98,7 +123,7 @@ class TestTaskRepository:
     async def test_update_status_to_completed(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
-            result = await repo.add("conv-1", title="待完成")
+            result = await repo.save(_task("task-1", title="待完成"))
             await repo.update(result["id"], status="completed")
             task = await repo.get(result["id"])
             assert task is not None
@@ -109,7 +134,7 @@ class TestTaskRepository:
     async def test_update_multiple_fields(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
-            result = await repo.add("conv-1", title="原始", content="原始内容", priority="low")
+            result = await repo.save(_task("task-1", title="原始", content="原始内容", priority="low"))
             await repo.update(result["id"], title="新标题", priority="high")
             task = await repo.get(result["id"])
             assert task is not None
@@ -121,8 +146,8 @@ class TestTaskRepository:
     async def test_delete_by_conversation(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
-            await repo.add("conv-1", title="任务A")
-            await repo.add("conv-1", title="任务B")
+            await repo.save(_task("task-a", title="任务A"))
+            await repo.save(_task("task-b", title="任务B"))
             assert len(await repo.list_by_conversation("conv-1")) == 2
 
             await repo.delete_by_conversation("conv-1")
@@ -132,10 +157,10 @@ class TestTaskRepository:
     async def test_isolated_conversations(self, session_factory):
         async with session_factory() as session:
             conv_repo = ConversationRepository(session)
-            await conv_repo.create("conv-2", title="conv2")
+            await conv_repo.save(_conversation("conv-2", title="conv2"))
             repo = TaskRepository(session)
-            await repo.add("conv-1", title="conv1任务")
-            await repo.add("conv-2", title="conv2任务")
+            await repo.save(_task("task-1", "conv-1", title="conv1任务"))
+            await repo.save(_task("task-2", "conv-2", title="conv2任务"))
             assert len(await repo.list_by_conversation("conv-1")) == 1
             assert len(await repo.list_by_conversation("conv-2")) == 1
 
@@ -146,7 +171,7 @@ class TestTaskTools:
         result = await task_add(title="设计API", content="设计REST接口", priority="high")
         data = json.loads(result)
         assert data["status"] == "ok"
-        assert data["id"].startswith("task-")
+        assert len(data["id"]) > 0
         assert data["title"] == "设计API"
         assert data["task_status"] == "pending"
 

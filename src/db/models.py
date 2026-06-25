@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM 模型 — Conversation / Message / Task。"""
+"""SQLAlchemy ORM 模型 — Conversation / Message / Task / Agent / Relay。"""
 
 from __future__ import annotations
 
@@ -16,6 +16,21 @@ class Base(DeclarativeBase):
     pass
 
 
+class Agent(Base):
+    __tablename__ = "agents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True)
+    desc: Mapped[str] = mapped_column(String, default="")
+    prompt: Mapped[str] = mapped_column(String, default="")
+    allowed_tools: Mapped[str] = mapped_column(String, default="")
+    model: Mapped[str] = mapped_column(String, default="")
+    workspace: Mapped[str] = mapped_column(String, default="")
+    status: Mapped[str] = mapped_column(String, default="offline")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
 
@@ -25,10 +40,10 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
-    messages: Mapped[list[Message]] = relationship(
+    messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="conversation", cascade="all, delete-orphan"
     )
-    tasks: Mapped[list[Task]] = relationship("Task", back_populates="conversation", cascade="all, delete-orphan")
+    tasks: Mapped[list["Task"]] = relationship("Task", back_populates="conversation", cascade="all, delete-orphan")
 
 
 class Message(Base):
@@ -43,7 +58,7 @@ class Message(Base):
     tool_args: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
-    conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
+    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
 
 
 class Task(Base):
@@ -61,4 +76,24 @@ class Task(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    conversation: Mapped[Conversation] = relationship("Conversation", back_populates="tasks")
+    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="tasks")
+
+
+class Relay(Base):
+    __tablename__ = "relays"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    sender_id: Mapped[str] = mapped_column(String)
+    receiver_id: Mapped[str] = mapped_column(String)
+    content: Mapped[str] = mapped_column(Text, default="")
+    is_read: Mapped[bool] = mapped_column(Integer, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AgentMemory(Base):
+    __tablename__ = "agent_memory"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    content: Mapped[str] = mapped_column(Text, default="")
+    is_read: Mapped[bool] = mapped_column(Integer, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

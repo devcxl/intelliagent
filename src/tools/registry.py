@@ -291,12 +291,16 @@ _default_registry.register(
 # agent-team 工具 — Agent 间通信与团队管理
 
 
-def _register_agent_team_tools() -> None:
+def _register_agent_team_tools(target: ToolRegistry) -> None:
     """惰性注册 agent-team 工具，避免循环引用。
 
-    agent_team_tools → src.core.agent_team → ReactEngine → _default_registry
-    的循环依赖要求在 _default_registry 完全初始化后才能导入 agent_team_tools。
+    Runtime 显式调用该函数，避免 import registry 时立刻加载 agent-team 工具。
     """
+    # 幂等注册：Runtime 和测试可以重复调用，不会覆盖或重复追加工具定义。
+    if "send_message" in target.list_tool_names():
+        return
+
+    # 延迟导入让 registry 保持轻量，避免导入 registry 时顺带加载 service/db 层。
     from .agent_team_tools import (
         create_agent,
         delete_agent,
@@ -306,7 +310,7 @@ def _register_agent_team_tools() -> None:
         send_message,
     )
 
-    _default_registry.register(
+    target.register(
         fn=send_message,
         name="send_message",
         description="向指定 Agent 发送消息。需要目标 Agent ID 和消息内容。发送方身份由系统上下文自动确定。",
@@ -316,7 +320,7 @@ def _register_agent_team_tools() -> None:
         },
     )
 
-    _default_registry.register(
+    target.register(
         fn=receive_message,
         name="receive_message",
         description="接收发送给当前 Agent 的消息（收件箱）。返回的消息会自动标记为已读。支持分页和未读过滤。",
@@ -327,7 +331,7 @@ def _register_agent_team_tools() -> None:
         },
     )
 
-    _default_registry.register(
+    target.register(
         fn=get_contacts,
         name="get_contacts",
         description="获取 Agent 通讯录列表。返回所有 Agent（排除当前 Agent），可按在线状态筛选。",
@@ -340,7 +344,7 @@ def _register_agent_team_tools() -> None:
         },
     )
 
-    _default_registry.register(
+    target.register(
         fn=get_contact_detail,
         name="get_contact_detail",
         description="获取指定 Agent 的详细信息，包括名称、描述、状态等。",
@@ -349,7 +353,7 @@ def _register_agent_team_tools() -> None:
         },
     )
 
-    _default_registry.register(
+    target.register(
         fn=create_agent,
         name="create_agent",
         description="创建一个新的 Agent。Agent ID 由系统自动生成，只需提供名称、描述和系统 Prompt。",
@@ -357,10 +361,13 @@ def _register_agent_team_tools() -> None:
             "name": {"type": "string", "description": "Agent 名称（必须唯一）", "required": True},
             "desc": {"type": "string", "description": "Agent 描述", "required": False},
             "prompt": {"type": "string", "description": "Agent 系统 Prompt", "required": False},
+            "allowed_tools": {"type": "string", "description": "允许使用的工具列表", "required": False},
+            "model": {"type": "string", "description": "Agent 使用的模型", "required": False},
+            "workspace": {"type": "string", "description": "Agent 工作区路径", "required": False},
         },
     )
 
-    _default_registry.register(
+    target.register(
         fn=delete_agent,
         name="delete_agent",
         description="删除指定 Agent。执行软删除（状态标记为 deleted），历史消息保留。",
@@ -370,6 +377,12 @@ def _register_agent_team_tools() -> None:
     )
 
 
-_register_agent_team_tools()
+def register_agent_team_tools(registry: ToolRegistry | None = None) -> ToolRegistry:
+    """显式注册 agent-team 工具，返回实际被注册的 registry。"""
 
-__all__ = ["ToolDef", "ToolFn", "ToolRegistry", "_default_registry"]
+    target = registry or _default_registry
+    _register_agent_team_tools(target)
+    return target
+
+
+__all__ = ["ToolDef", "ToolFn", "ToolRegistry", "_default_registry", "register_agent_team_tools"]

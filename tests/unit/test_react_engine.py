@@ -83,19 +83,6 @@ class TestReactEngineBasicRun:
         assert result["completion_tokens"] == 30
         assert result["cached_tokens"] == 12
 
-    @pytest.mark.asyncio
-    async def test_max_steps_triggers_safety_net(self, mock_engine):
-        mock_engine.llm_client.chat_async.return_value = _make_response(
-            tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')],
-            total_tokens=10,
-        )
-
-        result = await mock_engine.run("测试任务", max_steps=3)
-
-        assert result["success"] is False
-        assert "安全网触发" in result["summary"]
-        assert mock_engine.llm_client.chat_async.call_count == 3
-
 
 class TestReactEngineToolCalls:
     @pytest.mark.asyncio
@@ -168,16 +155,3 @@ class TestReactEngineIterSteps:
 
         types = [e["type"] for e in events]
         assert types == ["thought", "action", "observation", "answer"]
-
-    @pytest.mark.asyncio
-    async def test_iter_steps_max_steps(self, mock_engine):
-        mock_engine.llm_client.chat_async.return_value = _make_response(
-            tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')],
-            total_tokens=10,
-        )
-
-        events = []
-        async for event in mock_engine.iter_steps("测试任务", max_steps=1):
-            events.append(event)
-
-        assert [e["type"] for e in events] == ["thought", "action", "observation", "answer"]

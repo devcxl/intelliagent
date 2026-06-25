@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from src.db.engine import create_engine, create_session_factory, init_db
+from src.db.models import Conversation
 from src.db.repositories import ConversationRepository
 from src.tools.file_tools import edit_file, read_file, write_file
 from src.tools.registry import _default_registry
@@ -28,7 +29,7 @@ class TestToolRegistryDebugLogs:
         factory = create_session_factory(engine)
         async with factory() as session:
             conv_repo = ConversationRepository(session)
-            await conv_repo.create("conv-test", title="test")
+            await conv_repo.save(Conversation(id="conv-test", title="test"))
         set_task_context(factory, "conv-test")
         yield
         set_task_context(None, None)

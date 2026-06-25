@@ -6,17 +6,19 @@
 from __future__ import annotations
 
 import json
+from contextvars import ContextVar
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.db.models import Task
 from src.db.repositories import TaskRepository
+from src.db.repositories._utils import new_uuid
 from src.utils.logger import logger
 
 from .response import error_response, success_response
 
-_session_factory: async_sessionmaker[AsyncSession] | None = None
-_conversation_id: str | None = None
+_task_ctx: ContextVar[tuple[async_sessionmaker[AsyncSession], str] | None] = ContextVar("task_ctx", default=None)
 
 
 def set_task_context(
@@ -29,15 +31,18 @@ def set_task_context(
         session_factory: async session factory，None 时清除
         conversation_id: 当前 Conversation ID，None 时清除
     """
-    global _session_factory, _conversation_id
-    _session_factory = session_factory
-    _conversation_id = conversation_id
+    # ContextVar 让并发 Task 之间的 conversation 上下文互不污染。
+    if session_factory is not None and conversation_id is not None:
+        _task_ctx.set((session_factory, conversation_id))
+    else:
+        _task_ctx.set(None)
 
 
 def _ensure_context() -> tuple[async_sessionmaker[AsyncSession], str]:
-    if _session_factory is None or _conversation_id is None:
+    ctx = _task_ctx.get()
+    if ctx is None:
         raise RuntimeError("任务系统未初始化，缺少数据库或 Conversation 上下文")
-    return _session_factory, _conversation_id
+    return ctx
 
 
 async def task_write(tasks: str) -> str:
@@ -74,13 +79,16 @@ async def task_write(tasks: str) -> str:
         for idx, item in enumerate(items):
             if not isinstance(item, dict) or "title" not in item:
                 continue
-            result = await repo.add(
-                conversation_id=conv_id,
-                title=str(item["title"]),
-                content=str(item.get("content", "")),
-                parent_id=item.get("parent_id"),
-                priority=str(item.get("priority", "medium")),
-                sort_order=base_order + idx,
+            result = await repo.save(
+                Task(
+                    id=new_uuid(),
+                    conversation_id=conv_id,
+                    title=str(item["title"]),
+                    content=str(item.get("content", "")),
+                    parent_id=item.get("parent_id"),
+                    priority=str(item.get("priority", "medium")),
+                    sort_order=base_order + idx,
+                )
             )
             created.append({"id": result["id"], "title": item["title"], "task_status": "pending"})
 
@@ -119,13 +127,16 @@ async def task_add(
         existing = await repo.list_by_conversation(conv_id)
         sort_order = len(existing)
 
-        result = await repo.add(
-            conversation_id=conv_id,
-            title=title,
-            content=content,
-            parent_id=parent_id or None,
-            priority=priority,
-            sort_order=sort_order,
+        result = await repo.save(
+            Task(
+                id=new_uuid(),
+                conversation_id=conv_id,
+                title=title,
+                content=content,
+                parent_id=parent_id or None,
+                priority=priority,
+                sort_order=sort_order,
+            )
         )
 
     logger.debug("TaskTools - task_add | id=%s title=%s", result["id"], title)

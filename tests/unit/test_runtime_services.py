@@ -61,9 +61,8 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
         pass
 
     class FakeReactEngine:
-        def __init__(self, llm_client=None, context_limit=None, max_steps=50, **kwargs):
+        def __init__(self, llm_client=None, context_limit=None, **kwargs):
             self.context_limit = context_limit or 128000
-            self.max_steps = max_steps
             self.permission_engine = kwargs.get("permission_engine")
             self.permission_callback = kwargs.get("permission_callback")
             created_engines.append(self)
@@ -77,12 +76,11 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
             llm_client_factory=FakeLLMClient,
             permission_engine_factory=FakePermissionEngine,
             permission_callback_factory=FakePermissionCallback,
-        ).create_engine(max_iterations=3)
+        ).create_engine()
     )
 
     assert created_engines == [engine]
     assert engine.context_limit == 128000
-    assert engine.max_steps == 3
     assert engine.permission_engine is not None
     assert engine.permission_callback is not None
 

@@ -68,17 +68,6 @@ class TestReactEngineDebugLogs:
         assert "Agent 完成" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_logs_safety_net_warning(self, mock_engine, caplog):
-        mock_engine.llm_client.chat_async.return_value = _make_response(
-            tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')],
-            total_tokens=10,
-        )
-
-        await mock_engine.run("测试任务", max_steps=2)
-
-        assert "安全网触发" in caplog.text
-
-    @pytest.mark.asyncio
     async def test_logs_tool_call_info(self, mock_engine, caplog):
         mock_engine.llm_client.chat_async.side_effect = [
             _make_response(tool_calls=[_make_tool_call("c1", "read_file", '{"path": "test.txt"}')]),

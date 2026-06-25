@@ -8,25 +8,33 @@ ReactEngine 端到端测试 — 使用真实 LLM（需要 OPENAI_API_KEY）。
 跳过条件：未设置 OPENAI_API_KEY 环境变量时自动 skip。
 """
 
+import os
+
 import pytest
 
 from src.core.react_engine import ReactEngine
 from src.llm.llm_client import LLMClient
+from src.tools.registry import _default_registry, register_agent_team_tools
 
 
 @pytest.fixture(scope="module")
 def llm_client():
-    from src.config.settings import get_settings
-
-    settings = get_settings()
-    if not settings.OPENAI_API_KEY:
+    # E2E 测试只接受真实环境变量，避免 intelliagent.json 中其他 provider 配置误触发真实调用。
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
         pytest.skip("需要 OPENAI_API_KEY 环境变量")
-    return LLMClient(model=settings.OPENAI_MODEL)
+    return LLMClient(
+        api_key=api_key,
+        base_url=os.environ.get("OPENAI_API_BASE"),
+        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+    )
 
 
 @pytest.fixture(scope="module")
 def engine(llm_client):
-    return ReactEngine(llm_client=llm_client)
+    # 直接构造 ReactEngine 时必须显式接入工具注册表，保持 core 层无默认工具副作用。
+    register_agent_team_tools()
+    return ReactEngine(llm_client=llm_client, tools_registry=_default_registry)
 
 
 @pytest.mark.integration

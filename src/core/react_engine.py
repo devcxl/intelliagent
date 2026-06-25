@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Protocol
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
 from src.permission import (
@@ -9,12 +9,30 @@ from src.permission import (
     PermissionEngineProtocol,
 )
 from src.skills.registry import SkillRegistry
-from src.tools.registry import _default_registry
 from src.types.llm import LLMClientProtocol
 from src.types.memory import MemoryProtocol
 from src.utils.logger import logger
 
-MAX_STEPS = 50
+
+class ToolRegistryProtocol(Protocol):
+    """ReactEngine 只依赖工具注册表能力，不依赖 tools 包的具体全局实例。"""
+
+    def get_openai_tools(self) -> list[dict[str, Any]]: ...
+
+    async def call_tool(self, tool_name: str, **kwargs: Any) -> str: ...
+
+
+class _NoopToolRegistry:
+    """无工具场景的空注册表，用于测试和纯对话模式。"""
+
+    def get_openai_tools(self) -> list[dict[str, Any]]:
+        return []
+
+    async def call_tool(self, tool_name: str, **kwargs: Any) -> str:
+        return json.dumps(
+            {"status": "error", "error": f"未知工具: {tool_name}", "code": "UNKNOWN_TOOL"},
+            ensure_ascii=False,
+        )
 
 
 def _to_tool_call_list(raw: list[Any]) -> list[dict[str, Any]]:
@@ -35,23 +53,22 @@ class ReactEngine:
     def __init__(
         self,
         llm_client: LLMClientProtocol,
-        tools_registry: Any = None,
+        tools_registry: ToolRegistryProtocol | None = None,
         memory: MemoryProtocol | None = None,
         permission_engine: PermissionEngineProtocol | None = None,
         permission_callback: PermissionCallbackProtocol | None = None,
         context_limit: int | None = None,
-        max_steps: int = MAX_STEPS,
         skill_registry: SkillRegistry | None = None,
     ):
         self.llm_client = llm_client
-        self._registry = tools_registry if tools_registry is not None else _default_registry
+        # 默认不再使用 _default_registry，避免 core 层被 tools 层的导入副作用污染。
+        self._registry = tools_registry if tools_registry is not None else _NoopToolRegistry()
         self.memory = memory
         self._permission_engine = permission_engine
         self._permission_callback = permission_callback
         self._skill_registry = skill_registry
 
         self.max_context_tokens = context_limit or 128_000
-        self.max_steps = max_steps
 
         self.messages: list[dict[str, Any]] = []
         self.total_tokens = 0
@@ -71,6 +88,14 @@ class ReactEngine:
 
     def add_tool_message(self, tool_call_id: str, content: str):
         self.messages.append({"role": "tool", "tool_call_id": tool_call_id, "content": content})
+
+    def load_history(self, messages: list[dict[str, Any]]) -> None:
+        """从持久化消息列表加载历史，前置 system message。
+
+        Args:
+            messages: DB 中已存储的对话消息（role + content）
+        """
+        self.messages = [self._build_system_message(), *(dict(message) for message in messages)]
 
     def _build_system_message(self) -> dict[str, Any]:
         """构建 system message，注入 available_skills（如有）。"""
@@ -124,6 +149,7 @@ class ReactEngine:
             args = {}
 
         if self._permission_engine:
+            # 权限检查必须发生在 ToolRegistry.call_tool 之前，确保副作用工具不会先执行。
             decision = self._permission_engine.check(tool_name, args)
             if decision.action == "deny":
                 return json.dumps({"status": "error", "error": f"权限拒绝: {decision.reason}"}, ensure_ascii=False)
@@ -146,15 +172,17 @@ class ReactEngine:
         return result
 
     # ------------------------------------------------------------------
-    # _loop — 核心循环
+    # _loop — 核心循环（事件流）
     # ------------------------------------------------------------------
 
-    async def _loop(self, step_limit: int) -> dict[str, Any]:
+    async def _loop(self) -> AsyncGenerator[dict[str, Any], None]:
         total_prompt = 0
         total_completion = 0
         total_cached = 0
+        step = 0
 
-        for step in range(1, step_limit + 1):
+        while True:
+            step += 1
             logger.debug(f"ReactEngine - 第 {step} 轮 | tokens={self.total_tokens}")
 
             if self._check_token_limit():
@@ -184,99 +212,17 @@ class ReactEngine:
 
             if not tool_calls:
                 logger.info(f"Agent 完成 | turns={step} tokens={self.total_tokens}")
-                return {
-                    "success": True,
-                    "answer": content or "",
-                    "num_turns": step,
-                    "total_tokens": self.total_tokens,
-                    "prompt_tokens": total_prompt,
-                    "completion_tokens": total_completion,
-                    "cached_tokens": total_cached,
-                }
-
-            for tc in tool_calls:
-                result = await self.execute_tool(tc)
-                self.add_tool_message(tc["id"], result)
-
-        logger.warning(f"安全网触发 | max_steps={step_limit}")
-        return {
-            "success": False,
-            "answer": "",
-            "num_turns": step_limit,
-            "total_tokens": self.total_tokens,
-            "prompt_tokens": total_prompt,
-            "completion_tokens": total_completion,
-            "cached_tokens": total_cached,
-            "summary": "安全网触发：达到最大步数",
-        }
-
-    # ------------------------------------------------------------------
-    # run — 主入口
-    # ------------------------------------------------------------------
-
-    async def run(
-        self,
-        task: str,
-        max_steps: int | None = None,
-        history_context: str | None = None,
-    ) -> dict[str, Any]:
-        self.messages = [self._build_system_message()]
-
-        user_content = task
-        if history_context:
-            user_content = f"{history_context}\n\n{task}"
-        self.add_user_message(user_content)
-
-        return await self._loop(max_steps or self.max_steps)
-
-    # ------------------------------------------------------------------
-    # iter_steps — 流式事件生成
-    # ------------------------------------------------------------------
-
-    async def iter_steps(
-        self,
-        task: str,
-        history_context: str | None = None,
-        max_steps: int | None = None,
-        start_iteration: int = 1,
-        reset_state: bool = True,
-        seed_observations: list[dict[str, Any]] | None = None,
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        if reset_state:
-            self.messages = [self._build_system_message()]
-
-        user_content = task
-        if history_context:
-            user_content = f"{history_context}\n\n{task}"
-        self.add_user_message(user_content)
-
-        step_limit = max_steps or self.max_steps
-
-        for step in range(start_iteration, step_limit + 1):
-            if self._check_token_limit():
-                await self.compact_context()
-
-            response = await self.llm_client.chat_async(
-                messages=self.messages,
-                temperature=0.3,
-                tools=self._registry.get_openai_tools(),
-            )
-
-            usage = getattr(response, "usage", None)
-            if usage:
-                self.total_tokens += getattr(usage, "total_tokens", 0) or 0
-
-            content = getattr(response, "content", None)
-            raw_tc = getattr(response, "tool_calls", None)
-            tool_calls = _to_tool_call_list(raw_tc) if raw_tc else None
-
-            self.add_assistant_message(content=content, tool_calls=tool_calls)
-
-            if not tool_calls:
                 yield {
                     "type": "answer",
                     "iteration": step,
-                    "data": {"answer": content or ""},
+                    "data": {
+                        "answer": content or "",
+                        "num_turns": step,
+                        "total_tokens": self.total_tokens,
+                        "prompt_tokens": total_prompt,
+                        "completion_tokens": total_completion,
+                        "cached_tokens": total_cached,
+                    },
                 }
                 return
 
@@ -317,11 +263,48 @@ class ReactEngine:
                     },
                 }
 
-        yield {
-            "type": "answer",
-            "iteration": step_limit,
-            "data": {"answer": "安全网触发"},
-        }
+    # ------------------------------------------------------------------
+    # run — 主入口
+    # ------------------------------------------------------------------
+
+    async def run(
+        self,
+        task: str,
+    ) -> dict[str, Any]:
+        if not self.messages:
+            self.messages = [self._build_system_message()]
+        self.add_user_message(task)
+
+        async for event in self._loop():
+            if event["type"] == "answer":
+                data = event["data"]
+                return {
+                    "success": True,
+                    "answer": data["answer"],
+                    "num_turns": data["num_turns"],
+                    "total_tokens": data["total_tokens"],
+                    "prompt_tokens": data["prompt_tokens"],
+                    "completion_tokens": data["completion_tokens"],
+                    "cached_tokens": data["cached_tokens"],
+                }
+
+        return {"success": False, "answer": ""}
+
+    # ------------------------------------------------------------------
+    # iter_steps — 流式事件生成
+    # ------------------------------------------------------------------
+
+    async def iter_steps(
+        self,
+        task: str,
+        reset_state: bool = True,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        if reset_state or not self.messages:
+            self.messages = [self._build_system_message()]
+        self.add_user_message(task)
+
+        async for event in self._loop():
+            yield event
 
 
 __all__ = ["ReactEngine"]
