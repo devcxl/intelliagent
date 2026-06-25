@@ -22,3 +22,14 @@ class MessageRepository:
             select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at.asc())
         )
         return list(result.scalars())
+
+    async def delete_by_ids(self, conversation_id: str, ids: list[str]) -> None:
+        from sqlalchemy import delete
+
+        stmt = (
+            delete(Message)
+            .where(Message.conversation_id == conversation_id)
+            .where(Message.id.in_(ids))
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
