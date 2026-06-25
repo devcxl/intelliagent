@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Protocol
 
@@ -11,7 +12,6 @@ from src.permission import (
 )
 from src.skills.registry import SkillRegistry
 from src.types.llm import LLMClientProtocol
-from src.types.memory import MemoryProtocol
 from src.utils.logger import logger
 
 _RECENT_CONTEXT_MESSAGES = 6
@@ -80,19 +80,18 @@ class ReactEngine:
         self,
         llm_client: LLMClientProtocol,
         tools_registry: ToolRegistryProtocol | None = None,
-        memory: MemoryProtocol | None = None,
         permission_engine: PermissionEngineProtocol | None = None,
         permission_callback: PermissionCallbackProtocol | None = None,
         context_limit: int | None = None,
         skill_registry: SkillRegistry | None = None,
+        compact_callback: Callable[[list[str], str], Awaitable[None]] | None = None,
     ):
         self.llm_client = llm_client
-        # 默认不再使用 _default_registry，避免 core 层被 tools 层的导入副作用污染。
         self._registry = tools_registry if tools_registry is not None else _NoopToolRegistry()
-        self.memory = memory
         self._permission_engine = permission_engine
         self._permission_callback = permission_callback
         self._skill_registry = skill_registry
+        self._compact_callback = compact_callback
 
         self.max_context_tokens = context_limit or 128_000
 
@@ -159,7 +158,12 @@ class ReactEngine:
                 temperature=0.3,
             )
             summary = getattr(resp, "content", "") or ""
-            kept.append({"role": "user", "content": f"以下是被压缩的上下文摘要：{summary}"})
+
+            msg_ids = [m["_msg_id"] for m in middle if "_msg_id" in m]
+            if msg_ids and self._compact_callback:
+                await self._compact_callback(msg_ids, summary)
+
+            kept.append({"role": "system", "content": f"以下是被压缩的上下文摘要：{summary}"})
 
         kept.extend(recent)
         self.messages = kept
@@ -196,9 +200,6 @@ class ReactEngine:
 
         result = await self._registry.call_tool(tool_name=tool_name, **args)
 
-        if self.memory:
-            self.memory.add_observation({"tool_name": tool_name, "tool_args": args, "result": result})
-
         return result
 
     # ------------------------------------------------------------------
@@ -226,7 +227,7 @@ class ReactEngine:
                 yield self._answer_event(step, content, usage)
                 return
 
-            yield self._thought_event(step, content)
+            yield self._thought_event(step, content, tool_calls)
             async for event in self._execute_tool_calls(tool_calls, step):
                 yield event
 
@@ -235,8 +236,9 @@ class ReactEngine:
             await self.compact_context()
 
     async def _call_llm(self) -> Any:
+        clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in self.messages]
         return await self.llm_client.chat_async(
-            messages=self.messages,
+            messages=clean,
             temperature=0.3,
             tools=self._registry.get_openai_tools(),
         )
@@ -261,11 +263,11 @@ class ReactEngine:
             },
         }
 
-    def _thought_event(self, step: int, content: str | None) -> dict[str, Any]:
+    def _thought_event(self, step: int, content: str | None, tool_calls: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         return {
             "type": "thought",
             "iteration": step,
-            "data": {"content": content, "has_tool_calls": True},
+            "data": {"content": content, "has_tool_calls": True, "tool_calls": tool_calls},
         }
 
     async def _execute_tool_calls(
@@ -287,6 +289,7 @@ class ReactEngine:
                 "iteration": step,
                 "data": {
                     "iteration": step,
+                    "tool_call_id": tool_call["id"],
                     "tool_name": tool_name,
                     "tool_args": tool_args,
                     "result": result,
