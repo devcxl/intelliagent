@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
-from typing import Any, AsyncGenerator, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any, AsyncGenerator
 
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
@@ -206,7 +208,7 @@ class AgentRuntime:
         return await self._conversation_manager.get_message_count(conversation_id)
 
     async def execute(self, task: str) -> AsyncGenerator[dict[str, Any], None]:
-        """执行一轮对话：加载历史 → 创建引擎 → 流式执行 → 持久化回答。
+        """执行一轮对话：加载历史 → 创建引擎 → 流式执行 → 持久化所有消息。
 
         Args:
             task: 用户输入
@@ -218,19 +220,41 @@ class AgentRuntime:
             await self.setup_conversation(task)
 
         history_messages = await self._conversation_manager.load_history_messages()
-        await self.save_message("user", task)
+        await self._conversation_manager.save_message("user", task)
 
-        engine = await self.create_engine()
+        engine = await self.create_engine(
+            compact_callback=self._conversation_manager.compact_messages,
+        )
         engine.load_history(history_messages)
 
         assistant_content = ""
         async for event in engine.iter_steps(task, reset_state=False):
-            if event["type"] == "answer":
+            if event["type"] == "thought":
+                tc = event["data"].get("tool_calls")
+                if tc:
+                    await self._conversation_manager.save_message(
+                        "assistant",
+                        event["data"].get("content", ""),
+                        tool_calls=json.dumps(tc, ensure_ascii=False),
+                    )
+
+            elif event["type"] == "observation":
+                d = event["data"]
+                await self._conversation_manager.save_message(
+                    "tool",
+                    d.get("result", ""),
+                    tool_call_id=d.get("tool_call_id", ""),
+                    tool_name=d.get("tool_name", ""),
+                    tool_args=json.dumps(d.get("tool_args", {}), ensure_ascii=False),
+                )
+
+            elif event["type"] == "answer":
                 assistant_content = event["data"]["answer"]
+
             yield event
 
         if assistant_content:
-            await self.save_message("assistant", assistant_content)
+            await self._conversation_manager.save_message("assistant", assistant_content)
 
     def get_llm_client(self) -> LLMClientProtocol:
         """获取 LLM 客户端（懒加载单例）。
@@ -278,6 +302,7 @@ class AgentRuntime:
         self,
         api_key: str | None = None,
         model: str | None = None,
+        compact_callback: Callable[[list[str], str], Awaitable[None]] | None = None,
     ) -> ReactEngine:
         """创建新的 ReactEngine 实例。
 
@@ -287,12 +312,13 @@ class AgentRuntime:
         Args:
             api_key: 覆盖默认 API Key（None 则使用配置值）
             model: 覆盖默认模型（None 则使用配置值）
+            compact_callback: 上下文压缩回调，通知调用方删除旧消息并写回摘要
 
         Returns:
             组装完成的 ReactEngine 实例
         """
         await self.start_mcp()
-        return self._engine_factory.create()
+        return self._engine_factory.create(compact_callback=compact_callback)
 
 
 __all__ = ["AgentRuntime"]

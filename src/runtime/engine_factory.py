@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
@@ -31,7 +32,10 @@ class EngineFactory:
         self._tool_registry = tool_registry
         self._skill_registry = skill_registry
 
-    def create(self) -> ReactEngine:
+    def create(
+        self,
+        compact_callback: Callable[[list[str], str], Awaitable[None]] | None = None,
+    ) -> ReactEngine:
         return ReactEngine(
             llm_client=self._llm_client_provider(),
             tools_registry=self._tool_registry,
@@ -39,6 +43,7 @@ class EngineFactory:
             permission_engine=self._permission_engine_factory(),
             permission_callback=self._permission_callback_factory(),
             skill_registry=self._skill_registry,
+            compact_callback=compact_callback,
         )
 
 
