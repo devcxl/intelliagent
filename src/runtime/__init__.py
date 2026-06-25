@@ -2,5 +2,7 @@
 """Runtime composition root."""
 
 from src.runtime.agent_runtime import AgentRuntime
+from src.runtime.database_runtime import DatabaseRuntime
+from src.runtime.engine_factory import EngineFactory
 
-__all__ = ["AgentRuntime"]
+__all__ = ["AgentRuntime", "DatabaseRuntime", "EngineFactory"]

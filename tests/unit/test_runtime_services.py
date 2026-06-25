@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """PR2 runtime / service 测试。"""
 
-import src.runtime.agent_runtime as agent_runtime_module
+import src.runtime.engine_factory as engine_factory_module
 from src.config.unified_config import UnifiedConfig
 from src.runtime import AgentRuntime
 
@@ -25,7 +25,7 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
             self.max_tokens = max_tokens
             created_engines.append(self)
 
-    monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
+    monkeypatch.setattr(engine_factory_module, "ReactEngine", FakeReactEngine)
 
     runtime = AgentRuntime(
         llm_client_factory=lambda: FakeLLMClient(
@@ -67,7 +67,7 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
             self.permission_callback = kwargs.get("permission_callback")
             created_engines.append(self)
 
-    monkeypatch.setattr(agent_runtime_module, "ReactEngine", FakeReactEngine)
+    monkeypatch.setattr(engine_factory_module, "ReactEngine", FakeReactEngine)
 
     import asyncio
 

@@ -93,12 +93,12 @@ class TestConversationRepository:
 
     async def test_create_and_get(self, repo, session):
         result = await repo.save(_conversation("conv-1", title="测试", status="idle"))
-        assert result["id"] == "conv-1"
+        assert result.id == "conv-1"
 
         fetched = await repo.get("conv-1")
         assert fetched is not None
-        assert fetched["title"] == "测试"
-        assert fetched["status"] == "idle"
+        assert fetched.title == "测试"
+        assert fetched.status == "idle"
 
     async def test_get_not_found(self, repo):
         assert await repo.get("nonexistent") is None
@@ -108,8 +108,8 @@ class TestConversationRepository:
         await repo.update("conv-1", title="新", status="running")
 
         fetched = await repo.get("conv-1")
-        assert fetched["title"] == "新"
-        assert fetched["status"] == "running"
+        assert fetched.title == "新"
+        assert fetched.status == "running"
 
     async def test_delete_cascades(self, repo, session):
         await repo.save(_conversation("conv-1", title="test"))
@@ -132,7 +132,7 @@ class TestConversationRepository:
         result = await repo.list_all()
         assert len(result) == 2
         # conv-2 was created after conv-1's update, so conv-2 should be first
-        assert result[0]["id"] == "conv-2"
+        assert result[0].id == "conv-2"
 
     async def test_get_latest(self, repo):
         await repo.save(_conversation("conv-1", title="first"))
@@ -140,7 +140,7 @@ class TestConversationRepository:
 
         latest = await repo.get_latest()
         assert latest is not None
-        assert latest["id"] == "conv-2"
+        assert latest.id == "conv-2"
 
 
 class TestMessageRepository:
@@ -153,13 +153,13 @@ class TestMessageRepository:
         conv_repo = ConversationRepository(session)
         await conv_repo.save(_conversation("conv-1"))
 
-        msg_id = await repo.save(_message("msg-1"))
-        assert len(msg_id) > 0
+        msg = await repo.save(_message("msg-1"))
+        assert len(msg.id) > 0
 
         msgs = await repo.list_by_conversation("conv-1")
         assert len(msgs) == 1
-        assert msgs[0]["role"] == "user"
-        assert msgs[0]["content"] == "hello"
+        assert msgs[0].role == "user"
+        assert msgs[0].content == "hello"
 
 
 class TestTaskRepository:
@@ -175,22 +175,22 @@ class TestTaskRepository:
 
     async def test_add_and_get(self, repo, conv):
         result = await repo.save(_task("task-1", conv, title="设计API", content="设计REST", priority="high"))
-        assert len(result["id"]) > 0
-        assert result["status"] == "pending"
+        assert len(result.id) > 0
+        assert result.status == "pending"
 
-        task = await repo.get(result["id"])
+        task = await repo.get(result.id)
         assert task is not None
-        assert task["title"] == "设计API"
-        assert task["priority"] == "high"
-        assert task["status"] == "pending"
-        assert task["completed_at"] is None
+        assert task.title == "设计API"
+        assert task.priority == "high"
+        assert task.status == "pending"
+        assert task.completed_at is None
 
     async def test_add_with_parent(self, repo, conv):
         parent = await repo.save(_task("parent", conv, title="父任务"))
-        child = await repo.save(_task("child", conv, title="子任务", parent_id=parent["id"]))
+        child = await repo.save(_task("child", conv, title="子任务", parent_id=parent.id))
 
-        task = await repo.get(child["id"])
-        assert task["parent_id"] == parent["id"]
+        task = await repo.get(child.id)
+        assert task.parent_id == parent.id
 
     async def test_list_by_conversation(self, repo, conv):
         await repo.save(_task("task-1", conv, title="任务1", sort_order=0))
@@ -199,24 +199,24 @@ class TestTaskRepository:
 
         tasks = await repo.list_by_conversation(conv)
         assert len(tasks) == 3
-        assert tasks[0]["title"] == "任务1"
+        assert tasks[0].title == "任务1"
 
     async def test_update_status_completed(self, repo, conv):
         result = await repo.save(_task("task-1", conv, title="待完成"))
-        await repo.update(result["id"], status="completed")
+        await repo.update(result.id, status="completed")
 
-        task = await repo.get(result["id"])
-        assert task["status"] == "completed"
-        assert task["completed_at"] is not None
+        task = await repo.get(result.id)
+        assert task.status == "completed"
+        assert task.completed_at is not None
 
     async def test_update_multiple_fields(self, repo, conv):
         result = await repo.save(_task("task-1", conv, title="原始", content="内容", priority="low"))
-        await repo.update(result["id"], title="新标题", priority="high")
+        await repo.update(result.id, title="新标题", priority="high")
 
-        task = await repo.get(result["id"])
-        assert task["title"] == "新标题"
-        assert task["priority"] == "high"
-        assert task["content"] == "内容"
+        task = await repo.get(result.id)
+        assert task.title == "新标题"
+        assert task.priority == "high"
+        assert task.content == "内容"
 
     async def test_delete_by_conversation(self, repo, conv):
         await repo.save(_task("task-a", conv, title="A"))

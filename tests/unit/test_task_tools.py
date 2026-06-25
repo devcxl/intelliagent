@@ -9,7 +9,7 @@ import pytest
 from src.db.engine import create_engine, create_session_factory, init_db
 from src.db.models import Conversation, Task
 from src.db.repositories import ConversationRepository, TaskRepository
-from src.tools.task_tools import set_task_context, task_add, task_finish, task_update, task_write
+from src.tools.task_tools import TaskTools
 
 
 def _conversation(id: str, title: str = "") -> Conversation:
@@ -53,10 +53,13 @@ async def session_factory(tmp_path):
 
 
 @pytest.fixture
-def task_ctx(session_factory):
-    set_task_context(session_factory, "conv-1")
-    yield
-    set_task_context(None, None)
+def tools(session_factory):
+    return TaskTools(lambda: session_factory, lambda: "conv-1")
+
+
+@pytest.fixture
+def no_context_tools(session_factory):
+    return TaskTools(lambda: session_factory, lambda: None)
 
 
 class TestTaskRepository:
@@ -65,29 +68,29 @@ class TestTaskRepository:
         async with session_factory() as session:
             repo = TaskRepository(session)
             result = await repo.save(_task("task-1", title="设计API", content="设计REST接口", priority="high"))
-            assert result["status"] == "pending"
-            assert len(result["id"]) > 0
+            assert result.status == "pending"
+            assert len(result.id) > 0
 
-            task = await repo.get(result["id"])
+            task = await repo.get(result.id)
             assert task is not None
-            assert task["title"] == "设计API"
-            assert task["content"] == "设计REST接口"
-            assert task["priority"] == "high"
-            assert task["status"] == "pending"
-            assert task["parent_id"] is None
-            assert task["completed_at"] is None
+            assert task.title == "设计API"
+            assert task.content == "设计REST接口"
+            assert task.priority == "high"
+            assert task.status == "pending"
+            assert task.parent_id is None
+            assert task.completed_at is None
 
     @pytest.mark.asyncio
     async def test_add_with_parent(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
             parent = await repo.save(_task("parent", title="父任务"))
-            child = await repo.save(_task("child", title="子任务", parent_id=parent["id"]))
-            assert child["status"] == "pending"
+            child = await repo.save(_task("child", title="子任务", parent_id=parent.id))
+            assert child.status == "pending"
 
-            task = await repo.get(child["id"])
+            task = await repo.get(child.id)
             assert task is not None
-            assert task["parent_id"] == parent["id"]
+            assert task.parent_id == parent.id
 
     @pytest.mark.asyncio
     async def test_list_by_conversation(self, session_factory):
@@ -99,9 +102,9 @@ class TestTaskRepository:
 
             tasks = await repo.list_by_conversation("conv-1")
             assert len(tasks) == 3
-            assert tasks[0]["title"] == "任务1"
-            assert tasks[1]["title"] == "任务2"
-            assert tasks[2]["title"] == "任务3"
+            assert tasks[0].title == "任务1"
+            assert tasks[1].title == "任务2"
+            assert tasks[2].title == "任务3"
 
     @pytest.mark.asyncio
     async def test_get_not_found(self, session_factory):
@@ -114,33 +117,33 @@ class TestTaskRepository:
         async with session_factory() as session:
             repo = TaskRepository(session)
             result = await repo.save(_task("task-1", title="旧标题"))
-            await repo.update(result["id"], title="新标题")
-            task = await repo.get(result["id"])
+            await repo.update(result.id, title="新标题")
+            task = await repo.get(result.id)
             assert task is not None
-            assert task["title"] == "新标题"
+            assert task.title == "新标题"
 
     @pytest.mark.asyncio
     async def test_update_status_to_completed(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
             result = await repo.save(_task("task-1", title="待完成"))
-            await repo.update(result["id"], status="completed")
-            task = await repo.get(result["id"])
+            await repo.update(result.id, status="completed")
+            task = await repo.get(result.id)
             assert task is not None
-            assert task["status"] == "completed"
-            assert task["completed_at"] is not None
+            assert task.status == "completed"
+            assert task.completed_at is not None
 
     @pytest.mark.asyncio
     async def test_update_multiple_fields(self, session_factory):
         async with session_factory() as session:
             repo = TaskRepository(session)
             result = await repo.save(_task("task-1", title="原始", content="原始内容", priority="low"))
-            await repo.update(result["id"], title="新标题", priority="high")
-            task = await repo.get(result["id"])
+            await repo.update(result.id, title="新标题", priority="high")
+            task = await repo.get(result.id)
             assert task is not None
-            assert task["title"] == "新标题"
-            assert task["priority"] == "high"
-            assert task["content"] == "原始内容"
+            assert task.title == "新标题"
+            assert task.priority == "high"
+            assert task.content == "原始内容"
 
     @pytest.mark.asyncio
     async def test_delete_by_conversation(self, session_factory):
@@ -167,8 +170,8 @@ class TestTaskRepository:
 
 class TestTaskTools:
     @pytest.mark.asyncio
-    async def test_task_add_success(self, task_ctx):
-        result = await task_add(title="设计API", content="设计REST接口", priority="high")
+    async def test_task_add_success(self, tools: TaskTools):
+        result = await tools.task_add(title="设计API", content="设计REST接口", priority="high")
         data = json.loads(result)
         assert data["status"] == "ok"
         assert len(data["id"]) > 0
@@ -176,15 +179,15 @@ class TestTaskTools:
         assert data["task_status"] == "pending"
 
     @pytest.mark.asyncio
-    async def test_task_add_empty_title(self, task_ctx):
-        result = await task_add(title="   ")
+    async def test_task_add_empty_title(self, tools: TaskTools):
+        result = await tools.task_add(title="   ")
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "EMPTY_TITLE"
 
     @pytest.mark.asyncio
-    async def test_task_write_batch(self, task_ctx):
-        result = await task_write(
+    async def test_task_write_batch(self, tools: TaskTools):
+        result = await tools.task_write(
             tasks=json.dumps(
                 [
                     {"title": "任务1", "priority": "high"},
@@ -202,70 +205,70 @@ class TestTaskTools:
         assert data["tasks"][2]["title"] == "任务3"
 
     @pytest.mark.asyncio
-    async def test_task_write_invalid_json(self, task_ctx):
-        result = await task_write(tasks="not json")
+    async def test_task_write_invalid_json(self, tools: TaskTools):
+        result = await tools.task_write(tasks="not json")
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "INVALID_PARAMETERS"
 
     @pytest.mark.asyncio
-    async def test_task_write_not_array(self, task_ctx):
-        result = await task_write(tasks='{"key": "value"}')
+    async def test_task_write_not_array(self, tools: TaskTools):
+        result = await tools.task_write(tasks='{"key": "value"}')
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "INVALID_PARAMETERS"
 
     @pytest.mark.asyncio
-    async def test_task_update_success(self, task_ctx):
-        add_result = json.loads(await task_add(title="旧标题", priority="low"))
+    async def test_task_update_success(self, tools: TaskTools):
+        add_result = json.loads(await tools.task_add(title="旧标题", priority="low"))
         task_id = add_result["id"]
 
-        result = await task_update(id=task_id, title="新标题", priority="high")
+        result = await tools.task_update(id=task_id, title="新标题", priority="high")
         data = json.loads(result)
         assert data["status"] == "ok"
         assert data["updated"] is True
 
     @pytest.mark.asyncio
-    async def test_task_update_not_found(self, task_ctx):
-        result = await task_update(id="nonexistent", title="x")
+    async def test_task_update_not_found(self, tools: TaskTools):
+        result = await tools.task_update(id="nonexistent", title="x")
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "TASK_NOT_FOUND"
 
     @pytest.mark.asyncio
-    async def test_task_update_empty_id(self, task_ctx):
-        result = await task_update(id="  ", title="x")
+    async def test_task_update_empty_id(self, tools: TaskTools):
+        result = await tools.task_update(id="  ", title="x")
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "EMPTY_TASK_ID"
 
     @pytest.mark.asyncio
-    async def test_task_finish_success(self, task_ctx):
-        add_result = json.loads(await task_add(title="待完成"))
+    async def test_task_finish_success(self, tools: TaskTools):
+        add_result = json.loads(await tools.task_add(title="待完成"))
         task_id = add_result["id"]
 
-        result = await task_finish(id=task_id)
+        result = await tools.task_finish(id=task_id)
         data = json.loads(result)
         assert data["status"] == "ok"
         assert data["task_status"] == "completed"
 
     @pytest.mark.asyncio
-    async def test_task_finish_not_found(self, task_ctx):
-        result = await task_finish(id="nonexistent")
+    async def test_task_finish_not_found(self, tools: TaskTools):
+        result = await tools.task_finish(id="nonexistent")
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "TASK_NOT_FOUND"
 
     @pytest.mark.asyncio
-    async def test_task_finish_empty_id(self, task_ctx):
-        result = await task_finish(id="")
+    async def test_task_finish_empty_id(self, tools: TaskTools):
+        result = await tools.task_finish(id="")
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "EMPTY_TASK_ID"
 
     @pytest.mark.asyncio
-    async def test_task_write_skips_items_without_title(self, task_ctx):
-        result = await task_write(
+    async def test_task_write_skips_items_without_title(self, tools: TaskTools):
+        result = await tools.task_write(
             tasks=json.dumps(
                 [
                     {"title": "有效任务"},
@@ -279,21 +282,20 @@ class TestTaskTools:
         assert data["count"] == 2
 
     @pytest.mark.asyncio
-    async def test_task_update_only_specified_fields(self, task_ctx):
-        add_result = json.loads(await task_add(title="原始标题", content="原始内容", priority="high"))
+    async def test_task_update_only_specified_fields(self, tools: TaskTools):
+        add_result = json.loads(await tools.task_add(title="原始标题", content="原始内容", priority="high"))
         task_id = add_result["id"]
 
         # 只改 title
-        await task_update(id=task_id, title="新标题")
-        result = await task_update(id=task_id, status="in_progress")
+        await tools.task_update(id=task_id, title="新标题")
+        result = await tools.task_update(id=task_id, status="in_progress")
         data = json.loads(result)
         assert data["status"] == "ok"
         assert data["updated"] is True
 
     @pytest.mark.asyncio
-    async def test_no_context_returns_error(self):
-        set_task_context(None, None)
-        result = await task_add(title="test")
+    async def test_no_context_returns_error(self, no_context_tools: TaskTools):
+        result = await no_context_tools.task_add(title="test")
         data = json.loads(result)
         assert data["status"] == "error"
         assert data["code"] == "CONTEXT_NOT_INITIALIZED"

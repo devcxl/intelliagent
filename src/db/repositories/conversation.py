@@ -15,23 +15,13 @@ class ConversationRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def save(self, conversation: Conversation) -> dict[str, Any]:
+    async def save(self, conversation: Conversation) -> Conversation:
         self._session.add(conversation)
         await self._session.commit()
-        return {"id": conversation.id, "logs": []}
+        return conversation
 
-    async def get(self, conversation_id: str) -> dict[str, Any] | None:
-        conv = await self._session.get(Conversation, conversation_id)
-        if conv is None:
-            return None
-        return {
-            "id": conv.id,
-            "title": conv.title,
-            "status": conv.status,
-            "created_at": conv.created_at.isoformat() if conv.created_at else "",
-            "updated_at": conv.updated_at.isoformat() if conv.updated_at else "",
-            "logs": [],
-        }
+    async def get(self, conversation_id: str) -> Conversation | None:
+        return await self._session.get(Conversation, conversation_id)
 
     async def update(
         self,
@@ -58,19 +48,10 @@ class ConversationRepository:
             await self._session.commit()
         return True
 
-    async def list_all(self) -> list[dict[str, Any]]:
+    async def list_all(self) -> list[Conversation]:
         result = await self._session.execute(select(Conversation).order_by(Conversation.updated_at.desc()))
-        return [
-            {
-                "id": conv.id,
-                "title": conv.title,
-                "status": conv.status,
-                "created_at": conv.created_at.isoformat() if conv.created_at else "",
-                "updated_at": conv.updated_at.isoformat() if conv.updated_at else "",
-            }
-            for conv in result.scalars()
-        ]
+        return list(result.scalars())
 
-    async def get_latest(self) -> dict[str, Any] | None:
-        conversations = await self.list_all()
-        return conversations[0] if conversations else None
+    async def get_latest(self) -> Conversation | None:
+        result = await self._session.execute(select(Conversation).order_by(Conversation.updated_at.desc()).limit(1))
+        return result.scalar_one_or_none()

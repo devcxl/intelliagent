@@ -91,6 +91,8 @@ class Relay(Base):
 
 
 class AgentMemory(Base):
+    """预留模型：后续用于 Agent 长期记忆，不在当前运行链路中启用。"""
+
     __tablename__ = "agent_memory"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)

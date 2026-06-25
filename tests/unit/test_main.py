@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-import src.runtime.agent_runtime as runtime_module
+import src.runtime.engine_factory as engine_factory_module
 from src.config.unified_config import UnifiedConfig
 from src.permission import Decision, PermissionAction
 from src.runtime import AgentRuntime
@@ -51,7 +51,7 @@ def _make_runtime(monkeypatch, tmp_path, created: dict[str, Any] | None = None) 
             super().__init__(state.setdefault("engine_calls", []))
             state.setdefault("engines", []).append(self)
 
-    monkeypatch.setattr(runtime_module, "ReactEngine", RecordingEngine)
+    monkeypatch.setattr(engine_factory_module, "ReactEngine", RecordingEngine)
 
     config = UnifiedConfig.model_validate(
         {

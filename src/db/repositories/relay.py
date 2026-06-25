@@ -2,29 +2,30 @@
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Agent, Relay
+
+
+@dataclass(frozen=True)
+class RelayInboxItem:
+    """收件箱查询投影：消息实体 + 发送方展示名。"""
+
+    relay: Relay
+    sender_name: str | None
 
 
 class RelayRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def save(self, relay: Relay) -> dict[str, Any]:
+    async def save(self, relay: Relay) -> Relay:
         self._session.add(relay)
         await self._session.commit()
-        return {
-            "id": relay.id,
-            "sender_id": relay.sender_id,
-            "receiver_id": relay.receiver_id,
-            "content": relay.content,
-            "is_read": 1 if relay.is_read else 0,
-            "created_at": relay.created_at.isoformat() if relay.created_at else "",
-        }
+        return relay
 
     async def list_by_receiver(
         self,
@@ -32,39 +33,34 @@ class RelayRepository:
         limit: int,
         offset: int,
         unread_only: bool = False,
-    ) -> tuple[list[dict[str, Any]], int]:
+    ) -> tuple[list[RelayInboxItem], int]:
         stmt = select(Relay).where(Relay.receiver_id == receiver_id)
         if unread_only:
             stmt = stmt.where(Relay.is_read == False)  # noqa: E712
         stmt = stmt.order_by(Relay.created_at.desc())
 
-        count_stmt = select(Relay).where(Relay.receiver_id == receiver_id)
+        count_stmt = select(func.count()).select_from(Relay).where(Relay.receiver_id == receiver_id)
         if unread_only:
             count_stmt = count_stmt.where(Relay.is_read == False)  # noqa: E712
         count_result = await self._session.execute(count_stmt)
-        total = len(count_result.scalars().all())
+        total = count_result.scalar_one()
 
         paged_stmt = stmt.offset(offset).limit(limit)
         result = await self._session.execute(paged_stmt)
-        messages = result.scalars().all()
+        messages = list(result.scalars().all())
 
-        items = []
-        for m in messages:
-            d = {
-                "id": m.id,
-                "sender_id": m.sender_id,
-                "receiver_id": m.receiver_id,
-                "content": m.content,
-                "is_read": 1 if m.is_read else 0,
-                "created_at": m.created_at.isoformat() if m.created_at else "",
-                "sender_name": None,
-            }
-            sender = await self._session.get(Agent, m.sender_id)
-            if sender is not None:
-                d["sender_name"] = sender.name
-            items.append(d)
+        sender_names = await self._load_sender_names(messages)
+        items = [RelayInboxItem(relay=message, sender_name=sender_names.get(message.sender_id)) for message in messages]
 
         return items, total
+
+    async def _load_sender_names(self, messages: list[Relay]) -> dict[str, str]:
+        sender_ids = {message.sender_id for message in messages}
+        if not sender_ids:
+            return {}
+
+        result = await self._session.execute(select(Agent.id, Agent.name).where(Agent.id.in_(sender_ids)))
+        return {agent_id: name for agent_id, name in result.all()}
 
     async def mark_as_read(self, message_ids: list[str]) -> None:
         if not message_ids:

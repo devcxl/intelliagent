@@ -15,10 +15,11 @@ from src.permission import (
     PermissionEngineProtocol,
 )
 from src.runtime.conversation_manager import ConversationManager
+from src.runtime.database_runtime import DatabaseRuntime
+from src.runtime.engine_factory import EngineFactory
 from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
-from src.skills.tool import set_registry as set_skill_registry
-from src.tools.registry import ToolRegistry, _default_registry, register_agent_team_tools
+from src.tools.registry import ToolRegistry, ToolRegistryFactory
 from src.types.llm import LLMClientProtocol
 
 
@@ -43,9 +44,30 @@ class AgentRuntime:
         self._llm_client: LLMClientProtocol | None = None
         self._mcp_manager: Any = None
         self._skill_registry: SkillRegistry | None = None
-        # ConversationManager 是 Runtime 下面唯一允许直接碰 conversation DB 的对象。
-        self._conversation_manager = ConversationManager(self._config.database.url)
         self._load_skills()
+        self._database_runtime = DatabaseRuntime(self._config.database.url)
+        self._conversation_manager = ConversationManager(self._database_runtime.get_session_factory())
+        self._tool_registry = self._create_tool_registry()
+        self._engine_factory = self._create_engine_factory()
+
+    def _create_tool_registry(self) -> ToolRegistry:
+        factory = ToolRegistryFactory(
+            session_factory_provider=self._database_runtime.get_session_factory,
+            conversation_id_provider=lambda: self.conversation_id,
+            agent_id="agent-001",
+            skill_registry=self._skill_registry,
+        )
+        return factory.create_default()
+
+    def _create_engine_factory(self) -> EngineFactory:
+        return EngineFactory(
+            config=self._config,
+            llm_client_provider=self.get_llm_client,
+            permission_engine_factory=self._permission_engine_factory,
+            permission_callback_factory=self._permission_callback_factory,
+            tool_registry=self._tool_registry,
+            skill_registry=self._skill_registry,
+        )
 
     # ------------------------------------------------------------------
     # 默认工厂
@@ -104,7 +126,7 @@ class AgentRuntime:
     # ------------------------------------------------------------------
 
     def _load_skills(self) -> None:
-        """根据配置加载 skills 并设置全局 skill 工具引用。"""
+        """根据配置加载 skills。"""
         cfg = self._config.skills
         if not cfg.enabled:
             return
@@ -124,7 +146,6 @@ class AgentRuntime:
         registry = SkillRegistry()
         registry.load_all(skills)
         self._skill_registry = registry
-        set_skill_registry(registry)
 
     # ------------------------------------------------------------------
     # 公共方法
@@ -147,7 +168,7 @@ class AgentRuntime:
 
     async def initialize(self) -> None:
         """初始化数据库表结构。首次使用前必须调用。"""
-        await self._conversation_manager.initialize()
+        await self._database_runtime.initialize()
 
     async def setup_conversation(
         self,
@@ -221,13 +242,11 @@ class AgentRuntime:
             self._llm_client = self._llm_client_factory()
         return self._llm_client
 
-    async def start_mcp(self, registry: ToolRegistry | None = None) -> None:
+    async def start_mcp(self) -> None:
         """启动 MCP 连接，注册 MCP 工具到注册表。
 
         配置中无 MCP 服务器时静默跳过。已启动时不再重复连接。
 
-        Args:
-            registry: 目标工具注册表，默认使用全局 _default_registry
         """
         if self._mcp_manager is not None:
             return
@@ -237,8 +256,7 @@ class AgentRuntime:
         from src.mcp.manager import MCPClientManager
 
         mcp_config = MCPConfig.from_unified_config(mcp_data)
-        target_registry = registry or _default_registry
-        self._mcp_manager = MCPClientManager(mcp_config, target_registry)
+        self._mcp_manager = MCPClientManager(mcp_config, self._tool_registry)
         await self._mcp_manager.__aenter__()
 
     async def stop_mcp(self) -> None:
@@ -254,7 +272,7 @@ class AgentRuntime:
     async def shutdown(self) -> None:
         """关闭 MCP 连接，释放运行时资源。"""
         await self.stop_mcp()
-        await self._conversation_manager.shutdown()
+        await self._database_runtime.shutdown()
 
     async def create_engine(
         self,
@@ -273,21 +291,8 @@ class AgentRuntime:
         Returns:
             组装完成的 ReactEngine 实例
         """
-        # agent-team 工具依赖 service 层，必须在 runtime 组装阶段显式接入，避免 core 导入 tools。
-        register_agent_team_tools(_default_registry)
         await self.start_mcp()
-        llm = self.get_llm_client()
-        permission_engine = self._permission_engine_factory()
-        permission_callback = self._permission_callback_factory()
-
-        return ReactEngine(
-            llm_client=llm,
-            tools_registry=_default_registry,
-            context_limit=self._config.get_model_context_limit(),
-            permission_engine=permission_engine,
-            permission_callback=permission_callback,
-            skill_registry=self._skill_registry,
-        )
+        return self._engine_factory.create()
 
 
 __all__ = ["AgentRuntime"]

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from src.skills.model import SkillDef, SkillFrontmatter
 from src.skills.registry import SkillRegistry
-from src.skills.tool import set_registry, skill_tool
+from src.skills.tool import SkillTool
 
 
 def _make_skill(name: str, desc: str, body: str = "Body.") -> SkillDef:
@@ -96,7 +96,7 @@ def test_load_all():
 
 
 # ============================================================================
-# skill_tool
+# SkillTool
 # ============================================================================
 
 
@@ -105,9 +105,8 @@ async def test_skill_tool_returns_body():
     reg = SkillRegistry()
     s = _make_skill("my-skill", "My skill", "# Full instructions\n\nDo X.")
     reg.register(s)
-    set_registry(reg)
 
-    result = await skill_tool(name="my-skill")
+    result = await SkillTool(reg).load(name="my-skill")
     assert '"status": "ok"' in result
     assert "Full instructions" in result
 
@@ -115,16 +114,7 @@ async def test_skill_tool_returns_body():
 async def test_skill_tool_unknown_skill():
     """不存在的 skill 返回错误。"""
     reg = SkillRegistry()
-    set_registry(reg)
 
-    result = await skill_tool(name="nonexistent")
+    result = await SkillTool(reg).load(name="nonexistent")
     assert '"status": "error"' in result
     assert "UNKNOWN_SKILL" in result
-
-
-async def test_skill_tool_not_initialized():
-    """未初始化时返回错误。"""
-    set_registry(None)
-    result = await skill_tool(name="anything")
-    assert '"status": "error"' in result
-    assert "SKILL_NOT_INITIALIZED" in result

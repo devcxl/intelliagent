@@ -53,7 +53,7 @@ def _relay(id: str, sender_id: str = "s", receiver_id: str = "r", content: str =
 
 
 @pytest.fixture
-async def sample_agent(agent_repo: AgentRepository) -> dict:
+async def sample_agent(agent_repo: AgentRepository) -> Agent:
     return await agent_repo.save(
         Agent(
             id="agent-001",
@@ -66,16 +66,16 @@ async def sample_agent(agent_repo: AgentRepository) -> dict:
 
 
 class TestAgentRepository:
-    async def test_insert_and_get(self, agent_repo: AgentRepository, sample_agent: dict) -> None:
-        fetched = await agent_repo.get(sample_agent["id"])
+    async def test_insert_and_get(self, agent_repo: AgentRepository, sample_agent: Agent) -> None:
+        fetched = await agent_repo.get(sample_agent.id)
         assert fetched is not None
-        assert fetched["name"] == "CodeReviewer"
-        assert fetched["status"] == "online"
+        assert fetched.name == "CodeReviewer"
+        assert fetched.status == "online"
 
-    async def test_get_by_name_found(self, agent_repo: AgentRepository, sample_agent: dict) -> None:
+    async def test_get_by_name_found(self, agent_repo: AgentRepository, sample_agent: Agent) -> None:
         fetched = await agent_repo.get_by_name("CodeReviewer")
         assert fetched is not None
-        assert fetched["id"] == sample_agent["id"]
+        assert fetched.id == sample_agent.id
 
     async def test_get_by_name_not_found(self, agent_repo: AgentRepository) -> None:
         assert await agent_repo.get_by_name("nonexistent") is None
@@ -85,28 +85,28 @@ class TestAgentRepository:
         await agent_repo.save(_agent("a2", "Beta", "offline"))
         result = await agent_repo.list()
         assert len(result) == 2
-        assert [r["name"] for r in result] == ["Alpha", "Beta"]
+        assert [r.name for r in result] == ["Alpha", "Beta"]
 
     async def test_list_exclude_id(self, agent_repo: AgentRepository) -> None:
         await agent_repo.save(_agent("a1", "Alpha", "online"))
         await agent_repo.save(_agent("a2", "Beta", "offline"))
         result = await agent_repo.list(exclude_id="a1")
         assert len(result) == 1
-        assert result[0]["id"] == "a2"
+        assert result[0].id == "a2"
 
     async def test_list_status_filter(self, agent_repo: AgentRepository) -> None:
         await agent_repo.save(_agent("a1", "Alpha", "online"))
         await agent_repo.save(_agent("a2", "Beta", "offline"))
         result = await agent_repo.list(status_filter="online")
         assert len(result) == 1
-        assert result[0]["id"] == "a1"
+        assert result[0].id == "a1"
 
-    async def test_delete_soft(self, agent_repo: AgentRepository, sample_agent: dict) -> None:
-        result = await agent_repo.delete(sample_agent["id"])
+    async def test_delete_soft(self, agent_repo: AgentRepository, sample_agent: Agent) -> None:
+        result = await agent_repo.delete(sample_agent.id)
         assert result is True
-        fetched = await agent_repo.get(sample_agent["id"])
+        fetched = await agent_repo.get(sample_agent.id)
         assert fetched is not None
-        assert fetched["status"] == "deleted"
+        assert fetched.status == "deleted"
 
     async def test_delete_not_found(self, agent_repo: AgentRepository) -> None:
         result = await agent_repo.delete("nonexistent")
@@ -116,20 +116,20 @@ class TestAgentRepository:
 class TestRelayRepository:
     async def test_insert_and_list(self, msg_repo: RelayRepository, session: AsyncSession) -> None:
         msg = await msg_repo.save(_relay("msg-1", "sender-1", "receiver-1", "Hello"))
-        assert msg["id"] == "msg-1"
-        assert msg["is_read"] == 0
+        assert msg.id == "msg-1"
+        assert msg.is_read == 0
 
         messages, total = await msg_repo.list_by_receiver("receiver-1", limit=10, offset=0)
         assert total == 1
         assert len(messages) == 1
-        assert messages[0]["id"] == "msg-1"
+        assert messages[0].relay.id == "msg-1"
 
     async def test_list_with_sender_name(self, msg_repo: RelayRepository, agent_repo: AgentRepository) -> None:
         await agent_repo.save(_agent("sender-1", "SenderName"))
         await msg_repo.save(_relay("msg-1", "sender-1", "receiver-1", "Hello"))
         messages, total = await msg_repo.list_by_receiver("receiver-1", limit=10, offset=0)
         assert total == 1
-        assert messages[0]["sender_name"] == "SenderName"
+        assert messages[0].sender_name == "SenderName"
 
     async def test_list_unread_only(self, msg_repo: RelayRepository) -> None:
         await msg_repo.save(_relay("m1", content="a"))
@@ -137,7 +137,7 @@ class TestRelayRepository:
         await msg_repo.mark_as_read(["m1"])
         messages, total = await msg_repo.list_by_receiver("r", limit=10, offset=0, unread_only=True)
         assert total == 1
-        assert messages[0]["id"] == "m2"
+        assert messages[0].relay.id == "m2"
 
     async def test_list_pagination(self, msg_repo: RelayRepository) -> None:
         from datetime import datetime, timezone
@@ -156,7 +156,7 @@ class TestRelayRepository:
         await msg_repo.save(_relay("m2", content="b"))
         await msg_repo.mark_as_read(["m1", "m2"])
         messages, _ = await msg_repo.list_by_receiver("r", limit=10, offset=0)
-        assert all(m["is_read"] == 1 for m in messages)
+        assert all(m.relay.is_read == 1 for m in messages)
 
     async def test_mark_as_read_empty(self, msg_repo: RelayRepository) -> None:
         await msg_repo.mark_as_read([])
@@ -170,4 +170,4 @@ class TestRelayRepository:
         await msg_repo.save(_relay("m3", content="third", created_at=base + timedelta(seconds=2)))
         messages, total = await msg_repo.list_by_receiver("r", limit=10, offset=0)
         assert total == 3
-        assert [m["id"] for m in messages] == ["m3", "m2", "m1"]
+        assert [m.relay.id for m in messages] == ["m3", "m2", "m1"]

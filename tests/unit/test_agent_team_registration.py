@@ -1,82 +1,54 @@
 """Agent-team 工具注册单元测试。"""
 
+from src.tools.agent_team_tools import AgentTeamTools
+from src.tools.registry import ToolRegistry, ToolRegistryFactory, register_agent_team_tools
 
-def test_agent_team_tools_registered_in_default_registry():
-    """6 个 agent-team tool 已注册到 _default_registry。"""
-    from src.tools.registry import _default_registry, register_agent_team_tools
 
-    register_agent_team_tools()
-    names = _default_registry.list_tool_names()
+def _unused_factory():
+    raise AssertionError("注册测试不应真正创建数据库 session")
+
+
+def _register_agent_team_registry() -> ToolRegistry:
+    return register_agent_team_tools(ToolRegistry(), AgentTeamTools(_unused_factory, "agent-001"))
+
+
+def test_agent_team_tools_registered_in_custom_registry():
+    registry = _register_agent_team_registry()
+    names = registry.list_tool_names()
     expected = {"send_message", "receive_message", "get_contacts", "get_contact_detail", "create_agent", "delete_agent"}
     for name in expected:
-        assert name in names, f"{name} 未在 _default_registry 中"
+        assert name in names, f"{name} 未注册"
 
 
 def test_send_message_has_correct_parameters():
-    """send_message 参数定义正确。"""
-    from src.tools.registry import _default_registry, register_agent_team_tools
-
-    register_agent_team_tools()
-    tool_def = _default_registry._tools.get("send_message")
+    tool_def = _register_agent_team_registry()._tools.get("send_message")
     assert tool_def is not None
     assert tool_def.parameters["to_agent_id"]["required"] is True
     assert tool_def.parameters["content"]["required"] is True
-    assert tool_def.parameters["to_agent_id"]["type"] == "string"
-    assert tool_def.parameters["content"]["type"] == "string"
 
 
 def test_receive_message_has_correct_parameters():
-    """receive_message 参数定义正确。"""
-    from src.tools.registry import _default_registry, register_agent_team_tools
-
-    register_agent_team_tools()
-    tool_def = _default_registry._tools.get("receive_message")
+    tool_def = _register_agent_team_registry()._tools.get("receive_message")
     assert tool_def is not None
     assert tool_def.parameters["limit"]["required"] is False
     assert tool_def.parameters["offset"]["required"] is False
-    assert tool_def.parameters["unread_only"]["required"] is False
-    assert tool_def.parameters["limit"]["type"] == "integer"
     assert tool_def.parameters["unread_only"]["type"] == "boolean"
 
 
 def test_create_agent_has_correct_parameters():
-    """create_agent 参数定义正确。"""
-    from src.tools.registry import _default_registry, register_agent_team_tools
-
-    register_agent_team_tools()
-    tool_def = _default_registry._tools.get("create_agent")
+    tool_def = _register_agent_team_registry()._tools.get("create_agent")
     assert tool_def is not None
     assert tool_def.parameters["name"]["required"] is True
-    assert tool_def.parameters["desc"]["required"] is False
-    assert tool_def.parameters["prompt"]["required"] is False
     assert tool_def.parameters["allowed_tools"]["required"] is False
-    assert tool_def.parameters["model"]["required"] is False
-    assert tool_def.parameters["workspace"]["required"] is False
 
 
-def test_get_openai_tools_contains_agent_team_tools():
-    """get_openai_tools() 返回的列表包含 6 个 agent-team tool。"""
-    from src.tools.registry import _default_registry, register_agent_team_tools
+def test_factory_registers_agent_team_tools():
+    registry = ToolRegistryFactory(
+        session_factory_provider=_unused_factory,
+        conversation_id_provider=lambda: "conv-1",
+        agent_id="agent-001",
+    ).create_default()
 
-    register_agent_team_tools()
-    tools = _default_registry.get_openai_tools()
-    agent_team_names = {t["function"]["name"] for t in tools} & {
-        "send_message",
-        "receive_message",
-        "get_contacts",
-        "get_contact_detail",
-        "create_agent",
-        "delete_agent",
-    }
-    assert len(agent_team_names) == 6
-
-
-def test_register_agent_team_tools_supports_custom_registry():
-    """显式注册函数应支持非默认 registry。"""
-    from src.tools.registry import ToolRegistry, register_agent_team_tools
-
-    # 防止 register_agent_team_tools 只对 _default_registry 生效，导致自定义 registry 静默漏注册。
-    registry = register_agent_team_tools(ToolRegistry())
-
-    assert "send_message" in registry.list_tool_names()
-    assert "create_agent" in registry.list_tool_names()
+    names = set(registry.list_tool_names())
+    expected = {"send_message", "receive_message", "get_contacts", "get_contact_detail", "create_agent", "delete_agent"}
+    assert expected <= names

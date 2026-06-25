@@ -8,18 +8,29 @@ from src.runtime.agent_runtime import AgentRuntime
 
 
 def test_skill_tool_registered_in_default_registry():
-    """skill 工具已注册到 _default_registry。"""
-    from src.tools.registry import _default_registry
+    """skill 工具已注册到 Runtime 级 ToolRegistry。"""
+    from src.skills.registry import SkillRegistry
+    from src.skills.tool import SkillTool
+    from src.tools.registry import ToolRegistry, register_builtin_tools, register_skill_tool
 
-    names = _default_registry.list_tool_names()
+    registry = ToolRegistry()
+    register_builtin_tools(registry)
+    register_skill_tool(registry, SkillTool(SkillRegistry()))
+    names = registry.list_tool_names()
     assert "skill" in names
 
 
 def test_skill_tool_has_correct_parameters():
     """skill 工具参数定义正确。"""
-    from src.tools.registry import _default_registry
+    from src.skills.registry import SkillRegistry
+    from src.skills.tool import SkillTool
+    from src.tools.registry import ToolRegistry, register_builtin_tools, register_skill_tool
 
-    tool_def = _default_registry._tools.get("skill")
+    registry = ToolRegistry()
+    register_builtin_tools(registry)
+    register_skill_tool(registry, SkillTool(SkillRegistry()))
+
+    tool_def = registry._tools.get("skill")
     assert tool_def is not None
     assert "name" in tool_def.parameters
     assert tool_def.parameters["name"]["required"] is True
@@ -39,6 +50,7 @@ async def test_runtime_create_engine_with_skills(tmp_path):
     config.get_model_context_limit.return_value = None
     config.provider = {}
     config.model = None
+    config.database.url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
     config.skills.enabled = True
     config.skills.project_paths = [str(tmp_path / ".agents" / "skills")]
     config.skills.user_paths = []
@@ -65,6 +77,7 @@ async def test_runtime_skills_disabled(tmp_path):
     config.get_model_context_limit.return_value = None
     config.provider = {}
     config.model = None
+    config.database.url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
     config.skills.enabled = False
     config.skills.project_paths = []
     config.skills.user_paths = []

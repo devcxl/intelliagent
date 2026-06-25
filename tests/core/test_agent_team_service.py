@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from src.db.models import Agent, Relay
-from src.db.repositories import AgentRepository, RelayRepository
+from src.db.repositories import AgentRepository, RelayInboxItem, RelayRepository
 from src.services.agent_team import (
     AgentNotFoundError,
     AgentTeamService,
@@ -26,8 +26,8 @@ class _FakeSession:
     """
 
     def __init__(self) -> None:
-        self.agents: dict[str, dict] = {}
-        self.messages: list[dict] = []
+        self.agents: dict[str, Agent] = {}
+        self.messages: list[Relay] = []
         self._name_index: dict[str, str] = {}
 
     async def get(self, model_class, ident: str) -> Any:
@@ -45,22 +45,10 @@ class _FakeAgentRepo(AgentRepository):
         super().__init__(fake_session)  # type: ignore[arg-type]
         self._fake = fake_session
 
-    async def save(self, agent: Agent) -> dict[str, Any]:
-        agent_dict = {
-            "id": agent.id,
-            "name": agent.name,
-            "desc": agent.desc,
-            "prompt": agent.prompt,
-            "allowed_tools": agent.allowed_tools,
-            "model": agent.model,
-            "workspace": agent.workspace,
-            "status": agent.status,
-            "created_at": agent.created_at.isoformat(),
-            "updated_at": agent.updated_at.isoformat(),
-        }
-        self._fake.agents[agent_dict["id"]] = agent_dict
-        self._fake._name_index[agent_dict["name"]] = agent_dict["id"]
-        return agent_dict
+    async def save(self, agent: Agent) -> Agent:
+        self._fake.agents[agent.id] = agent
+        self._fake._name_index[agent.name] = agent.id
+        return agent
 
     async def get(self, agent_id):
         return self._fake.agents.get(agent_id)
@@ -72,13 +60,13 @@ class _FakeAgentRepo(AgentRepository):
     async def list(self, exclude_id=None, status_filter=None):
         result = [a for aid, a in self._fake.agents.items() if aid != exclude_id]
         if status_filter is not None:
-            result = [a for a in result if a["status"] == status_filter]
+            result = [a for a in result if a.status == status_filter]
         return result
 
     async def delete(self, agent_id):
         if agent_id not in self._fake.agents:
             return False
-        self._fake.agents[agent_id]["status"] = "deleted"
+        self._fake.agents[agent_id].status = "deleted"
         return True
 
 
@@ -87,37 +75,27 @@ class _FakeMsgRepo(RelayRepository):
         super().__init__(fake_session)  # type: ignore[arg-type]
         self._fake = fake_session
 
-    async def save(self, relay: Relay) -> dict[str, Any]:
-        msg = {
-            "id": relay.id,
-            "sender_id": relay.sender_id,
-            "receiver_id": relay.receiver_id,
-            "content": relay.content,
-            "is_read": 1 if relay.is_read else 0,
-            "created_at": relay.created_at.isoformat(),
-        }
-        self._fake.messages.append(msg)
-        return msg
+    async def save(self, relay: Relay) -> Relay:
+        self._fake.messages.append(relay)
+        return relay
 
     async def list_by_receiver(self, receiver_id, limit, offset, unread_only=False):
-        filtered = [m for m in self._fake.messages if m["receiver_id"] == receiver_id]
+        filtered = [m for m in self._fake.messages if m.receiver_id == receiver_id]
         if unread_only:
-            filtered = [m for m in filtered if m["is_read"] == 0]
+            filtered = [m for m in filtered if not m.is_read]
         total = len(filtered)
-        filtered.sort(key=lambda m: m["created_at"], reverse=True)
+        filtered.sort(key=lambda m: m.created_at, reverse=True)
         page = filtered[offset : offset + limit]
         result = []
-        for m in page:
-            msg = dict(m)
-            sender = self._fake.agents.get(m["sender_id"])
-            msg["sender_name"] = sender["name"] if sender else None
-            result.append(msg)
+        for message in page:
+            sender = self._fake.agents.get(message.sender_id)
+            result.append(RelayInboxItem(relay=message, sender_name=sender.name if sender else None))
         return (result, total)
 
     async def mark_as_read(self, message_ids):
         for msg in self._fake.messages:
-            if msg["id"] in message_ids:
-                msg["is_read"] = 1
+            if msg.id in message_ids:
+                msg.is_read = True
 
 
 class _FakeService(AgentTeamService):
@@ -139,18 +117,18 @@ def service() -> _FakeService:
         ("agent-2", "Coder", "编码者", "prompt2", "online"),
         ("agent-3", "Reviewer", "审查者", "prompt3", "offline"),
     ]:
-        svc._agent_repo._fake.agents[aid] = {
-            "id": aid,
-            "name": name,
-            "desc": desc,
-            "prompt": prompt,
-            "allowed_tools": "",
-            "model": "",
-            "workspace": "",
-            "status": status,
-            "created_at": now.isoformat(),
-            "updated_at": now.isoformat(),
-        }
+        svc._agent_repo._fake.agents[aid] = Agent(
+            id=aid,
+            name=name,
+            desc=desc,
+            prompt=prompt,
+            allowed_tools="",
+            model="",
+            workspace="",
+            status=status,
+            created_at=now,
+            updated_at=now,
+        )
         svc._agent_repo._fake._name_index[name] = aid
     return svc
 
@@ -170,12 +148,12 @@ class TestAgentTeamService:
     @pytest.mark.asyncio
     async def test_send_message_success(self, service: _FakeService) -> None:
         result = await service.send_message("agent-1", "agent-2", "Hello")
-        assert "id" in result
-        assert "created_at" in result
+        assert result.id
+        assert result.created_at
         assert len(service._fake.messages) == 1
-        assert service._fake.messages[0]["content"] == "Hello"
-        assert service._fake.messages[0]["sender_id"] == "agent-1"
-        assert service._fake.messages[0]["receiver_id"] == "agent-2"
+        assert service._fake.messages[0].content == "Hello"
+        assert service._fake.messages[0].sender_id == "agent-1"
+        assert service._fake.messages[0].receiver_id == "agent-2"
 
     @pytest.mark.asyncio
     async def test_send_message_empty_content(self, service: _FakeService) -> None:
@@ -198,16 +176,16 @@ class TestAgentTeamService:
         messages, total = await service.receive_message("agent-2", limit=20, offset=0)
         assert total == 1
         assert len(messages) == 1
-        assert messages[0]["id"] == "msg-1"
-        assert messages[0]["sender_name"] == "Architect"
+        assert messages[0].relay.id == "msg-1"
+        assert messages[0].sender_name == "Architect"
 
     @pytest.mark.asyncio
     async def test_receive_message_marks_as_read(self, service: _FakeService) -> None:
         await service._msg_repo.save(_relay("msg-1"))
         await service.receive_message("agent-2", limit=20, offset=0)
         for m in service._fake.messages:
-            if m["id"] == "msg-1":
-                assert m["is_read"] == 1
+            if m.id == "msg-1":
+                assert m.is_read is True
 
     @pytest.mark.asyncio
     async def test_receive_message_with_limit_offset(self, service: _FakeService) -> None:
@@ -232,7 +210,7 @@ class TestAgentTeamService:
         await service._msg_repo.save(_relay("msg-1"))
         messages, total = await service.receive_message("agent-2")
         assert total == 1
-        assert messages[0]["sender_name"] == "Architect"
+        assert messages[0].sender_name == "Architect"
 
     @pytest.mark.asyncio
     async def test_receive_message_unread_only(self, service: _FakeService) -> None:
@@ -241,13 +219,13 @@ class TestAgentTeamService:
         await service._msg_repo.mark_as_read(["msg-1"])
         messages, total = await service.receive_message("agent-2", limit=20, offset=0, unread_only=True)
         assert total == 1
-        assert messages[0]["id"] == "msg-2"
+        assert messages[0].relay.id == "msg-2"
 
     @pytest.mark.asyncio
     async def test_get_contacts_all(self, service: _FakeService) -> None:
         contacts = await service.get_contacts("agent-1")
         assert len(contacts) == 2
-        contact_ids = {c["id"] for c in contacts}
+        contact_ids = {c.id for c in contacts}
         assert "agent-1" not in contact_ids
         assert "agent-2" in contact_ids
         assert "agent-3" in contact_ids
@@ -257,13 +235,13 @@ class TestAgentTeamService:
         await service._agent_repo.delete("agent-2")
         contacts = await service.get_contacts("agent-1")
         assert len(contacts) == 1
-        assert contacts[0]["id"] == "agent-3"
+        assert contacts[0].id == "agent-3"
 
     @pytest.mark.asyncio
     async def test_get_contacts_status_filter(self, service: _FakeService) -> None:
         contacts = await service.get_contacts("agent-1", status_filter="offline")
         assert len(contacts) == 1
-        assert contacts[0]["id"] == "agent-3"
+        assert contacts[0].id == "agent-3"
 
     @pytest.mark.asyncio
     async def test_get_contacts_invalid_status(self, service: _FakeService) -> None:
@@ -278,10 +256,10 @@ class TestAgentTeamService:
     @pytest.mark.asyncio
     async def test_get_contact_detail_success(self, service: _FakeService) -> None:
         detail = await service.get_contact_detail("agent-1")
-        assert detail["id"] == "agent-1"
-        assert detail["name"] == "Architect"
-        assert detail["desc"] == "架构师"
-        assert detail["status"] == "online"
+        assert detail.id == "agent-1"
+        assert detail.name == "Architect"
+        assert detail.desc == "架构师"
+        assert detail.status == "online"
 
     @pytest.mark.asyncio
     async def test_get_contact_detail_not_found(self, service: _FakeService) -> None:
@@ -298,15 +276,15 @@ class TestAgentTeamService:
             model="gpt-4",
             workspace="/ws",
         )
-        assert agent["name"] == "NewAgent"
-        assert agent["desc"] == "新 Agent"
-        assert agent["prompt"] == "prompt-new"
-        assert agent["allowed_tools"] == "tool1,tool2"
-        assert agent["model"] == "gpt-4"
-        assert agent["workspace"] == "/ws"
-        assert agent["status"] == "offline"
-        assert "id" in agent
-        stored = await service._agent_repo.get(agent["id"])
+        assert agent.name == "NewAgent"
+        assert agent.desc == "新 Agent"
+        assert agent.prompt == "prompt-new"
+        assert agent.allowed_tools == "tool1,tool2"
+        assert agent.model == "gpt-4"
+        assert agent.workspace == "/ws"
+        assert agent.status == "offline"
+        assert agent.id
+        stored = await service._agent_repo.get(agent.id)
         assert stored == agent
 
     @pytest.mark.asyncio
@@ -328,7 +306,7 @@ class TestAgentTeamService:
     async def test_delete_agent_success(self, service: _FakeService) -> None:
         result = await service.delete_agent("agent-1")
         assert result is True
-        assert service._fake.agents["agent-1"]["status"] == "deleted"
+        assert service._fake.agents["agent-1"].status == "deleted"
 
     @pytest.mark.asyncio
     async def test_delete_agent_not_found(self, service: _FakeService) -> None:
@@ -340,5 +318,5 @@ class TestAgentTeamService:
         await service.delete_agent("agent-1")
         agent = await service._agent_repo.get("agent-1")
         assert agent is not None
-        assert agent["status"] == "deleted"
-        assert agent["name"] == "Architect"
+        assert agent.status == "deleted"
+        assert agent.name == "Architect"

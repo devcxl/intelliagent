@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Protocol
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
@@ -12,6 +13,9 @@ from src.skills.registry import SkillRegistry
 from src.types.llm import LLMClientProtocol
 from src.types.memory import MemoryProtocol
 from src.utils.logger import logger
+
+_RECENT_CONTEXT_MESSAGES = 6
+_COMPACT_TOKEN_REDUCTION_RATIO = 0.5
 
 
 class ToolRegistryProtocol(Protocol):
@@ -47,6 +51,28 @@ def _to_tool_call_list(raw: list[Any]) -> list[dict[str, Any]]:
         }
         for tc in raw
     ]
+
+
+@dataclass
+class _TokenUsage:
+    prompt: int = 0
+    completion: int = 0
+    cached: int = 0
+
+    def record(self, response: Any) -> int:
+        usage = getattr(response, "usage", None)
+        if not usage:
+            return 0
+
+        total = getattr(usage, "total_tokens", 0) or 0
+        self.prompt += getattr(usage, "prompt_tokens", 0) or 0
+        self.completion += getattr(usage, "completion_tokens", 0) or 0
+
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = getattr(details, "cached_tokens", 0) if details else 0
+        if cached:
+            self.cached += cached
+        return total
 
 
 class ReactEngine:
@@ -119,7 +145,11 @@ class ReactEngine:
         system = self.messages[0] if self.messages and self.messages[0]["role"] == "system" else None
         kept = [system] if system else []
 
-        recent = self.messages[-6:] if len(self.messages) > 6 else self.messages[-len(self.messages) :]
+        recent = (
+            self.messages[-_RECENT_CONTEXT_MESSAGES:]
+            if len(self.messages) > _RECENT_CONTEXT_MESSAGES
+            else self.messages[-len(self.messages) :]
+        )
         middle = self.messages[len(kept) : -len(recent)] if len(self.messages) > len(kept) + len(recent) else []
 
         if middle:
@@ -133,7 +163,7 @@ class ReactEngine:
 
         kept.extend(recent)
         self.messages = kept
-        self.total_tokens = int(self.total_tokens * 0.5)
+        self.total_tokens = int(self.total_tokens * _COMPACT_TOKEN_REDUCTION_RATIO)
 
     # ------------------------------------------------------------------
     # 工具执行
@@ -176,92 +206,102 @@ class ReactEngine:
     # ------------------------------------------------------------------
 
     async def _loop(self) -> AsyncGenerator[dict[str, Any], None]:
-        total_prompt = 0
-        total_completion = 0
-        total_cached = 0
+        usage = _TokenUsage()
         step = 0
 
         while True:
             step += 1
             logger.debug(f"ReactEngine - 第 {step} 轮 | tokens={self.total_tokens}")
 
-            if self._check_token_limit():
-                await self.compact_context()
+            await self._maybe_compact_context()
+            response = await self._call_llm()
+            self.total_tokens += usage.record(response)
 
-            response = await self.llm_client.chat_async(
-                messages=self.messages,
-                temperature=0.3,
-                tools=self._registry.get_openai_tools(),
-            )
-
-            usage = getattr(response, "usage", None)
-            if usage:
-                self.total_tokens += getattr(usage, "total_tokens", 0) or 0
-                total_prompt += getattr(usage, "prompt_tokens", 0) or 0
-                total_completion += getattr(usage, "completion_tokens", 0) or 0
-                details = getattr(usage, "prompt_tokens_details", None)
-                cached = getattr(details, "cached_tokens", 0) if details else 0
-                if cached:
-                    total_cached += cached
-
-            content = getattr(response, "content", None)
-            raw_tc = getattr(response, "tool_calls", None)
-            tool_calls = _to_tool_call_list(raw_tc) if raw_tc else None
+            content, tool_calls = self._extract_response(response)
 
             self.add_assistant_message(content=content, tool_calls=tool_calls)
 
             if not tool_calls:
                 logger.info(f"Agent 完成 | turns={step} tokens={self.total_tokens}")
-                yield {
-                    "type": "answer",
-                    "iteration": step,
-                    "data": {
-                        "answer": content or "",
-                        "num_turns": step,
-                        "total_tokens": self.total_tokens,
-                        "prompt_tokens": total_prompt,
-                        "completion_tokens": total_completion,
-                        "cached_tokens": total_cached,
-                    },
-                }
+                yield self._answer_event(step, content, usage)
                 return
 
+            yield self._thought_event(step, content)
+            async for event in self._execute_tool_calls(tool_calls, step):
+                yield event
+
+    async def _maybe_compact_context(self) -> None:
+        if self._check_token_limit():
+            await self.compact_context()
+
+    async def _call_llm(self) -> Any:
+        return await self.llm_client.chat_async(
+            messages=self.messages,
+            temperature=0.3,
+            tools=self._registry.get_openai_tools(),
+        )
+
+    def _extract_response(self, response: Any) -> tuple[str | None, list[dict[str, Any]] | None]:
+        content = getattr(response, "content", None)
+        raw_tool_calls = getattr(response, "tool_calls", None)
+        tool_calls = _to_tool_call_list(raw_tool_calls) if raw_tool_calls else None
+        return content, tool_calls
+
+    def _answer_event(self, step: int, content: str | None, usage: _TokenUsage) -> dict[str, Any]:
+        return {
+            "type": "answer",
+            "iteration": step,
+            "data": {
+                "answer": content or "",
+                "num_turns": step,
+                "total_tokens": self.total_tokens,
+                "prompt_tokens": usage.prompt,
+                "completion_tokens": usage.completion,
+                "cached_tokens": usage.cached,
+            },
+        }
+
+    def _thought_event(self, step: int, content: str | None) -> dict[str, Any]:
+        return {
+            "type": "thought",
+            "iteration": step,
+            "data": {"content": content, "has_tool_calls": True},
+        }
+
+    async def _execute_tool_calls(
+        self,
+        tool_calls: list[dict[str, Any]],
+        step: int,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        for tool_call in tool_calls:
+            tool_name = tool_call["function"]["name"]
+            tool_args = self._parse_tool_args(tool_call)
+
+            yield {"type": "action", "iteration": step, "data": {"tool": tool_name, "args": tool_args}}
+
+            result = await self.execute_tool(tool_call)
+            self.add_tool_message(tool_call["id"], result)
+
             yield {
-                "type": "thought",
+                "type": "observation",
                 "iteration": step,
-                "data": {"content": content, "has_tool_calls": True},
+                "data": {
+                    "iteration": step,
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "result": result,
+                    "status": "success",
+                    "error": None,
+                    "execution_time": 0,
+                },
             }
 
-            for tc in tool_calls:
-                tool_name = tc["function"]["name"]
-                tool_args_str = tc["function"]["arguments"]
-                try:
-                    tool_args = json.loads(tool_args_str) if isinstance(tool_args_str, str) else tool_args_str
-                except json.JSONDecodeError:
-                    tool_args = {}
-
-                yield {
-                    "type": "action",
-                    "iteration": step,
-                    "data": {"tool": tool_name, "args": tool_args},
-                }
-
-                result = await self.execute_tool(tc)
-                self.add_tool_message(tc["id"], result)
-
-                yield {
-                    "type": "observation",
-                    "iteration": step,
-                    "data": {
-                        "iteration": step,
-                        "tool_name": tool_name,
-                        "tool_args": tool_args,
-                        "result": result,
-                        "status": "success",
-                        "error": None,
-                        "execution_time": 0,
-                    },
-                }
+    def _parse_tool_args(self, tool_call: dict[str, Any]) -> dict[str, Any]:
+        tool_args_raw = tool_call["function"]["arguments"]
+        try:
+            return json.loads(tool_args_raw) if isinstance(tool_args_raw, str) else tool_args_raw
+        except json.JSONDecodeError:
+            return {}
 
     # ------------------------------------------------------------------
     # run — 主入口

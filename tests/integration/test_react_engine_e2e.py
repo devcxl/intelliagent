@@ -9,12 +9,16 @@ ReactEngine 端到端测试 — 使用真实 LLM（需要 OPENAI_API_KEY）。
 """
 
 import os
+import tempfile
 
 import pytest
 
 from src.core.react_engine import ReactEngine
+from src.db.engine import create_engine, create_session_factory, init_db
+from src.db.models import Conversation
+from src.db.repositories import ConversationRepository
 from src.llm.llm_client import LLMClient
-from src.tools.registry import _default_registry, register_agent_team_tools
+from src.tools.registry import ToolRegistryFactory
 
 
 @pytest.fixture(scope="module")
@@ -33,8 +37,28 @@ def llm_client():
 @pytest.fixture(scope="module")
 def engine(llm_client):
     # 直接构造 ReactEngine 时必须显式接入工具注册表，保持 core 层无默认工具副作用。
-    register_agent_team_tools()
-    return ReactEngine(llm_client=llm_client, tools_registry=_default_registry)
+    import asyncio
+
+    temp_dir = tempfile.TemporaryDirectory()
+    db_engine = create_engine(f"{temp_dir.name}/e2e.db")
+    asyncio.run(init_db(db_engine))
+    factory = create_session_factory(db_engine)
+
+    async def _create_conversation() -> None:
+        async with factory() as session:
+            await ConversationRepository(session).save(Conversation(id="e2e-conv", title="e2e"))
+
+    asyncio.run(_create_conversation())
+    registry = ToolRegistryFactory(
+        session_factory_provider=lambda: factory,
+        conversation_id_provider=lambda: "e2e-conv",
+        agent_id="agent-001",
+    ).create_default()
+    try:
+        yield ReactEngine(llm_client=llm_client, tools_registry=registry)
+    finally:
+        asyncio.run(db_engine.dispose())
+        temp_dir.cleanup()
 
 
 @pytest.mark.integration
