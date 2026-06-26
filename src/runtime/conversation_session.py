@@ -12,7 +12,7 @@ import json
 from typing import Any, AsyncGenerator
 
 from src.core.react_engine import ReactEngine
-from src.runtime.conversation_manager import ConversationManager
+from src.runtime.conversation_service import ConversationService
 from src.runtime.engine_factory import EngineFactory
 
 
@@ -28,11 +28,11 @@ class ConversationSession:
         self,
         conversation_id: str,
         engine_factory: EngineFactory,
-        conversation_manager: ConversationManager,
+        conversation_service: ConversationService,
     ) -> None:
         self.conversation_id = conversation_id
         self._engine_factory = engine_factory
-        self._conversation_manager = conversation_manager
+        self._conversation_service = conversation_service
         self._engine: ReactEngine | None = None
         self._engine_lock = asyncio.Lock()
         self.tool_state: dict[str, Any] = {}
@@ -52,9 +52,9 @@ class ConversationSession:
                 return self._engine
 
             # 仅在首次：从 DB 加载全量历史，创建引擎并注入上下文
-            raw_messages = await self._conversation_manager.load_history_messages()
+            raw_messages = await self._conversation_service.load_history_messages()
             self._engine = self._engine_factory.create(
-                compact_callback=self._conversation_manager.compact_messages,
+                compact_callback=self._conversation_service.compact_messages,
             )
             self._engine.load_history(raw_messages)
             return self._engine
@@ -77,7 +77,7 @@ class ConversationSession:
         # 复用或首次创建 engine（DB 仅在此处查询一次）
         engine = await self._ensure_engine()
         # 用户消息即时落库，保证崩溃不丢
-        await self._conversation_manager.save_message("user", task)
+        await self._conversation_service.save_message("user", task)
 
         assistant_content = ""
         # engine.iter_steps 使用 reset_state=False，保留历史上下文
@@ -86,7 +86,7 @@ class ConversationSession:
             if event["type"] == "thought":
                 tc = event["data"].get("tool_calls")
                 if tc:
-                    await self._conversation_manager.save_message(
+                    await self._conversation_service.save_message(
                         "assistant",
                         event["data"].get("content", ""),
                         tool_calls=json.dumps(tc, ensure_ascii=False),
@@ -95,7 +95,7 @@ class ConversationSession:
             # observation：工具执行结果，关联到对应 tool_call
             elif event["type"] == "observation":
                 d = event["data"]
-                await self._conversation_manager.save_message(
+                await self._conversation_service.save_message(
                     "tool",
                     d.get("result", ""),
                     tool_call_id=d.get("tool_call_id", ""),
@@ -111,7 +111,7 @@ class ConversationSession:
 
         # 最终答案在事件流结束后统一落库
         if assistant_content:
-            await self._conversation_manager.save_message("assistant", assistant_content)
+            await self._conversation_service.save_message("assistant", assistant_content)
 
 
 __all__ = ["ConversationSession"]

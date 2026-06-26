@@ -15,7 +15,7 @@ from src.permission import (
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )
-from src.runtime.conversation_manager import ConversationManager
+from src.runtime.conversation_service import ConversationService
 from src.runtime.conversation_session import ConversationSession
 from src.runtime.database_runtime import DatabaseRuntime
 from src.runtime.engine_factory import EngineFactory
@@ -49,7 +49,7 @@ class AgentRuntime:
         self._skill_registry: SkillRegistry | None = None
         self._load_skills()
         self._database_runtime = DatabaseRuntime(self._config.database.url)
-        self._conversation_manager = ConversationManager(self._database_runtime.get_session_factory())
+        self._conversation_service = ConversationService(self._database_runtime.get_session_factory())
         self._tool_registry = self._create_tool_registry()
         self._engine_factory = self._create_engine_factory()
 
@@ -167,17 +167,17 @@ class AgentRuntime:
     @property
     def conversation_id(self) -> str | None:
         """当前 conversation ID，setup_conversation 后可用。"""
-        return self._conversation_manager.conversation_id
+        return self._conversation_service.conversation_id
 
     @property
     def is_new(self) -> bool:
         """当前 conversation 是否为新建。"""
-        return self._conversation_manager.is_new
+        return self._conversation_service.is_new
 
     @property
     def warnings(self) -> list[str]:
         """setup_conversation 过程中产生的警告列表。"""
-        return self._conversation_manager.warnings
+        return self._conversation_service.warnings
 
     async def initialize(self) -> None:
         """初始化数据库表结构。首次使用前必须调用。"""
@@ -199,7 +199,7 @@ class AgentRuntime:
         Returns:
             conversation ID
         """
-        return await self._conversation_manager.setup_conversation(task, session_id, resume)
+        return await self._conversation_service.setup_conversation(task, session_id, resume)
 
     async def save_message(self, role: str, content: str) -> None:
         """将用户或 assistant 消息持久化到当前 conversation。
@@ -208,15 +208,15 @@ class AgentRuntime:
             role: user 或 assistant
             content: 消息内容
         """
-        await self._conversation_manager.save_message(role, content)
+        await self._conversation_service.save_message(role, content)
 
     async def list_conversations(self) -> list[dict[str, Any]]:
         """列出所有历史 conversation。"""
-        return await self._conversation_manager.list_conversations()
+        return await self._conversation_service.list_conversations()
 
     async def get_message_count(self, conversation_id: str) -> int:
         """获取指定 conversation 的消息数。"""
-        return await self._conversation_manager.get_message_count(conversation_id)
+        return await self._conversation_service.get_message_count(conversation_id)
 
     async def _get_or_create_session(self) -> ConversationSession:
         """获取或创建当前会话。
@@ -228,12 +228,12 @@ class AgentRuntime:
         if self._session is None:
             # 首次：启动 MCP（幂等），创建 ConversationSession
             await self.start_mcp()
-            cid = self._conversation_manager.conversation_id
+            cid = self._conversation_service.conversation_id
             assert cid is not None, "conversation_id 不能在未调用 setup_conversation 前使用"
             self._session = ConversationSession(
                 conversation_id=cid,
                 engine_factory=self._engine_factory,
-                conversation_manager=self._conversation_manager,
+                conversation_service=self._conversation_service,
             )
         return self._session
 

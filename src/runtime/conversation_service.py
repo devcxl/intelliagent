@@ -1,4 +1,4 @@
-"""ConversationManager — 管理会话生命周期与消息持久化。"""
+"""ConversationService — 会话生命周期与消息持久化服务层。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from src.db.repositories import ConversationRepository, MessageRepository
 from src.db.repositories._utils import new_uuid
 
 
-class ConversationManager:
+class ConversationService:
     """封装 Conversation CRUD 和历史加载。
 
     DB engine 生命周期由 DatabaseRuntime 管理；这里只保留当前会话状态。
@@ -145,7 +145,7 @@ class ConversationManager:
 
     async def compact_messages(self, msg_ids: list[str], summary: str) -> None:
         """删除被压缩的消息，写入一条 summary 消息。
-        
+
         Args:
             msg_ids: 被压缩的原始消息 DB ID 列表
             summary: LLM 生成的摘要内容
@@ -185,4 +185,4 @@ class ConversationManager:
         }
 
 
-__all__ = ["ConversationManager"]
+__all__ = ["ConversationService"]
