@@ -4,9 +4,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
-from pathlib import Path
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any, AsyncGenerator
 
 from src.config.unified_config import UnifiedConfig
@@ -17,6 +16,7 @@ from src.permission import (
     PermissionEngineProtocol,
 )
 from src.runtime.conversation_manager import ConversationManager
+from src.runtime.conversation_session import ConversationSession
 from src.runtime.database_runtime import DatabaseRuntime
 from src.runtime.engine_factory import EngineFactory
 from src.skills.loader import SkillLoader
@@ -45,6 +45,7 @@ class AgentRuntime:
         self._permission_callback_factory = permission_callback_factory or self._default_permission_callback_factory
         self._llm_client: LLMClientProtocol | None = None
         self._mcp_manager: Any = None
+        self._session: ConversationSession | None = None
         self._skill_registry: SkillRegistry | None = None
         self._load_skills()
         self._database_runtime = DatabaseRuntime(self._config.database.url)
@@ -217,8 +218,30 @@ class AgentRuntime:
         """获取指定 conversation 的消息数。"""
         return await self._conversation_manager.get_message_count(conversation_id)
 
+    async def _get_or_create_session(self) -> ConversationSession:
+        """获取或创建当前会话。
+
+        首次调用时启动 MCP 并创建会话实例。
+        会话持有 ReactEngine，跨轮复用，DB 仅在创建时查询一次。
+        """
+        # 会话已存在，直接返回内存态对象
+        if self._session is None:
+            # 首次：启动 MCP（幂等），创建 ConversationSession
+            await self.start_mcp()
+            cid = self._conversation_manager.conversation_id
+            assert cid is not None, "conversation_id 不能在未调用 setup_conversation 前使用"
+            self._session = ConversationSession(
+                conversation_id=cid,
+                engine_factory=self._engine_factory,
+                conversation_manager=self._conversation_manager,
+            )
+        return self._session
+
     async def execute(self, task: str) -> AsyncGenerator[dict[str, Any], None]:
-        """执行一轮对话：加载历史 → 创建引擎 → 流式执行 → 持久化所有消息。
+        """执行一轮对话。
+
+        ReactEngine 由 ConversationSession 持有并复用，不会每轮重建。
+        DB 仅在会话首次创建时查询一次历史，后续轮次在内存中增量维护。
 
         Args:
             task: 用户输入
@@ -226,45 +249,14 @@ class AgentRuntime:
         Yields:
             引擎事件流（thought/action/observation/answer）
         """
+        # 懒初始化：未调用 setup_conversation 时自动创建会话
         if self.conversation_id is None:
             await self.setup_conversation(task)
 
-        history_messages = await self._conversation_manager.load_history_messages()
-        await self._conversation_manager.save_message("user", task)
-
-        engine = await self.create_engine(
-            compact_callback=self._conversation_manager.compact_messages,
-        )
-        engine.load_history(history_messages)
-
-        assistant_content = ""
-        async for event in engine.iter_steps(task, reset_state=False):
-            if event["type"] == "thought":
-                tc = event["data"].get("tool_calls")
-                if tc:
-                    await self._conversation_manager.save_message(
-                        "assistant",
-                        event["data"].get("content", ""),
-                        tool_calls=json.dumps(tc, ensure_ascii=False),
-                    )
-
-            elif event["type"] == "observation":
-                d = event["data"]
-                await self._conversation_manager.save_message(
-                    "tool",
-                    d.get("result", ""),
-                    tool_call_id=d.get("tool_call_id", ""),
-                    tool_name=d.get("tool_name", ""),
-                    tool_args=json.dumps(d.get("tool_args", {}), ensure_ascii=False),
-                )
-
-            elif event["type"] == "answer":
-                assistant_content = event["data"]["answer"]
-
+        # 获取/创建会话，委托 run_turn 执行（DB 查询仅发生在首次）
+        session = await self._get_or_create_session()
+        async for event in session.run_turn(task):
             yield event
-
-        if assistant_content:
-            await self._conversation_manager.save_message("assistant", assistant_content)
 
     def get_llm_client(self) -> LLMClientProtocol:
         """获取 LLM 客户端（懒加载单例）。
@@ -305,6 +297,7 @@ class AgentRuntime:
 
     async def shutdown(self) -> None:
         """关闭 MCP 连接，释放运行时资源。"""
+        self._session = None
         await self.stop_mcp()
         await self._database_runtime.shutdown()
 
