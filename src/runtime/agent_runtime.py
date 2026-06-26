@@ -78,6 +78,9 @@ class AgentRuntime:
     def _default_llm_client_factory(self) -> LLMClientProtocol:
         """默认 LLM 客户端工厂 — 从配置创建 LLMClient 实例。
 
+        model 格式为 "provider_id/model_id"，据此查找对应 provider 的 apiKey 和 baseURL。
+        若 model 未包含 provider_id，则回退到遍历所有 provider 取第一个非空值。
+
         Returns:
             使用 UnifiedConfig 中 provider 配置的 LLMClient
         """
@@ -87,12 +90,19 @@ class AgentRuntime:
         base_url = None
         model = self._config.model or ""
 
-        for pc in self._config.provider.values():
+        provider_id = model.split("/", 1)[0] if "/" in model else None
+        if provider_id and provider_id in self._config.provider:
+            pc = self._config.provider[provider_id]
             if pc.options:
-                if pc.options.apiKey:
-                    api_key = pc.options.apiKey
-                if pc.options.baseURL:
-                    base_url = pc.options.baseURL
+                api_key = pc.options.apiKey or ""
+                base_url = pc.options.baseURL
+        else:
+            for pc in self._config.provider.values():
+                if pc.options:
+                    if pc.options.apiKey:
+                        api_key = pc.options.apiKey
+                    if pc.options.baseURL:
+                        base_url = pc.options.baseURL
 
         return LLMClient(
             api_key=api_key,
