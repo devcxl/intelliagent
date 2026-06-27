@@ -102,6 +102,16 @@ class ToolRegistry:
             return error_response(f"工具执行失败: {str(e)}", "EXECUTION_ERROR")
 
 
+class NoopToolRegistry:
+    """无工具场景的空注册表，与 ToolRegistryProtocol 兼容。"""
+
+    def get_openai_tools(self) -> list[dict[str, Any]]:
+        return []
+
+    async def call_tool(self, tool_name: str, **kwargs: Any) -> str:
+        return error_response(f"未知工具: {tool_name}", "UNKNOWN_TOOL")
+
+
 class ToolRegistryFactory:
     """创建 Runtime 级 ToolRegistry，避免模块级全局可变注册表。"""
 
@@ -297,6 +307,7 @@ def register_agent_team_tools(registry: ToolRegistry, tools: AgentTeamTools) -> 
 
 
 __all__ = [
+    "NoopToolRegistry",
     "ToolDef",
     "ToolFn",
     "ToolRegistry",

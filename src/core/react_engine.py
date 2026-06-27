@@ -11,6 +11,7 @@ from src.permission import (
     PermissionEngineProtocol,
 )
 from src.skills.registry import SkillRegistry
+from src.tools.registry import NoopToolRegistry
 from src.types.llm import LLMClientProtocol
 from src.utils.logger import logger
 
@@ -24,19 +25,6 @@ class ToolRegistryProtocol(Protocol):
     def get_openai_tools(self) -> list[dict[str, Any]]: ...
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> str: ...
-
-
-class _NoopToolRegistry:
-    """无工具场景的空注册表，用于测试和纯对话模式。"""
-
-    def get_openai_tools(self) -> list[dict[str, Any]]:
-        return []
-
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> str:
-        return json.dumps(
-            {"status": "error", "error": f"未知工具: {tool_name}", "code": "UNKNOWN_TOOL"},
-            ensure_ascii=False,
-        )
 
 
 def _to_tool_call_list(raw: list[Any]) -> list[dict[str, Any]]:
@@ -87,7 +75,7 @@ class ReactEngine:
         compact_callback: Callable[[list[str], str], Awaitable[None]] | None = None,
     ):
         self.llm_client = llm_client
-        self._registry = tools_registry if tools_registry is not None else _NoopToolRegistry()
+        self._registry = tools_registry if tools_registry is not None else NoopToolRegistry()
         self._permission_engine = permission_engine
         self._permission_callback = permission_callback
         self._skill_registry = skill_registry
@@ -263,7 +251,9 @@ class ReactEngine:
             },
         }
 
-    def _thought_event(self, step: int, content: str | None, tool_calls: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    def _thought_event(
+        self, step: int, content: str | None, tool_calls: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         return {
             "type": "thought",
             "iteration": step,

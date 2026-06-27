@@ -3,14 +3,12 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
 from src.config.unified_config import UnifiedConfig
 from src.core.react_engine import ReactEngine
-from src.mcp.config import MCPConfig
 from src.permission import (
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
@@ -18,6 +16,7 @@ from src.permission import (
 from src.runtime.conversation_session import ConversationSession
 from src.runtime.database_runtime import DatabaseRuntime
 from src.runtime.engine_factory import EngineFactory
+from src.runtime.mcp_integration import MCPIntegration
 from src.services.conversation_service import ConversationService
 from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
@@ -44,20 +43,20 @@ class AgentRuntime:
         self._permission_engine_factory = permission_engine_factory or self._default_permission_engine_factory
         self._permission_callback_factory = permission_callback_factory or self._default_permission_callback_factory
         self._llm_client: LLMClientProtocol | None = None
-        self._mcp_manager: Any = None
         self._session: ConversationSession | None = None
         self._skill_registry: SkillRegistry | None = None
         self._load_skills()
         self._database_runtime = DatabaseRuntime(self._config.database.url)
         self._conversation_service = ConversationService(self._database_runtime.get_session_factory())
         self._tool_registry = self._create_tool_registry()
+        self._mcp = MCPIntegration(self._config.mcp, self._tool_registry)
         self._engine_factory = self._create_engine_factory()
 
     def _create_tool_registry(self) -> ToolRegistry:
         factory = ToolRegistryFactory(
             session_factory_provider=self._database_runtime.get_session_factory,
             conversation_id_provider=lambda: self.conversation_id,
-            agent_id="agent-001",
+            agent_id=self._config.agent_id,
             skill_registry=self._skill_registry,
         )
         return factory.create_default()
@@ -202,13 +201,9 @@ class AgentRuntime:
         return await self._conversation_service.setup_conversation(task, session_id, resume)
 
     async def save_message(self, role: str, content: str) -> None:
-        """将用户或 assistant 消息持久化到当前 conversation。
-
-        Args:
-            role: user 或 assistant
-            content: 消息内容
-        """
-        await self._conversation_service.save_message(role, content)
+        cid = self.conversation_id
+        if cid is not None:
+            await self._conversation_service.save_message(cid, role, content)
 
     async def list_conversations(self) -> list[dict[str, Any]]:
         """列出所有历史 conversation。"""
@@ -269,36 +264,14 @@ class AgentRuntime:
         return self._llm_client
 
     async def start_mcp(self) -> None:
-        """启动 MCP 连接，注册 MCP 工具到注册表。
-
-        配置中无 MCP 服务器时静默跳过。已启动时不再重复连接。
-
-        """
-        if self._mcp_manager is not None:
-            return
-        mcp_data = self._config.mcp
-        if not mcp_data or not mcp_data.get("servers"):
-            return
-        from src.mcp.manager import MCPClientManager
-
-        mcp_config = MCPConfig.from_unified_config(mcp_data)
-        self._mcp_manager = MCPClientManager(mcp_config, self._tool_registry)
-        await self._mcp_manager.__aenter__()
+        await self._mcp.start()
 
     async def stop_mcp(self) -> None:
-        """关闭所有 MCP 连接并清理资源。"""
-        if self._mcp_manager is not None:
-            mgr = self._mcp_manager
-            self._mcp_manager = None
-            try:
-                await mgr.__aexit__(None, None, None)
-            except (asyncio.CancelledError, Exception):
-                pass
+        await self._mcp.stop()
 
     async def shutdown(self) -> None:
-        """关闭 MCP 连接，释放运行时资源。"""
         self._session = None
-        await self.stop_mcp()
+        await self._mcp.stop()
         await self._database_runtime.shutdown()
 
     async def create_engine(
@@ -320,7 +293,7 @@ class AgentRuntime:
         Returns:
             组装完成的 ReactEngine 实例
         """
-        await self.start_mcp()
+        await self._mcp.start()
         return self._engine_factory.create(compact_callback=compact_callback)
 
 

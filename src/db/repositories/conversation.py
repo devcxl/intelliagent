@@ -8,20 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Conversation
-from src.db.repositories._utils import now
+from src.db.repositories._utils import BaseRepository, now
 
 
-class ConversationRepository:
+class ConversationRepository(BaseRepository[Conversation]):
     def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def save(self, conversation: Conversation) -> Conversation:
-        self._session.add(conversation)
-        await self._session.commit()
-        return conversation
-
-    async def get(self, conversation_id: str) -> Conversation | None:
-        return await self._session.get(Conversation, conversation_id)
+        super().__init__(session, Conversation)
 
     async def update(
         self,

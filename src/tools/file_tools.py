@@ -1,7 +1,7 @@
-import os
 import pathlib
 
 from src.utils.logger import logger
+from src.utils.path_utils import is_path_in_workspace, resolve_workspace_root
 
 from .response import error_response, success_response
 
@@ -17,11 +17,6 @@ FILE_WRITE_MAX_SIZE = 1000000  # 文件写入最大字符数（1MB）
 
 
 def _validate_path_arg(path: str) -> tuple[str | None, str | None]:
-    """验证并规范化路径参数。
-
-    Returns:
-        (stripped_path, None) 成功，或 (None, error_response_json) 失败
-    """
     if not path or not isinstance(path, str):
         return None, error_response("path 参数为空或非字符串类型", "EMPTY_PATH")
     path = path.strip()
@@ -31,31 +26,16 @@ def _validate_path_arg(path: str) -> tuple[str | None, str | None]:
 
 
 def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | None) -> str | None:
-    """检查文件路径是否在工作区范围内。
-
-    Args:
-        file_path: 已 expanduser 的文件路径
-        workspace_root: 工作区根路径，None 时回退到 INTELLIAGENT_WORKSPACE_ROOT 环境变量
-
-    Returns:
-        错误响应字符串，None 表示通过校验
-    """
-    if workspace_root is None:
-        workspace_root = os.environ.get("INTELLIAGENT_WORKSPACE_ROOT")
-    if workspace_root is None:
+    ws = resolve_workspace_root(workspace_root)
+    if ws is None:
         return None
-
-    workspace_path = pathlib.Path(workspace_root).resolve()
     try:
         resolved = file_path.resolve()
     except (OSError, RuntimeError):
         return error_response(f"无法解析路径: {file_path}", "PATH_RESOLVE_ERROR")
-
-    try:
-        resolved.relative_to(workspace_path)
-    except ValueError:
+    if not is_path_in_workspace(str(resolved), ws):
         return error_response(
-            f"路径超出工作区范围: {resolved} (工作区: {workspace_path})",
+            f"路径超出工作区范围: {resolved} (工作区: {ws})",
             "PATH_OUTSIDE_WORKSPACE",
         )
     return None

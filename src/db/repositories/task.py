@@ -6,20 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Task
-from src.db.repositories._utils import now
+from src.db.repositories._utils import BaseRepository, now
 
 
-class TaskRepository:
+class TaskRepository(BaseRepository[Task]):
     def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def save(self, task: Task) -> Task:
-        self._session.add(task)
-        await self._session.commit()
-        return task
-
-    async def get(self, task_id: str) -> Task | None:
-        return await self._session.get(Task, task_id)
+        super().__init__(session, Task)
 
     async def list_by_conversation(self, conversation_id: str) -> list[Task]:
         result = await self._session.execute(

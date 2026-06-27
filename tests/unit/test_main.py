@@ -170,7 +170,7 @@ async def test_runtime_shutdown_stops_mcp(monkeypatch, tmp_path):
         async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
             stopped.append(True)
 
-    runtime._mcp_manager = FakeMCPManager()
+    runtime._mcp._manager = FakeMCPManager()
     await runtime.shutdown()
 
     assert stopped == [True]

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Sequence
 
 from src.permission.types import Decision, PermissionAction
+from src.utils.path_utils import is_in_external_directories, is_path_in_workspace
 
 if TYPE_CHECKING:
     from src.config.unified_config import PermissionsConfig
@@ -22,53 +23,6 @@ _DEFAULT_RULES: tuple[tuple[str, str], ...] = (
     ("bash *", "ask"),
     ("write *", "ask"),
 )
-
-
-def _is_path_in_workspace(path: str, workspace: Path) -> bool:
-    """检查路径是否在工作区范围内。
-
-    Args:
-        path: 待检查路径
-        workspace: 工作区根路径
-
-    Returns:
-        True 表示路径在工作区内
-    """
-    if not path:
-        return True
-    p = Path(path)
-    if not p.is_absolute():
-        p = workspace / p
-    resolved = p.resolve()
-    workspace_resolved = workspace.resolve()
-    try:
-        resolved.relative_to(workspace_resolved)
-        return True
-    except ValueError:
-        return False
-
-
-def _is_in_external_directories(path: str, external_directories: list[str]) -> bool:
-    """检查路径是否在外部目录白名单中。
-
-    Args:
-        path: 待检查路径
-        external_directories: 外部目录白名单列表
-
-    Returns:
-        True 表示路径在白名单中
-    """
-    if not path or not external_directories:
-        return False
-    resolved = Path(path).resolve()
-    for d in external_directories:
-        dir_resolved = Path(d).resolve()
-        try:
-            resolved.relative_to(dir_resolved)
-            return True
-        except ValueError:
-            continue
-    return False
 
 
 def _match_rule(pattern: str, tool_name: str, args: dict[str, Any]) -> bool:
@@ -147,9 +101,9 @@ class PermissionEngine:
         # 2. 安全检查：外部路径不在白名单中 → deny
         path = args.get("path", "")
         if isinstance(path, str) and path:
-            in_workspace = _is_path_in_workspace(path, self._workspace)
+            in_workspace = is_path_in_workspace(path, self._workspace)
             if not in_workspace:
-                in_external = _is_in_external_directories(path, self._external_directories)
+                in_external = is_in_external_directories(path, self._external_directories)
                 if not in_external:
                     return Decision(
                         action=PermissionAction.deny,

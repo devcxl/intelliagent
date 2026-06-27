@@ -8,6 +8,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Agent, Relay
+from src.db.repositories._utils import BaseRepository
 
 
 @dataclass(frozen=True)
@@ -18,14 +19,9 @@ class RelayInboxItem:
     sender_name: str | None
 
 
-class RelayRepository:
+class RelayRepository(BaseRepository[Relay]):
     def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def save(self, relay: Relay) -> Relay:
-        self._session.add(relay)
-        await self._session.commit()
-        return relay
+        super().__init__(session, Relay)
 
     async def list_by_receiver(
         self,

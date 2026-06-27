@@ -6,16 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Message
+from src.db.repositories._utils import BaseRepository
 
 
-class MessageRepository:
+class MessageRepository(BaseRepository[Message]):
     def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def save(self, message: Message) -> Message:
-        self._session.add(message)
-        await self._session.commit()
-        return message
+        super().__init__(session, Message)
 
     async def list_by_conversation(self, conversation_id: str) -> list[Message]:
         result = await self._session.execute(

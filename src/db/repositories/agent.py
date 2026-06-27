@@ -6,20 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Agent
-from src.db.repositories._utils import now
+from src.db.repositories._utils import BaseRepository, now
 
 
-class AgentRepository:
+class AgentRepository(BaseRepository[Agent]):
     def __init__(self, session: AsyncSession) -> None:
-        self._session = session
-
-    async def save(self, agent: Agent) -> Agent:
-        self._session.add(agent)
-        await self._session.commit()
-        return agent
-
-    async def get(self, agent_id: str) -> Agent | None:
-        return await self._session.get(Agent, agent_id)
+        super().__init__(session, Agent)
 
     async def get_by_name(self, name: str) -> Agent | None:
         result = await self._session.execute(select(Agent).where(Agent.name == name))

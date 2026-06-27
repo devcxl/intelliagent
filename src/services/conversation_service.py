@@ -98,6 +98,7 @@ class ConversationService:
 
     async def save_message(
         self,
+        conversation_id: str,
         role: str,
         content: str,
         *,
@@ -106,14 +107,14 @@ class ConversationService:
         tool_args: str | None = None,
         tool_calls: str | None = None,
     ) -> None:
-        if self._conversation_id is None:
+        if conversation_id is None:
             return
         async with self._session_factory() as session:
             msg_repo = MessageRepository(session)
             await msg_repo.save(
                 Message(
                     id=new_uuid(),
-                    conversation_id=self._conversation_id,
+                    conversation_id=conversation_id,
                     role=role,
                     content=content,
                     tool_call_id=tool_call_id,
@@ -123,12 +124,12 @@ class ConversationService:
                 )
             )
 
-    async def load_history_messages(self) -> list[dict[str, Any]]:
-        if self._conversation_id is None:
+    async def load_history_messages(self, conversation_id: str) -> list[dict[str, Any]]:
+        if conversation_id is None:
             return []
         async with self._session_factory() as session:
             msg_repo = MessageRepository(session)
-            messages = await msg_repo.list_by_conversation(self._conversation_id)
+            messages = await msg_repo.list_by_conversation(conversation_id)
         result = []
         for msg in messages:
             entry: dict[str, Any] = {"role": msg.role, "content": msg.content, "_msg_id": msg.id}
@@ -143,22 +144,16 @@ class ConversationService:
             result.append(entry)
         return result
 
-    async def compact_messages(self, msg_ids: list[str], summary: str) -> None:
-        """删除被压缩的消息，写入一条 summary 消息。
-
-        Args:
-            msg_ids: 被压缩的原始消息 DB ID 列表
-            summary: LLM 生成的摘要内容
-        """
-        if self._conversation_id is None or not msg_ids:
+    async def compact_messages(self, conversation_id: str, msg_ids: list[str], summary: str) -> None:
+        if conversation_id is None or not msg_ids:
             return
         async with self._session_factory() as session:
             msg_repo = MessageRepository(session)
-            await msg_repo.delete_by_ids(self._conversation_id, msg_ids)
+            await msg_repo.delete_by_ids(conversation_id, msg_ids)
             await msg_repo.save(
                 Message(
                     id=new_uuid(),
-                    conversation_id=self._conversation_id,
+                    conversation_id=conversation_id,
                     role="system",
                     content=f"以下是被压缩的上下文摘要：{summary}",
                 )

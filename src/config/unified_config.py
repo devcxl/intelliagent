@@ -60,6 +60,7 @@ class UnifiedConfig(BaseModel):
     自动执行 {env:NAME} 插值展开。
     """
 
+    agent_id: str = "agent-001"
     model: str | None = None
     small_model: str | None = None
     provider: dict[str, ProviderConfig] = Field(default_factory=dict)

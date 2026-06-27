@@ -52,9 +52,10 @@ class ConversationSession:
                 return self._engine
 
             # 仅在首次：从 DB 加载全量历史，创建引擎并注入上下文
-            raw_messages = await self._conversation_service.load_history_messages()
+            raw_messages = await self._conversation_service.load_history_messages(self.conversation_id)
+            cid = self.conversation_id
             self._engine = self._engine_factory.create(
-                compact_callback=self._conversation_service.compact_messages,
+                compact_callback=lambda ids, summary: self._conversation_service.compact_messages(cid, ids, summary),
             )
             self._engine.load_history(raw_messages)
             return self._engine
@@ -77,7 +78,7 @@ class ConversationSession:
         # 复用或首次创建 engine（DB 仅在此处查询一次）
         engine = await self._ensure_engine()
         # 用户消息即时落库，保证崩溃不丢
-        await self._conversation_service.save_message("user", task)
+        await self._conversation_service.save_message(self.conversation_id, "user", task)
 
         assistant_content = ""
         # engine.iter_steps 使用 reset_state=False，保留历史上下文
@@ -87,6 +88,7 @@ class ConversationSession:
                 tc = event["data"].get("tool_calls")
                 if tc:
                     await self._conversation_service.save_message(
+                        self.conversation_id,
                         "assistant",
                         event["data"].get("content", ""),
                         tool_calls=json.dumps(tc, ensure_ascii=False),
@@ -96,6 +98,7 @@ class ConversationSession:
             elif event["type"] == "observation":
                 d = event["data"]
                 await self._conversation_service.save_message(
+                    self.conversation_id,
                     "tool",
                     d.get("result", ""),
                     tool_call_id=d.get("tool_call_id", ""),
@@ -111,7 +114,7 @@ class ConversationSession:
 
         # 最终答案在事件流结束后统一落库
         if assistant_content:
-            await self._conversation_service.save_message("assistant", assistant_content)
+            await self._conversation_service.save_message(self.conversation_id, "assistant", assistant_content)
 
 
 __all__ = ["ConversationSession"]
