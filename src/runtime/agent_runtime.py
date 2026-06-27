@@ -15,10 +15,10 @@ from src.permission import (
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
 )
-from src.runtime.conversation_service import ConversationService
 from src.runtime.conversation_session import ConversationSession
 from src.runtime.database_runtime import DatabaseRuntime
 from src.runtime.engine_factory import EngineFactory
+from src.services.conversation_service import ConversationService
 from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
 from src.tools.registry import ToolRegistry, ToolRegistryFactory

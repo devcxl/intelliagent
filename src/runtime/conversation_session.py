@@ -12,8 +12,8 @@ import json
 from typing import Any, AsyncGenerator
 
 from src.core.react_engine import ReactEngine
-from src.runtime.conversation_service import ConversationService
 from src.runtime.engine_factory import EngineFactory
+from src.services.conversation_service import ConversationService
 
 
 class ConversationSession:

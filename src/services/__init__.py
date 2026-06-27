@@ -8,11 +8,13 @@ from src.services.agent_team import (
     EmptyContentError,
     InvalidStatusError,
 )
+from src.services.conversation_service import ConversationService
 
 __all__ = [
     "AgentNotFoundError",
     "AgentTeamError",
     "AgentTeamService",
+    "ConversationService",
     "DuplicateNameError",
     "EmptyContentError",
     "InvalidStatusError",
