@@ -111,6 +111,7 @@ class ReactEngine:
         self._context_manager.add_tool_message(tool_call_id, content)
 
     def load_history(self, messages: list[dict[str, Any]]) -> None:
+        self._refresh_instructions()
         self._context_manager.load_history(messages)
         self.messages = [self._build_system_message(), *(dict(message) for message in messages)]
 
@@ -121,6 +122,14 @@ class ReactEngine:
             content += "\n\n" + xml + "\n\n当任务匹配某个 skill 的描述时，使用 skill 工具加载其完整指令。"
         return {"role": "system", "content": content}
 
+    def _refresh_instructions(self) -> None:
+        system_prompt = self._build_system_message()["content"]
+        self._context_manager.initialize_instructions(
+            system_prompt=system_prompt,
+            agent_prompt="",
+            tools_instruction="",
+        )
+
     # ------------------------------------------------------------------
     # 上下文压缩
     # ------------------------------------------------------------------
@@ -130,6 +139,7 @@ class ReactEngine:
         if summary is None:
             return
 
+        self._refresh_instructions()
         self.messages = [self._build_system_message(), {"role": "user", "content": summary.content}]
         self.total_tokens = int(self.total_tokens * 0.5)
 
@@ -209,11 +219,7 @@ class ReactEngine:
     ) -> dict[str, Any]:
         if not self.messages:
             self.messages = [self._build_system_message()]
-            self._context_manager.initialize_instructions(
-                system_prompt=DEFAULT_SYSTEM_PROMPT,
-                agent_prompt="",
-                tools_instruction="",
-            )
+            self._refresh_instructions()
         self.add_user_message(task)
 
         async for event in self._loop():
@@ -242,11 +248,7 @@ class ReactEngine:
     ) -> AsyncGenerator[dict[str, Any], None]:
         if reset_state or not self.messages:
             self.messages = [self._build_system_message()]
-            self._context_manager.initialize_instructions(
-                system_prompt=DEFAULT_SYSTEM_PROMPT,
-                agent_prompt="",
-                tools_instruction="",
-            )
+            self._refresh_instructions()
         self.add_user_message(task)
 
         async for event in self._loop():
