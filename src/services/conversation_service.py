@@ -145,17 +145,18 @@ class ConversationService:
         return result
 
     async def compact_messages(self, conversation_id: str, msg_ids: list[str], summary: str) -> None:
-        if conversation_id is None or not msg_ids:
+        if conversation_id is None:
             return
         async with self._session_factory() as session:
             msg_repo = MessageRepository(session)
-            await msg_repo.delete_by_ids(conversation_id, msg_ids)
+            if msg_ids:
+                await msg_repo.delete_by_ids(conversation_id, msg_ids)
             await msg_repo.save(
                 Message(
                     id=new_uuid(),
                     conversation_id=conversation_id,
-                    role="system",
-                    content=f"以下是被压缩的上下文摘要：{summary}",
+                    role="user",
+                    content=summary,
                 )
             )
 

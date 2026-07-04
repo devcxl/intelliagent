@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Protocol
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
+from src.core.context_manager import ContextManager
 from src.permission import (
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
@@ -14,9 +15,6 @@ from src.skills.registry import SkillRegistry
 from src.tools.registry import NoopToolRegistry
 from src.types.llm import LLMClientProtocol
 from src.utils.logger import logger
-
-_RECENT_CONTEXT_MESSAGES = 6
-_COMPACT_TOKEN_REDUCTION_RATIO = 0.5
 
 
 class ToolRegistryProtocol(Protocol):
@@ -82,6 +80,7 @@ class ReactEngine:
         self._compact_callback = compact_callback
 
         self.max_context_tokens = context_limit or 128_000
+        self._context_manager = ContextManager(max_context_tokens=self.max_context_tokens)
 
         self.messages: list[dict[str, Any]] = []
         self.total_tokens = 0
@@ -92,70 +91,44 @@ class ReactEngine:
 
     def add_user_message(self, content: str):
         self.messages.append({"role": "user", "content": content})
+        self._context_manager.add_user_message(content)
 
     def add_assistant_message(self, content: str | None = None, tool_calls: list[dict[str, Any]] | None = None):
         msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
         if tool_calls:
             msg["tool_calls"] = tool_calls
         self.messages.append(msg)
+        self._context_manager.add_assistant_message(content=content, tool_calls=tool_calls)
 
     def add_tool_message(self, tool_call_id: str, content: str):
         self.messages.append({"role": "tool", "tool_call_id": tool_call_id, "content": content})
+        self._context_manager.add_tool_message(tool_call_id, content)
 
     def load_history(self, messages: list[dict[str, Any]]) -> None:
-        """从持久化消息列表加载历史，前置 system message。
-
-        Args:
-            messages: DB 中已存储的对话消息（role + content）
-        """
+        self._context_manager.load_history(messages)
         self.messages = [self._build_system_message(), *(dict(message) for message in messages)]
 
     def _build_system_message(self) -> dict[str, Any]:
-        """构建 system message，注入 available_skills（如有）。"""
         content = DEFAULT_SYSTEM_PROMPT
         if self._skill_registry and self._skill_registry.list_names():
             xml = self._skill_registry.generate_available_skills_xml()
             content += "\n\n" + xml + "\n\n当任务匹配某个 skill 的描述时，使用 skill 工具加载其完整指令。"
         return {"role": "system", "content": content}
 
-    def _check_token_limit(self) -> bool:
-        return self.total_tokens >= self.max_context_tokens
-
     # ------------------------------------------------------------------
     # 上下文压缩
     # ------------------------------------------------------------------
 
-    async def compact_context(self):
-        if self.total_tokens < self.max_context_tokens:
+    async def _maybe_compact_context(self) -> None:
+        summary = self._context_manager.compact_if_needed(estimated_tokens=self.total_tokens)
+        if summary is None:
             return
 
-        system = self.messages[0] if self.messages and self.messages[0]["role"] == "system" else None
-        kept = [system] if system else []
+        self.messages = [self._build_system_message(), {"role": "user", "content": summary.content}]
+        self.total_tokens = int(self.total_tokens * 0.5)
 
-        recent = (
-            self.messages[-_RECENT_CONTEXT_MESSAGES:]
-            if len(self.messages) > _RECENT_CONTEXT_MESSAGES
-            else self.messages[-len(self.messages) :]
-        )
-        middle = self.messages[len(kept) : -len(recent)] if len(self.messages) > len(kept) + len(recent) else []
-
-        if middle:
-            prompt = "请将以下对话压缩为一段简洁的中文摘要：\n\n" + json.dumps(middle, ensure_ascii=False)
-            resp = await self.llm_client.chat_async(
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-            )
-            summary = getattr(resp, "content", "") or ""
-
-            msg_ids = [m["_msg_id"] for m in middle if "_msg_id" in m]
-            if msg_ids and self._compact_callback:
-                await self._compact_callback(msg_ids, summary)
-
-            kept.append({"role": "system", "content": f"以下是被压缩的上下文摘要：{summary}"})
-
-        kept.extend(recent)
-        self.messages = kept
-        self.total_tokens = int(self.total_tokens * _COMPACT_TOKEN_REDUCTION_RATIO)
+        if self._compact_callback:
+            await self._compact_callback([], summary.content)
 
     # ------------------------------------------------------------------
     # 工具执行
@@ -219,12 +192,9 @@ class ReactEngine:
             async for event in self._execute_tool_calls(tool_calls, step):
                 yield event
 
-    async def _maybe_compact_context(self) -> None:
-        if self._check_token_limit():
-            await self.compact_context()
-
     async def _call_llm(self) -> Any:
-        clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in self.messages]
+        context = self._context_manager.get_messages()
+        clean = [{k: v for k, v in m.items() if not k.startswith("_")} for m in context]
         return await self.llm_client.chat_async(
             messages=clean,
             temperature=0.3,
@@ -306,6 +276,11 @@ class ReactEngine:
     ) -> dict[str, Any]:
         if not self.messages:
             self.messages = [self._build_system_message()]
+            self._context_manager.initialize_instructions(
+                system_prompt=DEFAULT_SYSTEM_PROMPT,
+                agent_prompt="",
+                tools_instruction="",
+            )
         self.add_user_message(task)
 
         async for event in self._loop():
@@ -334,6 +309,11 @@ class ReactEngine:
     ) -> AsyncGenerator[dict[str, Any], None]:
         if reset_state or not self.messages:
             self.messages = [self._build_system_message()]
+            self._context_manager.initialize_instructions(
+                system_prompt=DEFAULT_SYSTEM_PROMPT,
+                agent_prompt="",
+                tools_instruction="",
+            )
         self.add_user_message(task)
 
         async for event in self._loop():
