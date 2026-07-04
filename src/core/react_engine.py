@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, Protocol
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
 from src.core.context_manager import ContextManager
+from src.core.events import action_event, answer_event, observation_event, thought_event
+from src.core.tool_executor import ToolExecutor
 from src.permission import (
     PermissionCallbackProtocol,
     PermissionEngineProtocol,
@@ -81,6 +82,11 @@ class ReactEngine:
 
         self.max_context_tokens = context_limit or 128_000
         self._context_manager = ContextManager(max_context_tokens=self.max_context_tokens)
+        self._tool_executor = ToolExecutor(
+            registry=self._registry,
+            permission_engine=self._permission_engine,
+            permission_callback=self._permission_callback,
+        )
 
         self.messages: list[dict[str, Any]] = []
         self.total_tokens = 0
@@ -135,33 +141,8 @@ class ReactEngine:
     # ------------------------------------------------------------------
 
     async def execute_tool(self, tool_call: dict[str, Any]) -> str:
-        tool_name = tool_call.get("function", {}).get("name", "")
-        args_raw = tool_call.get("function", {}).get("arguments", "{}")
-
-        try:
-            args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
-        except json.JSONDecodeError:
-            args = {}
-
-        if self._permission_engine:
-            # 权限检查必须发生在 ToolRegistry.call_tool 之前，确保副作用工具不会先执行。
-            decision = self._permission_engine.check(tool_name, args)
-            if decision.action == "deny":
-                return json.dumps({"status": "error", "error": f"权限拒绝: {decision.reason}"}, ensure_ascii=False)
-            if decision.action == "ask":
-                if self._permission_callback:
-                    approved = await self._permission_callback.on_prompt(tool_name, args, decision.reason)
-                    if not approved:
-                        return json.dumps({"status": "error", "error": "用户拒绝执行"}, ensure_ascii=False)
-                else:
-                    return json.dumps(
-                        {"status": "error", "error": f"需要确认但无回调: {decision.reason}"},
-                        ensure_ascii=False,
-                    )
-
-        result = await self._registry.call_tool(tool_name=tool_name, **args)
-
-        return result
+        result = await self._tool_executor.execute(tool_call)
+        return result.content
 
     # ------------------------------------------------------------------
     # _loop — 核心循环（事件流）
@@ -185,10 +166,10 @@ class ReactEngine:
 
             if not tool_calls:
                 logger.info(f"Agent 完成 | turns={step} tokens={self.total_tokens}")
-                yield self._answer_event(step, content, usage)
+                yield answer_event(step, content, self.total_tokens, usage.prompt, usage.completion, usage.cached)
                 return
 
-            yield self._thought_event(step, content, tool_calls)
+            yield thought_event(step, content, tool_calls)
             async for event in self._execute_tool_calls(tool_calls, step):
                 yield event
 
@@ -207,64 +188,16 @@ class ReactEngine:
         tool_calls = _to_tool_call_list(raw_tool_calls) if raw_tool_calls else None
         return content, tool_calls
 
-    def _answer_event(self, step: int, content: str | None, usage: _TokenUsage) -> dict[str, Any]:
-        return {
-            "type": "answer",
-            "iteration": step,
-            "data": {
-                "answer": content or "",
-                "num_turns": step,
-                "total_tokens": self.total_tokens,
-                "prompt_tokens": usage.prompt,
-                "completion_tokens": usage.completion,
-                "cached_tokens": usage.cached,
-            },
-        }
-
-    def _thought_event(
-        self, step: int, content: str | None, tool_calls: list[dict[str, Any]] | None = None
-    ) -> dict[str, Any]:
-        return {
-            "type": "thought",
-            "iteration": step,
-            "data": {"content": content, "has_tool_calls": True, "tool_calls": tool_calls},
-        }
-
     async def _execute_tool_calls(
         self,
         tool_calls: list[dict[str, Any]],
         step: int,
     ) -> AsyncGenerator[dict[str, Any], None]:
         for tool_call in tool_calls:
-            tool_name = tool_call["function"]["name"]
-            tool_args = self._parse_tool_args(tool_call)
-
-            yield {"type": "action", "iteration": step, "data": {"tool": tool_name, "args": tool_args}}
-
-            result = await self.execute_tool(tool_call)
-            self.add_tool_message(tool_call["id"], result)
-
-            yield {
-                "type": "observation",
-                "iteration": step,
-                "data": {
-                    "iteration": step,
-                    "tool_call_id": tool_call["id"],
-                    "tool_name": tool_name,
-                    "tool_args": tool_args,
-                    "result": result,
-                    "status": "success",
-                    "error": None,
-                    "execution_time": 0,
-                },
-            }
-
-    def _parse_tool_args(self, tool_call: dict[str, Any]) -> dict[str, Any]:
-        tool_args_raw = tool_call["function"]["arguments"]
-        try:
-            return json.loads(tool_args_raw) if isinstance(tool_args_raw, str) else tool_args_raw
-        except json.JSONDecodeError:
-            return {}
+            result = await self._tool_executor.execute(tool_call)
+            yield action_event(step, result.tool_name, result.tool_args)
+            self.add_tool_message(result.tool_call_id, result.content)
+            yield observation_event(step, result.tool_call_id, result.tool_name, result.tool_args, result.content)
 
     # ------------------------------------------------------------------
     # run — 主入口
