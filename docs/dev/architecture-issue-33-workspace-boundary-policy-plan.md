@@ -39,6 +39,8 @@
 
 新增 `PathPolicy`，作为唯一判断路径边界的对象。
 
+维护者已确认采用“双层防线”：PermissionEngine 和 file tools 都使用同一个 `PathPolicy`。PermissionEngine 负责权限动作决策，file tools 负责最终结构性拦截。
+
 建议接口：
 
 ```python

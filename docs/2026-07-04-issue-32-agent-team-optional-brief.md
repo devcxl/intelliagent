@@ -52,7 +52,7 @@ class AgentTeamConfig(BaseModel):
 agent_team: AgentTeamConfig = Field(default_factory=AgentTeamConfig)
 ```
 
-如果维护者担心行为变更，可以临时默认 `True`，但这会削弱本 issue 的架构目标。建议在 triage 时明确默认值。
+维护者已决定默认 `False`。Agent Team 必须显式开启，默认运行链路保持轻量 coding-agent skeleton。
 
 ---
 
@@ -86,7 +86,7 @@ agent_team: AgentTeamConfig = Field(default_factory=AgentTeamConfig)
 **验收标准：**
 
 - [ ] `UnifiedConfig` 支持 `agent_team.enabled`。
-- [ ] 默认行为经维护者确认并由测试固定。
+- [ ] `agent_team.enabled` 默认值为 `False`，并由测试固定。
 - [ ] 禁用 Agent Team 时，默认工具列表不包含 6 个 agent-team tools。
 - [ ] 启用 Agent Team 时，6 个工具正常注册并保留现有行为。
 - [ ] 禁用 Agent Team 时，runtime 不实例化 `AgentTeamTools`。
@@ -107,6 +107,6 @@ agent_team: AgentTeamConfig = Field(default_factory=AgentTeamConfig)
 
 ---
 
-**人类决策点：**
+**维护者决策：**
 
-需要维护者确认 `agent_team.enabled` 默认值。架构上建议默认 `False`，但如果要减少行为变化，可先默认 `True`，再通过后续 breaking-change issue 翻转默认值。
+`agent_team.enabled` 默认值已确定为 `False`。实现者不要为了兼容当前默认工具列表而改回 `True`。

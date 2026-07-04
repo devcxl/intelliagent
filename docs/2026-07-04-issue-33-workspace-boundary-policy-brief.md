@@ -40,11 +40,13 @@
 
 项目应只有一个 workspace/path boundary 策略来源。
 
+维护者已决定采用“双层防线”：permission engine 和 file tools 共用同一个 `PathPolicy`。权限层负责 `allow` / `ask` / `deny` 决策，文件工具层负责最终结构性边界拦截。
+
 目标：
 
 1. workspace root 来源统一为 `UnifiedConfig.workspace.dir`。
 2. external directories 来源统一为 `UnifiedConfig.permissions.external_directories`。
-3. permission engine 和 file tools 使用同一个路径判断语义。
+3. permission engine 和 file tools 使用同一个路径判断语义，并在两层都实际执行边界检查。
 4. 默认注册的文件工具不依赖 `INTELLIAGENT_WORKSPACE_ROOT` 这种隐式安全配置。
 5. 安全边界有集中测试。
 

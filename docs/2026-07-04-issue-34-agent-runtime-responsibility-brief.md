@@ -62,11 +62,12 @@
 
 3. **清理 create_engine API**
    - 当前 `create_engine(api_key=None, model=None, ...)` 的 `api_key` 和 `model` 不影响实际创建。
-   - 二选一：删除无效参数，或实现真正 override。
-   - 推荐删除无效参数，避免增加 runtime 复杂度。
+   - 维护者已决定删除无效参数，不实现临时 override。
+   - 清理后 `create_engine()` 只保留真实生效的参数。
 
 4. **减少 conversation facade 面积**
-   - 评估 `save_message()` 是否仍需要作为 public runtime API。
+   - 本 issue 不删除 `save_message()`。
+   - 如后续确认该方法可移除，应单独开 issue 处理。
    - 保留 CLI 需要的 `setup_conversation()`、`list_conversations()`、`get_message_count()`，但不要继续向 runtime 添加更多业务代理。
 
 5. **补测试**
@@ -80,7 +81,7 @@
 
 - [ ] `AgentRuntime` 不直接解析 `provider` 字段中的 API key/baseURL。
 - [ ] `AgentRuntime` 不直接调用 `SkillLoader.load()`。
-- [ ] `create_engine()` 不再暴露无效的 `api_key` / `model` 参数，或这两个参数确实生效并有测试。
+- [ ] `create_engine()` 不再暴露无效的 `api_key` / `model` 参数。
 - [ ] 新增 LLM factory 单元测试。
 - [ ] 新增 skill registry factory 单元测试。
 - [ ] 现有 CLI 和 runtime tests 通过。

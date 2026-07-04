@@ -144,7 +144,7 @@ uv run pytest tests/unit/test_skill_runtime.py tests/unit/test_skill_runtime_int
 
 当前 `AgentRuntime.create_engine(api_key=None, model=None, ...)` 的 `api_key` 和 `model` 参数无实际覆盖效果。
 
-推荐改法：删除无效参数，只保留：
+维护者已决定删除无效参数，不实现临时 override。修改后只保留：
 
 ```python
 async def create_engine(
@@ -168,7 +168,7 @@ uv run pytest tests/unit tests/integration --tb=short
 不要大规模删除 public 方法。先做低风险整理：
 
 - 保留 CLI 需要的 `initialize()`、`setup_conversation()`、`execute()`、`list_conversations()`、`get_message_count()`、`shutdown()`。
-- 检查 `save_message()` 是否还有外部调用；如果没有调用，另开 issue 删除，不在本 issue 顺手清理。
+- 本 issue 不删除 `save_message()`；如后续确认可移除，再单独开 issue。
 - 给 `AgentRuntime` 类 docstring 更新职责描述：生命周期协调，而非 provider/skill 解析。
 
 ---
@@ -208,6 +208,6 @@ ruff format --check .
 
 - `AgentRuntime` 不再直接解析 provider options。
 - `AgentRuntime` 不再直接调用 `SkillLoader.load()`。
-- `create_engine()` 不暴露无效参数，或参数有明确测试证明生效。
+- `create_engine()` 不暴露无效参数。
 - 新增 factory/runtime 单元测试。
 - 全量测试和 lint 通过。

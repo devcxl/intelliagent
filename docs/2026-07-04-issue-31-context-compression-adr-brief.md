@@ -130,6 +130,6 @@ class ContextManager:
 
 ---
 
-**人类决策点：**
+**维护者决策：**
 
-如果维护者不想按 ADR 0001 实现，而是想保留当前 LLM 摘要和 recent messages 策略，则本 issue 的第一步应改为修订 ADR 0001。不要在未确认的情况下同时修改代码和保留旧 ADR。
+已决定按 ADR 0001 实现，不保留当前 LLM 摘要 + recent messages 策略。本 issue 应落地 75% 阈值、确定性摘要、不调用 LLM、只保留 instruction prefix + summary 的方案。

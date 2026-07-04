@@ -16,16 +16,14 @@
 
 ## 2. 前置决策
 
-需要维护者确认 `agent_team.enabled` 默认值：
+维护者已确认 `agent_team.enabled` 默认值为 `False`：
 
 | 默认值 | 优点 | 缺点 |
 |---|---|---|
-| `False` | 最符合 skeleton 定位，默认工具更轻 | 行为有 breaking change |
+| `False` | 最符合 skeleton 定位，默认工具更轻 | 已选择；行为有 breaking change |
 | `True` | 对当前用户行为兼容 | 架构收益较弱，后续还要翻转默认值 |
 
-建议：默认 `False`。如果担心破坏现有 demo，可先默认 `True` 并在 README 标注后续将默认关闭。
-
-以下方案按默认 `False` 编写。
+以下方案按默认 `False` 执行。实现者不要为了兼容当前默认工具列表而改回 `True`。
 
 ---
 
