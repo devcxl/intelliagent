@@ -29,11 +29,12 @@ class _FakePermissionCallback:
         return True
 
 
-def _make_runtime(tmp_path):
+def _make_runtime(tmp_path, *, agent_team_enabled: bool = False):
     config = UnifiedConfig.model_validate(
         {
             "database": {"url": str(tmp_path / "test.db")},
             "skills": {"enabled": False},
+            "agent_team": {"enabled": agent_team_enabled},
         }
     )
     return AgentRuntime(
@@ -44,9 +45,23 @@ def _make_runtime(tmp_path):
     )
 
 
-def test_runtime_registers_agent_team_tools(tmp_path):
+def test_runtime_does_not_register_agent_team_tools_by_default(tmp_path):
     async def _run():
         runtime = _make_runtime(tmp_path)
+        await runtime.initialize()
+        await runtime.setup_conversation(task="test")
+
+        names = runtime._tool_registry.list_tool_names()
+        assert "send_message" not in names
+        assert "get_contacts" not in names
+        await runtime.shutdown()
+
+    asyncio.run(_run())
+
+
+def test_runtime_registers_agent_team_tools_when_enabled(tmp_path):
+    async def _run():
+        runtime = _make_runtime(tmp_path, agent_team_enabled=True)
         await runtime.initialize()
         await runtime.setup_conversation(task="test")
 
@@ -60,7 +75,7 @@ def test_runtime_registers_agent_team_tools(tmp_path):
 
 def test_tool_calls_after_runtime_setup(tmp_path):
     async def _run():
-        runtime = _make_runtime(tmp_path)
+        runtime = _make_runtime(tmp_path, agent_team_enabled=True)
         await runtime.initialize()
         await runtime.setup_conversation(task="test")
 

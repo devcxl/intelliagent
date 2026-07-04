@@ -58,6 +58,7 @@ class AgentRuntime:
             conversation_id_provider=lambda: self.conversation_id,
             agent_id=self._config.agent_id,
             skill_registry=self._skill_registry,
+            agent_team_enabled=self._config.agent_team.enabled,
         )
         return factory.create_default()
 

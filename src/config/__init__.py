@@ -3,6 +3,7 @@
 
 from src.config.provider_config import ModelOverride, ProviderConfig, ProviderOptions
 from src.config.unified_config import (
+    AgentTeamConfig,
     DatabaseConfig,
     PermissionRule,
     PermissionsConfig,
@@ -15,6 +16,7 @@ __all__ = [
     "ProviderConfig",
     "ProviderOptions",
     "ModelOverride",
+    "AgentTeamConfig",
     "WorkspaceConfig",
     "DatabaseConfig",
     "PermissionsConfig",

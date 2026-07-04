@@ -53,6 +53,12 @@ class SkillsConfig(BaseModel):
     user_paths: list[str] = Field(default_factory=lambda: ["~/.config/opencode/skills"])
 
 
+class AgentTeamConfig(BaseModel):
+    """Agent Team 可选能力配置。"""
+
+    enabled: bool = False
+
+
 class UnifiedConfig(BaseModel):
     """统一配置模型 — 涵盖所有子配置域。
 
@@ -71,6 +77,7 @@ class UnifiedConfig(BaseModel):
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
+    agent_team: AgentTeamConfig = Field(default_factory=AgentTeamConfig)
     mcp: dict[str, Any] = Field(default_factory=dict)
 
     def get_model_context_limit(self) -> int | None:

@@ -61,13 +61,16 @@ uv run python -m src.main --history
       { "pattern": "read *", "action": "allow" },
       { "pattern": "bash *", "action": "ask" }
     ]
+  },
+  "agent_team": {
+    "enabled": false
   }
 }
 ```
 
 配置优先级：**环境变量 > intelliagent.json > 代码默认值**
 
-## 内置工具
+## 核心内置工具
 
 | 工具 | 说明 |
 |------|------|
@@ -75,6 +78,23 @@ uv run python -m src.main --history
 | `run_shell` | 命令执行 |
 | `task_write` / `task_add` / `task_update` / `task_finish` | 任务管理（持久化到 SQLite） |
 | `skill` | 按需加载 Skill 指令 |
+
+## 可选 Agent Team 工具
+
+Agent Team 默认关闭。需要多 Agent 通信与团队管理时，在 `intelliagent.json` 中设置：
+
+```json
+{
+  "agent_team": { "enabled": true }
+}
+```
+
+关闭时不会向模型注册 Agent Team 工具；相关数据库表仍随主 schema 创建。
+
+启用后注册以下工具：
+
+| 工具 | 说明 |
+|------|------|
 | `send_message` / `receive_message` / `get_contacts` / `get_contact_detail` / `create_agent` / `delete_agent` | Agent 间通信与团队管理 |
 
 ## CLI 命令

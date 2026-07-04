@@ -121,11 +121,13 @@ class ToolRegistryFactory:
         conversation_id_provider: ConversationIdProvider,
         agent_id: str,
         skill_registry: SkillRegistry | None = None,
+        agent_team_enabled: bool = False,
     ) -> None:
         self._session_factory_provider = session_factory_provider
         self._conversation_id_provider = conversation_id_provider
         self._agent_id = agent_id
         self._skill_registry = skill_registry
+        self._agent_team_enabled = agent_team_enabled
 
     def create_default(self) -> ToolRegistry:
         registry = ToolRegistry()
@@ -137,13 +139,14 @@ class ToolRegistryFactory:
                 conversation_id_provider=self._conversation_id_provider,
             ),
         )
-        register_agent_team_tools(
-            registry,
-            AgentTeamTools(
-                session_factory_provider=self._session_factory_provider,
-                agent_id=self._agent_id,
-            ),
-        )
+        if self._agent_team_enabled:
+            register_agent_team_tools(
+                registry,
+                AgentTeamTools(
+                    session_factory_provider=self._session_factory_provider,
+                    agent_id=self._agent_id,
+                ),
+            )
         if self._skill_registry is not None:
             from src.skills.tool import SkillTool
 

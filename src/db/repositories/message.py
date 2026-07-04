@@ -22,10 +22,6 @@ class MessageRepository(BaseRepository[Message]):
     async def delete_by_ids(self, conversation_id: str, ids: list[str]) -> None:
         from sqlalchemy import delete
 
-        stmt = (
-            delete(Message)
-            .where(Message.conversation_id == conversation_id)
-            .where(Message.id.in_(ids))
-        )
+        stmt = delete(Message).where(Message.conversation_id == conversation_id).where(Message.id.in_(ids))
         await self._session.execute(stmt)
         await self._session.commit()

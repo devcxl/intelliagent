@@ -25,6 +25,9 @@
     ],
     "external_directories": []
   },
+  "agent_team": {
+    "enabled": false
+  },
   "mcp": {
     "servers": [
       {

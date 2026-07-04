@@ -42,11 +42,24 @@ def test_create_agent_has_correct_parameters():
     assert tool_def.parameters["allowed_tools"]["required"] is False
 
 
-def test_factory_registers_agent_team_tools():
+def test_factory_does_not_register_agent_team_tools_by_default():
     registry = ToolRegistryFactory(
         session_factory_provider=_unused_factory,
         conversation_id_provider=lambda: "conv-1",
         agent_id="agent-001",
+    ).create_default()
+
+    names = set(registry.list_tool_names())
+    expected = {"send_message", "receive_message", "get_contacts", "get_contact_detail", "create_agent", "delete_agent"}
+    assert expected.isdisjoint(names)
+
+
+def test_factory_registers_agent_team_tools_when_enabled():
+    registry = ToolRegistryFactory(
+        session_factory_provider=_unused_factory,
+        conversation_id_provider=lambda: "conv-1",
+        agent_id="agent-001",
+        agent_team_enabled=True,
     ).create_default()
 
     names = set(registry.list_tool_names())

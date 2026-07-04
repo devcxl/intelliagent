@@ -6,6 +6,7 @@ import json
 import pytest
 
 from src.config.unified_config import (
+    AgentTeamConfig,
     DatabaseConfig,
     PermissionRule,
     PermissionsConfig,
@@ -39,6 +40,11 @@ def test_permissions_config_defaults():
     assert config.rules == []
 
 
+def test_agent_team_config_defaults():
+    config = AgentTeamConfig()
+    assert config.enabled is False
+
+
 # ============================================================================
 # UnifiedConfig 全默认值
 # ============================================================================
@@ -50,6 +56,7 @@ def test_unified_config_defaults():
     assert config.workspace.dir == "."
     assert config.database.url == "sqlite:///intelliagent.db"
     assert config.permissions.rules == []
+    assert config.agent_team.enabled is False
     assert config.mcp == {}
     assert config.provider == {}
 
@@ -101,6 +108,15 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
     assert config.permissions.rules[0].pattern == "run_shell"
     assert config.permissions.rules[0].action == "deny"
     assert config.mcp["servers"][0]["name"] == "fs"
+
+
+def test_load_agent_team_enabled(tmp_path):
+    config_path = tmp_path / "intelliagent.json"
+    config_path.write_text(json.dumps({"agent_team": {"enabled": True}}))
+
+    config = UnifiedConfig.load(str(config_path))
+
+    assert config.agent_team.enabled is True
 
 
 def test_load_from_missing_file_returns_defaults():
