@@ -1,7 +1,8 @@
 import pathlib
 
 from src.utils.logger import logger
-from src.utils.path_utils import is_path_in_workspace, resolve_workspace_root
+from src.utils.path_policy import PathPolicy
+from src.utils.path_utils import resolve_workspace_root
 
 from .response import error_response, success_response
 
@@ -25,7 +26,17 @@ def _validate_path_arg(path: str) -> tuple[str | None, str | None]:
     return path, None
 
 
-def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | None) -> str | None:
+def _check_workspace_boundary(
+    file_path: pathlib.Path, workspace_root: str | None = None, path_policy: PathPolicy | None = None
+) -> str | None:
+    if path_policy is not None:
+        result = path_policy.check(str(file_path))
+        if not result.allowed_by_boundary:
+            return error_response(
+                f"路径超出工作区范围: {file_path.resolve()} (工作区: {path_policy.workspace})",
+                "PATH_OUTSIDE_WORKSPACE",
+            )
+        return None
     ws = resolve_workspace_root(workspace_root)
     if ws is None:
         return None
@@ -33,7 +44,10 @@ def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | Non
         resolved = file_path.resolve()
     except (OSError, RuntimeError):
         return error_response(f"无法解析路径: {file_path}", "PATH_RESOLVE_ERROR")
-    if not is_path_in_workspace(str(resolved), ws):
+    resolved_str = str(resolved)
+    from src.utils.path_policy import PathPolicy as _PP
+
+    if not _PP(workspace=ws).check(resolved_str).allowed_by_boundary:
         return error_response(
             f"路径超出工作区范围: {resolved} (工作区: {ws})",
             "PATH_OUTSIDE_WORKSPACE",
@@ -41,7 +55,7 @@ def _check_workspace_boundary(file_path: pathlib.Path, workspace_root: str | Non
     return None
 
 
-async def read_file(path: str, workspace_root: str | None = None) -> str:
+async def read_file(path: str, workspace_root: str | None = None, path_policy: PathPolicy | None = None) -> str:
     """异步读取文件内容。
 
     支持工作区边界检查、文件大小截断，优先使用 aiofiles 异步读取。
@@ -49,6 +63,7 @@ async def read_file(path: str, workspace_root: str | None = None) -> str:
     Args:
         path: 文件路径，支持 ~ 展开
         workspace_root: 工作区根路径，用于边界检查，None 时从环境变量获取
+        path_policy: 路径边界策略，优先于 workspace_root
 
     Returns:
         JSON 格式的响应，成功时包含 content、size、truncated、path 字段
@@ -61,7 +76,7 @@ async def read_file(path: str, workspace_root: str | None = None) -> str:
     try:
         file_path = pathlib.Path(stripped_path).expanduser()
 
-        boundary_error = _check_workspace_boundary(file_path, workspace_root)
+        boundary_error = _check_workspace_boundary(file_path, workspace_root, path_policy)
         if boundary_error is not None:
             return boundary_error
 
@@ -92,7 +107,9 @@ async def read_file(path: str, workspace_root: str | None = None) -> str:
         return error_response(f"读取文件失败: {str(e)}", "READ_ERROR")
 
 
-async def write_file(path: str, content: str, workspace_root: str | None = None) -> str:
+async def write_file(
+    path: str, content: str, workspace_root: str | None = None, path_policy: PathPolicy | None = None
+) -> str:
     """异步写入文件内容。
 
     自动创建父目录，支持工作区边界检查，优先使用 aiofiles 异步写入。
@@ -101,6 +118,7 @@ async def write_file(path: str, content: str, workspace_root: str | None = None)
         path: 文件路径，支持 ~ 展开
         content: 要写入的文件内容
         workspace_root: 工作区根路径，用于边界检查，None 时从环境变量获取
+        path_policy: 路径边界策略，优先于 workspace_root
 
     Returns:
         JSON 格式的响应，成功时包含 message、path、size 字段
@@ -124,7 +142,7 @@ async def write_file(path: str, content: str, workspace_root: str | None = None)
     try:
         file_path = pathlib.Path(stripped_path).expanduser()
 
-        boundary_error = _check_workspace_boundary(file_path, workspace_root)
+        boundary_error = _check_workspace_boundary(file_path, workspace_root, path_policy)
         if boundary_error is not None:
             return boundary_error
 
@@ -145,7 +163,12 @@ async def write_file(path: str, content: str, workspace_root: str | None = None)
 
 
 async def edit_file(
-    path: str, oldString: str, newString: str, replaceAll: bool = False, workspace_root: str | None = None
+    path: str,
+    oldString: str,
+    newString: str,
+    replaceAll: bool = False,
+    workspace_root: str | None = None,
+    path_policy: PathPolicy | None = None,
 ) -> str:
     """异步编辑文件内容，精确替换指定字符串。
 
@@ -157,6 +180,7 @@ async def edit_file(
         newString: 替换后的新字符串
         replaceAll: 是否替换所有匹配项，默认 False（仅替换首次出现）
         workspace_root: 工作区根路径，用于边界检查，None 时从环境变量获取
+        path_policy: 路径边界策略，优先于 workspace_root
 
     Returns:
         JSON 格式的响应，成功时包含 message、replacements、content、path、size 字段
@@ -179,7 +203,7 @@ async def edit_file(
     try:
         file_path = pathlib.Path(stripped_path).expanduser()
 
-        boundary_error = _check_workspace_boundary(file_path, workspace_root)
+        boundary_error = _check_workspace_boundary(file_path, workspace_root, path_policy)
         if boundary_error is not None:
             return boundary_error
 

@@ -164,7 +164,7 @@ def test_agent_runtime_from_unified_config_workspace(monkeypatch):
     engine = runtime._default_permission_engine_factory()
 
     assert isinstance(engine, PermissionEngine)
-    assert engine._workspace == Path("/tmp/custom-ws")
+    assert engine._path_policy.workspace == Path("/tmp/custom-ws")
 
 
 # ============================================================================

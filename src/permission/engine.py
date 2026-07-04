@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Sequence
 
 from src.permission.types import Decision, PermissionAction
-from src.utils.path_utils import is_in_external_directories, is_path_in_workspace
+from src.utils.path_policy import PathPolicy
 
 if TYPE_CHECKING:
     from src.config.unified_config import PermissionsConfig
@@ -73,8 +73,10 @@ class PermissionEngine:
         external_directories: list[str] | None = None,
     ) -> None:
         self._rules = rules
-        self._workspace = workspace
-        self._external_directories = external_directories or []
+        self._path_policy = PathPolicy(
+            workspace=workspace,
+            external_directories=tuple(Path(d) for d in (external_directories or [])),
+        )
 
     @property
     def rules(self) -> list[tuple[str, str]]:
@@ -101,15 +103,13 @@ class PermissionEngine:
         # 2. 安全检查：外部路径不在白名单中 → deny
         path = args.get("path", "")
         if isinstance(path, str) and path:
-            in_workspace = is_path_in_workspace(path, self._workspace)
-            if not in_workspace:
-                in_external = is_in_external_directories(path, self._external_directories)
-                if not in_external:
-                    return Decision(
-                        action=PermissionAction.deny,
-                        reason=f"路径不在工作区且不在外部目录白名单中: {path}",
-                    )
-                # 在白名单中的外部目录 → 默认 ask
+            pc = self._path_policy.check(path)
+            if not pc.allowed_by_boundary:
+                return Decision(
+                    action=PermissionAction.deny,
+                    reason=f"路径不在工作区且不在外部目录白名单中: {path}",
+                )
+            if not pc.in_workspace and pc.in_external_directory:
                 return Decision(
                     action=PermissionAction.ask,
                     reason=f"外部目录路径需确认: {path}",

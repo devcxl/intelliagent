@@ -15,6 +15,7 @@ from src.utils.logger import logger
 
 if TYPE_CHECKING:
     from src.skills.tool import SkillTool
+    from src.utils.path_policy import PathPolicy
 
 ToolFn = Callable[..., Coroutine[Any, Any, str]]
 SessionFactoryProvider = Callable[[], async_sessionmaker[AsyncSession]]
@@ -122,16 +123,65 @@ class ToolRegistryFactory:
         agent_id: str,
         skill_registry: SkillRegistry | None = None,
         agent_team_enabled: bool = False,
+        path_policy: PathPolicy | None = None,
     ) -> None:
         self._session_factory_provider = session_factory_provider
         self._conversation_id_provider = conversation_id_provider
         self._agent_id = agent_id
         self._skill_registry = skill_registry
         self._agent_team_enabled = agent_team_enabled
+        self._path_policy = path_policy
 
     def create_default(self) -> ToolRegistry:
         registry = ToolRegistry()
         register_builtin_tools(registry)
+        if self._path_policy is not None:
+            pp = self._path_policy
+
+            async def read_file_with_policy(path: str) -> str:
+                return await read_file(path=path, path_policy=pp)
+
+            async def write_file_with_policy(path: str, content: str) -> str:
+                return await write_file(path=path, content=content, path_policy=pp)
+
+            async def edit_file_with_policy(path: str, oldString: str, newString: str, replaceAll: bool = False) -> str:
+                return await edit_file(
+                    path=path, oldString=oldString, newString=newString, replaceAll=replaceAll, path_policy=pp
+                )
+
+            registry.unregister("read_file")
+            registry.unregister("write_file")
+            registry.unregister("edit_file")
+            registry.register(
+                fn=read_file_with_policy,
+                name="read_file",
+                description="读取文件内容",
+                parameters={"path": {"type": "string", "description": "文件路径", "required": True}},
+            )
+            registry.register(
+                fn=write_file_with_policy,
+                name="write_file",
+                description="写入文件内容",
+                parameters={
+                    "path": {"type": "string", "description": "文件路径", "required": True},
+                    "content": {"type": "string", "description": "文件内容", "required": True},
+                },
+            )
+            registry.register(
+                fn=edit_file_with_policy,
+                name="edit_file",
+                description="编辑文件内容（精确替换旧字符串为新字符串）",
+                parameters={
+                    "path": {"type": "string", "description": "文件路径", "required": True},
+                    "oldString": {"type": "string", "description": "要替换的旧字符串", "required": True},
+                    "newString": {"type": "string", "description": "新字符串", "required": True},
+                    "replaceAll": {
+                        "type": "boolean",
+                        "description": "是否替换所有匹配项（默认 false）",
+                        "required": False,
+                    },
+                },
+            )
         register_task_tools(
             registry,
             TaskTools(

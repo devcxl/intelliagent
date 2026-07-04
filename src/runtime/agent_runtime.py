@@ -53,12 +53,19 @@ class AgentRuntime:
         self._engine_factory = self._create_engine_factory()
 
     def _create_tool_registry(self) -> ToolRegistry:
+        from src.utils.path_policy import PathPolicy
+
+        path_policy = PathPolicy(
+            workspace=Path(self._config.workspace.dir),
+            external_directories=tuple(Path(d) for d in self._config.permissions.external_directories),
+        )
         factory = ToolRegistryFactory(
             session_factory_provider=self._database_runtime.get_session_factory,
             conversation_id_provider=lambda: self.conversation_id,
             agent_id=self._config.agent_id,
             skill_registry=self._skill_registry,
             agent_team_enabled=self._config.agent_team.enabled,
+            path_policy=path_policy,
         )
         return factory.create_default()
 
