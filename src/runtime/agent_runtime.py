@@ -18,7 +18,6 @@ from src.runtime.database_runtime import DatabaseRuntime
 from src.runtime.engine_factory import EngineFactory
 from src.runtime.mcp_integration import MCPIntegration
 from src.services.conversation_service import ConversationService
-from src.skills.loader import SkillLoader
 from src.skills.registry import SkillRegistry
 from src.tools.registry import ToolRegistry, ToolRegistryFactory
 from src.types.llm import LLMClientProtocol
@@ -84,39 +83,9 @@ class AgentRuntime:
     # ------------------------------------------------------------------
 
     def _default_llm_client_factory(self) -> LLMClientProtocol:
-        """默认 LLM 客户端工厂 — 从配置创建 LLMClient 实例。
+        from src.llm.factory import LLMClientFactory
 
-        model 格式为 "provider_id/model_id"，据此查找对应 provider 的 apiKey 和 baseURL。
-        若 model 未包含 provider_id，则回退到遍历所有 provider 取第一个非空值。
-
-        Returns:
-            使用 UnifiedConfig 中 provider 配置的 LLMClient
-        """
-        from src.llm.llm_client import LLMClient
-
-        api_key = ""
-        base_url = None
-        model = self._config.model or ""
-
-        provider_id = model.split("/", 1)[0] if "/" in model else None
-        if provider_id and provider_id in self._config.provider:
-            pc = self._config.provider[provider_id]
-            if pc.options:
-                api_key = pc.options.apiKey or ""
-                base_url = pc.options.baseURL
-        else:
-            for pc in self._config.provider.values():
-                if pc.options:
-                    if pc.options.apiKey:
-                        api_key = pc.options.apiKey
-                    if pc.options.baseURL:
-                        base_url = pc.options.baseURL
-
-        return LLMClient(
-            api_key=api_key,
-            base_url=base_url,
-            model=model,
-        )
+        return LLMClientFactory(self._config).create()
 
     def _default_permission_engine_factory(self) -> PermissionEngineProtocol:
         """默认权限引擎工厂 — 从配置加载 PermissionEngine。
@@ -146,26 +115,11 @@ class AgentRuntime:
     # ------------------------------------------------------------------
 
     def _load_skills(self) -> None:
-        """根据配置加载 skills。"""
-        cfg = self._config.skills
-        if not cfg.enabled:
-            return
+        from src.skills.runtime import SkillRuntime
 
         workspace = Path(self._config.workspace.dir) if self._config.workspace.dir else Path.cwd()
-        project_paths = [(workspace / p).expanduser().resolve() for p in cfg.project_paths]
-        user_paths = [Path(p).expanduser().resolve() for p in cfg.user_paths]
-
-        skills = SkillLoader.load(
-            project_paths=project_paths,
-            user_paths=user_paths,
-        )
-
-        if not skills:
-            return
-
-        registry = SkillRegistry()
-        registry.load_all(skills)
-        self._skill_registry = registry
+        runtime = SkillRuntime(self._config.skills, workspace)
+        self._skill_registry = runtime.load_registry()
 
     # ------------------------------------------------------------------
     # 公共方法
@@ -284,23 +238,8 @@ class AgentRuntime:
 
     async def create_engine(
         self,
-        api_key: str | None = None,
-        model: str | None = None,
         compact_callback: Callable[[list[str], str], Awaitable[None]] | None = None,
     ) -> ReactEngine:
-        """创建新的 ReactEngine 实例。
-
-        每次调用均创建独立引擎，组装 LLM 客户端、权限引擎和权限回调。
-        首次调用时自动启动 MCP 连接。
-
-        Args:
-            api_key: 覆盖默认 API Key（None 则使用配置值）
-            model: 覆盖默认模型（None 则使用配置值）
-            compact_callback: 上下文压缩回调，通知调用方删除旧消息并写回摘要
-
-        Returns:
-            组装完成的 ReactEngine 实例
-        """
         await self._mcp.start()
         return self._engine_factory.create(compact_callback=compact_callback)
 
