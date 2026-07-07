@@ -6,6 +6,7 @@ from unittest.mock import ANY
 import pytest
 
 import src.runtime.engine_factory as engine_factory_module
+import src.runtime.mcp_integration as mcp_integration_module
 from src.config.unified_config import UnifiedConfig
 from src.permission import Decision, PermissionAction
 from src.runtime import AgentRuntime
@@ -163,14 +164,14 @@ async def test_runtime_history_lists_conversations(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 async def test_runtime_shutdown_stops_mcp(monkeypatch, tmp_path):
-    runtime = _make_runtime(monkeypatch, tmp_path)
     stopped = []
 
-    class FakeMCPManager:
-        async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-            stopped.append(True)
+    async def fake_stop(self: Any) -> None:
+        stopped.append(True)
 
-    runtime._mcp._manager = FakeMCPManager()
+    monkeypatch.setattr(mcp_integration_module.MCPIntegration, "stop", fake_stop)
+
+    runtime = _make_runtime(monkeypatch, tmp_path)
     await runtime.shutdown()
 
     assert stopped == [True]

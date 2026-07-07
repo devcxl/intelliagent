@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """PR2 runtime / service 测试。"""
 
+from typing import Any, cast
+
 import src.runtime.engine_factory as engine_factory_module
 from src.config.unified_config import UnifiedConfig
-from src.runtime import AgentRuntime
+from src.runtime import EngineFactory, create_default_llm_client, create_default_permission_engine
+from src.tools.registry import ToolRegistry
 
 
-def test_agent_runtime_reuses_shared_components(monkeypatch):
+def test_engine_factory_reuses_cached_llm_provider(monkeypatch):
     created_llm_clients = []
     created_engines = []
 
@@ -27,27 +30,35 @@ def test_agent_runtime_reuses_shared_components(monkeypatch):
 
     monkeypatch.setattr(engine_factory_module, "ReactEngine", FakeReactEngine)
 
-    runtime = AgentRuntime(
-        llm_client_factory=lambda: FakeLLMClient(
-            api_key="test-key",
-            model="test-model",
-        ),
+    cached_llm_client = None
+
+    def get_llm_client():
+        nonlocal cached_llm_client
+        if cached_llm_client is None:
+            cached_llm_client = FakeLLMClient(
+                api_key="test-key",
+                model="test-model",
+            )
+        return cached_llm_client
+
+    factory = EngineFactory(
+        config=UnifiedConfig(),
+        llm_client_provider=cast(Any, get_llm_client),
+        permission_engine_factory=cast(Any, lambda: None),
+        permission_callback_factory=cast(Any, lambda: None),
+        tool_registry=ToolRegistry(),
+        skill_registry=None,
     )
 
-    first_llm = runtime.get_llm_client()
-    second_llm = runtime.get_llm_client()
-    import asyncio
+    first_engine = cast(Any, factory.create())
+    second_engine = cast(Any, factory.create())
 
-    first_engine = asyncio.run(runtime.create_engine())
-    second_engine = asyncio.run(runtime.create_engine())
-
-    assert first_llm is second_llm
     assert len(created_llm_clients) == 1
     assert len(created_engines) == 2
     assert first_engine.llm_client is second_engine.llm_client
 
 
-def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
+def test_engine_factory_keeps_default_token_limit(monkeypatch):
     created_engines = []
 
     class FakeLLMClient:
@@ -69,15 +80,22 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
 
     monkeypatch.setattr(engine_factory_module, "ReactEngine", FakeReactEngine)
 
-    import asyncio
-
-    engine = asyncio.run(
-        AgentRuntime(
-            llm_client_factory=FakeLLMClient,
-            permission_engine_factory=FakePermissionEngine,
-            permission_callback_factory=FakePermissionCallback,
-        ).create_engine()
+    factory = EngineFactory(
+        config=UnifiedConfig(),
+        llm_client_provider=cast(
+            Any,
+            lambda: FakeLLMClient(
+                api_key="test-key",
+                model="test-model",
+            ),
+        ),
+        permission_engine_factory=cast(Any, FakePermissionEngine),
+        permission_callback_factory=cast(Any, FakePermissionCallback),
+        tool_registry=ToolRegistry(),
+        skill_registry=None,
     )
+
+    engine = cast(Any, factory.create())
 
     assert created_engines == [engine]
     assert engine.context_limit == 128000
@@ -86,12 +104,12 @@ def test_agent_runtime_create_engine_keeps_default_token_limit(monkeypatch):
 
 
 # ============================================================================
-# 新增：AgentRuntime 从 UnifiedConfig 构造
+# 新增：默认 runtime factory 从 UnifiedConfig 构造
 # ============================================================================
 
 
 def test_agent_runtime_from_unified_config_uses_provider_fields(monkeypatch):
-    """AgentRuntime 从 UnifiedConfig 构造时，默认 LLM 工厂应使用 provider 字段。"""
+    """默认 LLM 工厂应使用 UnifiedConfig 的 provider 字段。"""
     import src.llm.llm_client as llm_client_module
 
     captured_kwargs = {}
@@ -118,8 +136,7 @@ def test_agent_runtime_from_unified_config_uses_provider_fields(monkeypatch):
         }
     )
 
-    runtime = AgentRuntime(config=config)
-    runtime._default_llm_client_factory()
+    create_default_llm_client(config)
 
     assert captured_kwargs["api_key"] == "sk-unified"
     assert captured_kwargs["base_url"] == "https://unified.example.com"
@@ -127,7 +144,7 @@ def test_agent_runtime_from_unified_config_uses_provider_fields(monkeypatch):
 
 
 def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
-    """AgentRuntime 从 UnifiedConfig 构造时，权限引擎应使用 permissions 子模型。"""
+    """默认权限引擎工厂应使用 permissions 子模型。"""
     from src.permission import PermissionEngine
 
     config = UnifiedConfig.model_validate(
@@ -140,8 +157,7 @@ def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
         }
     )
 
-    runtime = AgentRuntime(config=config)
-    engine = runtime._default_permission_engine_factory()
+    engine = create_default_permission_engine(config)
 
     assert isinstance(engine, PermissionEngine)
     assert len(engine.rules) == 1
@@ -149,7 +165,7 @@ def test_agent_runtime_from_unified_config_permission_engine(monkeypatch):
 
 
 def test_agent_runtime_from_unified_config_workspace(monkeypatch):
-    """AgentRuntime 从 UnifiedConfig 构造时，workspace 应从配置读取。"""
+    """默认权限引擎工厂应从配置读取 workspace。"""
     from pathlib import Path
 
     from src.permission import PermissionEngine
@@ -160,8 +176,7 @@ def test_agent_runtime_from_unified_config_workspace(monkeypatch):
         }
     )
 
-    runtime = AgentRuntime(config=config)
-    engine = runtime._default_permission_engine_factory()
+    engine = create_default_permission_engine(config)
 
     assert isinstance(engine, PermissionEngine)
     assert engine._path_policy.workspace == Path("/tmp/custom-ws")

@@ -5,7 +5,7 @@ from typing import Any
 
 from src.config.unified_config import UnifiedConfig
 from src.permission import Decision, PermissionAction
-from src.runtime import AgentRuntime
+from src.runtime import RuntimeComponents, build_runtime_components
 
 
 class _FakeLLMClient:
@@ -29,7 +29,7 @@ class _FakePermissionCallback:
         return True
 
 
-def _make_runtime(tmp_path, *, agent_team_enabled: bool = False):
+def _build_components(tmp_path, *, agent_team_enabled: bool = False) -> RuntimeComponents:
     config = UnifiedConfig.model_validate(
         {
             "database": {"url": str(tmp_path / "test.db")},
@@ -37,9 +37,9 @@ def _make_runtime(tmp_path, *, agent_team_enabled: bool = False):
             "agent_team": {"enabled": agent_team_enabled},
         }
     )
-    return AgentRuntime(
+    return build_runtime_components(
         config=config,
-        llm_client_factory=lambda: _FakeLLMClient(),
+        llm_client_provider=lambda: _FakeLLMClient(),
         permission_engine_factory=lambda: _FakePermissionEngine(),
         permission_callback_factory=lambda: _FakePermissionCallback(),
     )
@@ -47,40 +47,43 @@ def _make_runtime(tmp_path, *, agent_team_enabled: bool = False):
 
 def test_runtime_does_not_register_agent_team_tools_by_default(tmp_path):
     async def _run():
-        runtime = _make_runtime(tmp_path)
-        await runtime.initialize()
-        await runtime.setup_conversation(task="test")
+        components = _build_components(tmp_path)
+        await components.database.initialize()
 
-        names = runtime._tool_registry.list_tool_names()
-        assert "send_message" not in names
-        assert "get_contacts" not in names
-        await runtime.shutdown()
+        try:
+            names = components.tool_registry.list_tool_names()
+            assert "send_message" not in names
+            assert "get_contacts" not in names
+        finally:
+            await components.database.shutdown()
 
     asyncio.run(_run())
 
 
 def test_runtime_registers_agent_team_tools_when_enabled(tmp_path):
     async def _run():
-        runtime = _make_runtime(tmp_path, agent_team_enabled=True)
-        await runtime.initialize()
-        await runtime.setup_conversation(task="test")
+        components = _build_components(tmp_path, agent_team_enabled=True)
+        await components.database.initialize()
 
-        names = runtime._tool_registry.list_tool_names()
-        assert "send_message" in names
-        assert "get_contacts" in names
-        await runtime.shutdown()
+        try:
+            names = components.tool_registry.list_tool_names()
+            assert "send_message" in names
+            assert "get_contacts" in names
+        finally:
+            await components.database.shutdown()
 
     asyncio.run(_run())
 
 
 def test_tool_calls_after_runtime_setup(tmp_path):
     async def _run():
-        runtime = _make_runtime(tmp_path, agent_team_enabled=True)
-        await runtime.initialize()
-        await runtime.setup_conversation(task="test")
+        components = _build_components(tmp_path, agent_team_enabled=True)
+        await components.database.initialize()
 
-        result = await runtime._tool_registry.call_tool("get_contacts")
-        assert "CONTEXT_NOT_INITIALIZED" not in result
-        await runtime.shutdown()
+        try:
+            result = await components.tool_registry.call_tool("get_contacts")
+            assert "CONTEXT_NOT_INITIALIZED" not in result
+        finally:
+            await components.database.shutdown()
 
     asyncio.run(_run())

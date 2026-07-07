@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from src.runtime.agent_runtime import AgentRuntime
+from src.config.unified_config import UnifiedConfig
+from src.runtime import build_runtime_components
 
 
 def test_skill_tool_registered_in_default_registry():
@@ -36,8 +37,8 @@ def test_skill_tool_has_correct_parameters():
     assert tool_def.parameters["name"]["required"] is True
 
 
-async def test_runtime_create_engine_with_skills(tmp_path):
-    """AgentRuntime 创建引擎时加载 skills 并传入 ReactEngine。"""
+async def test_runtime_assembly_creates_engine_with_skills(tmp_path):
+    """Runtime assembly 创建引擎时加载 skills 并传入 ReactEngine。"""
     # 创建测试 skill
     skill_dir = tmp_path / ".agents" / "skills" / "test-skill"
     skill_dir.mkdir(parents=True)
@@ -45,52 +46,48 @@ async def test_runtime_create_engine_with_skills(tmp_path):
         "---\nname: test-skill\ndescription: A test skill\n---\n# Test Skill\n\nInstructions."
     )
 
-    config = MagicMock()
-    config.workspace.dir = str(tmp_path)
-    config.get_model_context_limit.return_value = None
-    config.provider = {}
-    config.model = None
-    config.database.url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
-    config.skills.enabled = True
-    config.skills.project_paths = [str(tmp_path / ".agents" / "skills")]
-    config.skills.user_paths = []
-    config.permissions.rules = []
-    config.permissions.external_directories = []
-    config.mcp = {}
+    config = UnifiedConfig.model_validate(
+        {
+            "workspace": {"dir": str(tmp_path)},
+            "database": {"url": f"sqlite+aiosqlite:///{tmp_path}/test.db"},
+            "skills": {"enabled": True, "project_paths": [".agents/skills"], "user_paths": []},
+        }
+    )
 
-    runtime = AgentRuntime(
+    components = build_runtime_components(
         config=config,
-        llm_client_factory=MagicMock,
+        llm_client_provider=MagicMock,
         permission_engine_factory=MagicMock,
         permission_callback_factory=MagicMock,
     )
 
-    engine = await runtime.create_engine()
-    assert engine._skill_registry is not None
-    assert engine._skill_registry.get("test-skill") is not None
+    try:
+        engine = components.engine_factory.create()
+        assert engine._skill_registry is not None
+        assert engine._skill_registry.get("test-skill") is not None
+    finally:
+        await components.database.shutdown()
 
 
 async def test_runtime_skills_disabled(tmp_path):
     """skills.enabled = False 时跳过 skill 加载。"""
-    config = MagicMock()
-    config.workspace.dir = str(tmp_path)
-    config.get_model_context_limit.return_value = None
-    config.provider = {}
-    config.model = None
-    config.database.url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
-    config.skills.enabled = False
-    config.skills.project_paths = []
-    config.skills.user_paths = []
-    config.permissions.rules = []
-    config.permissions.external_directories = []
-    config.mcp = {}
+    config = UnifiedConfig.model_validate(
+        {
+            "workspace": {"dir": str(tmp_path)},
+            "database": {"url": f"sqlite+aiosqlite:///{tmp_path}/test.db"},
+            "skills": {"enabled": False, "project_paths": [], "user_paths": []},
+        }
+    )
 
-    runtime = AgentRuntime(
+    components = build_runtime_components(
         config=config,
-        llm_client_factory=MagicMock,
+        llm_client_provider=MagicMock,
         permission_engine_factory=MagicMock,
         permission_callback_factory=MagicMock,
     )
 
-    engine = await runtime.create_engine()
-    assert engine._skill_registry is None
+    try:
+        engine = components.engine_factory.create()
+        assert engine._skill_registry is None
+    finally:
+        await components.database.shutdown()
