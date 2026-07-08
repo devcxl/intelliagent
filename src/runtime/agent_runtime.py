@@ -113,11 +113,6 @@ class AgentRuntime:
         """
         return await self._components.conversation_service.setup_conversation(task, session_id, resume)
 
-    async def save_message(self, role: str, content: str) -> None:
-        cid = self.conversation_id
-        if cid is not None:
-            await self._components.conversation_service.save_message(cid, role, content)
-
     async def list_conversations(self) -> list[dict[str, Any]]:
         """列出所有历史 conversation。"""
         return await self._components.conversation_service.list_conversations()

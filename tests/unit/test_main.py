@@ -69,6 +69,10 @@ def _make_runtime(monkeypatch, tmp_path, created: dict[str, Any] | None = None) 
     )
 
 
+async def _save_message(runtime: AgentRuntime, conversation_id: str, role: str, content: str) -> None:
+    await runtime._components.conversation_service.save_message(conversation_id, role, content)
+
+
 @pytest.mark.asyncio
 async def test_runtime_execute_creates_engine(monkeypatch, tmp_path):
     created: dict[str, Any] = {}
@@ -89,9 +93,9 @@ async def test_runtime_loads_structured_history_before_execute(monkeypatch, tmp_
     runtime = _make_runtime(monkeypatch, tmp_path, created)
 
     await runtime.initialize()
-    await runtime.setup_conversation("之前的任务")
-    await runtime.save_message("user", "之前的任务")
-    await runtime.save_message("assistant", "已完成")
+    conversation_id = await runtime.setup_conversation("之前的任务")
+    await _save_message(runtime, conversation_id, "user", "之前的任务")
+    await _save_message(runtime, conversation_id, "assistant", "已完成")
 
     async for _ in runtime.execute("后续任务"):
         pass
@@ -114,8 +118,8 @@ async def test_runtime_session_alias_updates_existing_conversation(monkeypatch, 
     await runtime.initialize()
 
     cid = await runtime.setup_conversation("原始任务", session_id="conversation-1")
-    await runtime.save_message("user", "原始任务")
-    await runtime.save_message("assistant", "已处理")
+    await _save_message(runtime, cid, "user", "原始任务")
+    await _save_message(runtime, cid, "assistant", "已处理")
 
     cid2 = await runtime.setup_conversation("新任务", session_id="conversation-1")
     assert cid == "conversation-1"
@@ -140,8 +144,8 @@ async def test_runtime_resume_uses_latest_conversation(monkeypatch, tmp_path):
     await runtime.initialize()
 
     cid1 = await runtime.setup_conversation("第一个任务")
-    await runtime.save_message("user", "第一个任务")
-    await runtime.save_message("assistant", "已完成")
+    await _save_message(runtime, cid1, "user", "第一个任务")
+    await _save_message(runtime, cid1, "assistant", "已完成")
 
     cid2 = await runtime.setup_conversation("后续任务", resume=True)
     assert cid2 == cid1
@@ -153,9 +157,9 @@ async def test_runtime_history_lists_conversations(monkeypatch, tmp_path):
     runtime = _make_runtime(monkeypatch, tmp_path)
     await runtime.initialize()
 
-    await runtime.setup_conversation("历史任务")
-    await runtime.save_message("user", "历史任务")
-    await runtime.save_message("assistant", "已完成")
+    conversation_id = await runtime.setup_conversation("历史任务")
+    await _save_message(runtime, conversation_id, "user", "历史任务")
+    await _save_message(runtime, conversation_id, "assistant", "已完成")
 
     conversations = await runtime.list_conversations()
     assert len(conversations) == 1
