@@ -90,9 +90,7 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
                     ],
                 },
                 "mcp": {
-                    "servers": [
-                        {"name": "fs", "command": "npx", "args": ["-y", "server-fs"]},
-                    ],
+                    "fs": {"command": ["npx", "-y", "server-fs"]},
                 },
             }
         )
@@ -107,7 +105,7 @@ def test_load_from_valid_json(tmp_path, monkeypatch):
     assert len(config.permissions.rules) == 1
     assert config.permissions.rules[0].pattern == "run_shell"
     assert config.permissions.rules[0].action == "deny"
-    assert config.mcp["servers"][0]["name"] == "fs"
+    assert config.mcp["fs"]["command"][0] == "npx"
 
 
 def test_load_agent_team_enabled(tmp_path):
@@ -213,20 +211,15 @@ def test_load_mcp_servers_preserved_as_dict(tmp_path):
         json.dumps(
             {
                 "mcp": {
-                    "servers": [
-                        {
-                            "name": "github",
-                            "command": "npx",
-                            "args": ["-y", "server-github"],
-                            "env": {"GITHUB_TOKEN": "{env:GITHUB_TOKEN:default}"},
-                        },
-                    ],
+                    "github": {
+                        "command": ["npx", "-y", "server-github"],
+                        "env": {"GITHUB_TOKEN": "{env:GITHUB_TOKEN:default}"},
+                    },
                 },
             }
         )
     )
 
     config = UnifiedConfig.load(str(config_path))
-    server = config.mcp["servers"][0]
-    assert server["name"] == "github"
+    server = config.mcp["github"]
     assert server["env"]["GITHUB_TOKEN"] == "default"

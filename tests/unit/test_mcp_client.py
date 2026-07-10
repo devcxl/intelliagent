@@ -7,14 +7,13 @@ from src.mcp.manager import _mcp_tool_name, _tool_params_to_openai
 def test_mcp_config_from_dict():
     data = {
         "servers": [
-            {"name": "fs", "command": "npx", "args": ["-y", "server-fs"]},
+            {"name": "fs", "command": ["npx", "-y", "server-fs"]},
         ],
     }
     config = MCPConfig.from_dict(data)
     assert len(config.servers) == 1
     assert config.servers[0].name == "fs"
-    assert config.servers[0].command == "npx"
-    assert config.servers[0].args == ["-y", "server-fs"]
+    assert config.servers[0].command == ["npx", "-y", "server-fs"]
 
 
 def test_mcp_config_empty():
@@ -28,8 +27,7 @@ def test_mcp_config_with_env():
             "servers": [
                 {
                     "name": "github",
-                    "command": "npx",
-                    "args": ["-y", "server-github"],
+                    "command": ["npx", "-y", "server-github"],
                     "env": {"GITHUB_TOKEN": "xxx"},
                 },
             ],
@@ -67,26 +65,20 @@ def test_tool_params_to_openai_empty():
 
 
 # ============================================================================
-# 新增：from_unified_config 测试
+# from_unified_config 测试
 # ============================================================================
 
 
 def test_mcp_config_from_unified_config():
-    """from_unified_config 应从 UnifiedConfig 的 mcp 字典构造 MCPConfig。"""
+    """from_unified_config 应从 key-value 格式的 mcp 字典构造 MCPConfig。"""
     data = {
-        "servers": [
-            {
-                "name": "filesystem",
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-            },
-            {
-                "name": "github",
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-github"],
-                "env": {"GITHUB_TOKEN": "abc123"},
-            },
-        ],
+        "filesystem": {
+            "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+        },
+        "github": {
+            "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+            "env": {"GITHUB_TOKEN": "abc123"},
+        },
     }
     config = MCPConfig.from_unified_config(data)
     assert len(config.servers) == 2
@@ -101,7 +93,30 @@ def test_mcp_config_from_unified_config_empty():
     assert config.servers == []
 
 
-def test_mcp_config_from_unified_config_no_servers_key():
-    """from_unified_config 缺少 servers 键时应返回空列表。"""
-    config = MCPConfig.from_unified_config({"other": "data"})
-    assert config.servers == []
+def test_mcp_config_from_unified_config_sse():
+    """from_unified_config 应支持 SSE 格式。"""
+    data = {
+        "exa": {
+            "url": "https://mcp.exa.ai/mcp",
+            "headers": {"x-api-key": "xxx"},
+        },
+    }
+    config = MCPConfig.from_unified_config(data)
+    assert len(config.servers) == 1
+    assert config.servers[0].name == "exa"
+    assert config.servers[0].url == "https://mcp.exa.ai/mcp"
+    assert config.servers[0].headers == {"x-api-key": "xxx"}
+
+
+def test_mcp_config_from_unified_config_with_url():
+    """from_unified_config 应支持有 url 的配置。"""
+    data = {
+        "exa": {
+            "url": "https://mcp.exa.ai/mcp",
+            "headers": {"x-api-key": "xxx"},
+        },
+    }
+    config = MCPConfig.from_unified_config(data)
+    assert len(config.servers) == 1
+    assert config.servers[0].name == "exa"
+    assert bool(config.servers[0].url) is True

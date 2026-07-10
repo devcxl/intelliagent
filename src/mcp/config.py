@@ -8,23 +8,24 @@ from pydantic import BaseModel, Field
 class MCPServerConfig(BaseModel):
     """单个 MCP 服务器配置。
 
+    格式为 key-value，key 是服务器名称：
+      { "server_name": { "command": ["uvx", "server-pkg"], "env": {...} } }
+      或
+      { "server_name": { "url": "https://...", "headers": {...} } }
+
     Attributes:
-        name: 服务器名称，用于日志和工具名前缀
-        transport: 传输方式，stdio（本地子进程）或 sse（远程 HTTP）
-        command: stdio 模式：启动命令（如 npx、uvx）
-        args: stdio 模式：命令行参数
-        url: SSE 模式：远程服务器 URL
-        headers: SSE 模式：自定义 HTTP 头
-        timeout: SSE 模式：HTTP 超时时间（秒）
-        sse_read_timeout: SSE 模式：SSE 读取超时（秒）
+        name: 服务器名称（配置字典的 key）
+        command: stdio 模式命令行（数组，第一个元素是命令，后续是参数）
+        url: 远程服务器 URL
+        headers: HTTP 头
+        timeout: 超时时间（秒）
+        sse_read_timeout: SSE 读取超时（秒）
         env: 注入到子进程的环境变量
         cwd: 子进程工作目录
     """
 
     name: str
-    transport: str = "stdio"
-    command: str = ""
-    args: list[str] = Field(default_factory=list)
+    command: list[str] = Field(default_factory=list)
     url: str = ""
     headers: dict[str, str] | None = None
     timeout: float = 5.0
@@ -40,22 +41,15 @@ class MCPConfig(BaseModel):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MCPConfig:
-        """从原始字典构造 MCPConfig。
-
-        Args:
-            data: 包含 servers 键的字典，格式与 intelliagent.json 中 mcp 字段一致
-
-        Returns:
-            校验后的 MCPConfig 实例
-        """
         return cls.model_validate(data)
 
     @classmethod
     def from_unified_config(cls, data: dict[str, Any]) -> MCPConfig:
         """从 UnifiedConfig.mcp 字典构造 MCPConfig。
 
-        data 是 UnifiedConfig 中 mcp 字段的值（dict），
-        应包含可选的 "servers" 键。
+        data 格式为 { "server_name": { "command": [...], ... }, ... }。
         """
-        servers = data.get("servers", [])
+        servers = []
+        for name, cfg in data.items():
+            servers.append(MCPServerConfig(name=name, **cfg))
         return cls.model_validate({"servers": servers})

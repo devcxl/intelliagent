@@ -22,7 +22,7 @@ class MCPIntegration:
         """启动所有 MCP 服务器连接。已启动时跳过。"""
         if self._manager is not None:
             return
-        if not self._mcp_data or not self._mcp_data.get("servers"):
+        if not self._mcp_data:
             return
         from src.mcp.manager import MCPClientManager
 

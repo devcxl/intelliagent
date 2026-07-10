@@ -29,21 +29,20 @@
     "enabled": false
   },
   "mcp": {
-    "servers": [
-      {
-        "name": "filesystem",
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-        "env": {}
-      },
-      {
-        "name": "github",
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-github"],
-        "env": {
-          "GITHUB_TOKEN": "{env:GITHUB_TOKEN}"
-        }
+    "filesystem": {
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    },
+    "github": {
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "{env:GITHUB_TOKEN}"
       }
-    ]
+    },
+    "exa": {
+      "url": "https://mcp.exa.ai/mcp",
+      "headers": {
+        "x-api-key": "{env:EXA_API_KEY}"
+      }
+    }
   }
 }

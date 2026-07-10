@@ -24,6 +24,7 @@ class _ServerConnection:
     _stdio_ctx: Any = field(default=None, repr=False)
     _read_stream: Any = field(default=None, repr=False)
     _write_stream: Any = field(default=None, repr=False)
+    _http_client: Any = field(default=None, repr=False)
 
 
 def _mcp_tool_name(server_name: str, tool_name: str) -> str:
@@ -139,25 +140,48 @@ class MCPClientManager:
         """
         conn = _ServerConnection(name=server.name, config=server)
         try:
-            if server.transport == "sse":
-                if not server.url:
-                    raise ValueError("SSE transport 需要 url 字段")
+            if server.url:
+                from mcp.client.streamable_http import streamable_http_client
                 from mcp.client.sse import sse_client
 
-                sse_ctx = sse_client(
-                    url=server.url,
-                    headers=server.headers,
-                    timeout=server.timeout,
-                    sse_read_timeout=server.sse_read_timeout,
-                )
-                read_stream, write_stream = await sse_ctx.__aenter__()
-                conn._read_stream = read_stream
-                conn._write_stream = write_stream
-                conn._stdio_ctx = sse_ctx
+                import httpx
+
+                client_kwargs: dict[str, Any] = {}
+                if server.headers:
+                    client_kwargs["headers"] = server.headers
+                if server.timeout:
+                    client_kwargs["timeout"] = httpx.Timeout(server.timeout)
+
+                http_client = httpx.AsyncClient(**client_kwargs) if client_kwargs else None
+
+                try:
+                    gen = streamable_http_client(url=server.url, http_client=http_client)
+                    read_stream, write_stream, _ = await gen.__aenter__()
+                    conn._read_stream = read_stream
+                    conn._write_stream = write_stream
+                    conn._stdio_ctx = gen
+                    conn._http_client = http_client
+                except Exception as sh_err:
+                    if http_client is not None:
+                        await http_client.aclose()
+                    sh_err_str = str(sh_err)
+                    if "405" in sh_err_str or "Method Not Allowed" in sh_err_str:
+                        sse_ctx = sse_client(
+                            url=server.url,
+                            headers=server.headers,
+                            timeout=server.timeout,
+                            sse_read_timeout=server.sse_read_timeout,
+                        )
+                        read_stream, write_stream = await sse_ctx.__aenter__()
+                        conn._read_stream = read_stream
+                        conn._write_stream = write_stream
+                        conn._stdio_ctx = sse_ctx
+                    else:
+                        raise
             else:
                 params = StdioServerParameters(
-                    command=server.command,
-                    args=server.args,
+                    command=server.command[0] if server.command else "",
+                    args=server.command[1:] if len(server.command) > 1 else [],
                     env=server.env,
                     cwd=server.cwd,
                 )
@@ -202,7 +226,7 @@ class MCPClientManager:
             )
         except Exception as e:
             conn.failed = True
-            logger.error("MCP 服务器连接失败 | server=%s error=%s", server.name, e)
+            logger.error("MCP 服务器连接失败 | server=%s error=%s", server.name, e, exc_info=True)
             await self._close_connection(conn)
         return conn
 
@@ -231,3 +255,10 @@ class MCPClientManager:
             conn._stdio_ctx = None
             conn._read_stream = None
             conn._write_stream = None
+
+        if conn._http_client is not None:
+            try:
+                await conn._http_client.aclose()
+            except Exception:
+                pass
+            conn._http_client = None
