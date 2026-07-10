@@ -11,6 +11,7 @@ from src.tools.file_tools import edit_file, read_file, write_file
 from src.tools.response import error_response
 from src.tools.shell_tool import run_shell
 from src.tools.task_tools import TaskTools
+from src.tools.time_tool import get_current_time
 from src.utils.logger import logger
 
 if TYPE_CHECKING:
@@ -236,6 +237,12 @@ def register_builtin_tools(registry: ToolRegistry) -> ToolRegistry:
             "newString": {"type": "string", "description": "新字符串", "required": True},
             "replaceAll": {"type": "boolean", "description": "是否替换所有匹配项（默认 false）", "required": False},
         },
+    )
+    registry.register(
+        fn=get_current_time,
+        name="get_current_time",
+        description="获取当前日期和时间（亚洲/上海时区），适合记录时间戳或确认当前时间",
+        parameters={},
     )
     return registry
 
