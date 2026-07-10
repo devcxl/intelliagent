@@ -92,8 +92,9 @@ class AgentRuntime:
         return self._components.conversation_service.warnings
 
     async def initialize(self) -> None:
-        """初始化数据库表结构。首次使用前必须调用。"""
+        """初始化数据库表结构并启动 MCP 连接。首次使用前必须调用。"""
         await self._components.database.initialize()
+        await self._components.mcp.start()
 
     async def setup_conversation(
         self,
@@ -129,8 +130,7 @@ class AgentRuntime:
         """
         # 会话已存在，直接返回内存态对象
         if self._session is None:
-            # 首次：启动 MCP（幂等），创建 ConversationSession
-            await self._components.mcp.start()
+            # 首次：创建 ConversationSession
             cid = self._components.conversation_service.conversation_id
             assert cid is not None, "conversation_id 不能在未调用 setup_conversation 前使用"
             self._session = ConversationSession(
