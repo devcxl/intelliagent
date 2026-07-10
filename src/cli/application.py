@@ -53,7 +53,7 @@ class CliApplication:
             if not user_input:
                 continue
 
-            if user_input == "/exit":
+            if user_input in ("/exit", "/quit"):
                 break
 
             if user_input == "/help":
@@ -73,8 +73,8 @@ class CliApplication:
 
     def _show_help(self) -> None:
         print("命令：")
-        print("  /exit  — 退出对话")
-        print("  /help  — 显示此帮助")
+        print("  /exit, /quit  — 退出对话")
+        print("  /help         — 显示此帮助")
         print("  直接输入任务描述即可与 AI 对话")
 
 
