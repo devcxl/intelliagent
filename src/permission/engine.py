@@ -19,6 +19,7 @@ _DEFAULT_RULES: tuple[tuple[str, str], ...] = (
     ("read *", "allow"),
     (".env*", "deny"),
     ("skill *", "allow"),
+    ("mcp *", "allow"),
     ("edit *", "ask"),
     ("bash *", "ask"),
     ("write *", "ask"),
