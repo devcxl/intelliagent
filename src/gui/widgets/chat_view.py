@@ -30,20 +30,10 @@ class ChatView(QScrollArea):
         self.setObjectName("chatView")
 
     def append_event(self, event: dict) -> None:
-        """Append a message bubble for the given event dict.
-
-        Event format::
-
-            {"type": "thought"|"action"|"observation"|"answer"|"user", ...}
-
-        The bubble is created by ``MessageBubble.create()`` and appended
-        to the bottom of the layout. The view auto-scrolls to show it.
-        """
+        """Append a message bubble for the given event dict. Bubbles handle their own alignment."""
         event_type = event.get("type", "answer")
         bubble = MessageBubble.create(event_type, event, self._container)
         self._layout.addWidget(bubble)
-        if event_type == "user":
-            self._layout.setAlignment(bubble, Qt.AlignRight)
         QTimer.singleShot(50, self._scroll_to_bottom)
 
     def clear(self) -> None:
