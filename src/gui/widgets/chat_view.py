@@ -1,0 +1,57 @@
+"""对话视图 — 基于 QScrollArea 的流式消息列表。"""
+
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QWidget
+
+from src.gui.widgets.message_bubble import MessageBubble
+
+
+class ChatView(QScrollArea):
+    """Scrollable chat area that appends message bubbles from engine events.
+
+    Usage::
+
+        chat = ChatView()
+        chat.append_event({"type": "thought", "content": "思考中..."})
+        chat.clear()
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._container = QWidget()
+        self._layout = QVBoxLayout(self._container)
+        self._layout.setAlignment(Qt.AlignTop)
+        self._layout.setSpacing(4)
+        self._layout.setContentsMargins(8, 8, 8, 8)
+
+        self.setWidget(self._container)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+    def append_event(self, event: dict) -> None:
+        """Append a message bubble for the given event dict.
+
+        Event format::
+
+            {"type": "thought"|"action"|"observation"|"answer"|"user", ...}
+
+        The bubble is created by ``MessageBubble.create()`` and appended
+        to the bottom of the layout. The view auto-scrolls to show it.
+        """
+        event_type = event.get("type", "answer")
+        bubble = MessageBubble.create(event_type, event, self._container)
+        self._layout.addWidget(bubble)
+        if event_type == "user":
+            self._layout.setAlignment(bubble, Qt.AlignRight)
+        QTimer.singleShot(50, self._scroll_to_bottom)
+
+    def clear(self) -> None:
+        """Clear all messages (e.g., when switching conversations)."""
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def _scroll_to_bottom(self) -> None:
+        scrollbar = self.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
