@@ -91,6 +91,11 @@ class AgentRuntime:
         """setup_conversation 过程中产生的警告列表。"""
         return self._components.conversation_service.warnings
 
+    @property
+    def session_factory(self):
+        """数据库 session factory，供 GUI 等外部模块创建仓储实例。"""
+        return self._components.database.get_session_factory()
+
     async def initialize(self) -> None:
         """初始化数据库表结构并启动 MCP 连接。首次使用前必须调用。"""
         await self._components.database.initialize()
