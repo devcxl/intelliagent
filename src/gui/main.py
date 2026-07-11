@@ -16,6 +16,7 @@ def main() -> None:
 
     # 占位 — MainWindow 将在后续任务中实现
     from PyQt5.QtWidgets import QLabel
+
     label = QLabel("IntelliAgent GUI")
     label.show()
 
