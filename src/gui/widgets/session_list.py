@@ -53,7 +53,9 @@ class SessionList(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self._new_btn = QPushButton("+ 新建会话")
+        self._new_btn.setObjectName("newSessionBtn")
         self._list = QListWidget()
+        self._list.setObjectName("sessionList")
 
         layout.addWidget(self._new_btn)
         layout.addWidget(self._list)

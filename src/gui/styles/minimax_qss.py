@@ -1,9 +1,4 @@
-"""MiniMax 设计系统 → QSS 样式表。
-
-从 DESIGN.md 提取设计令牌并编译为 Qt QSS。
-"""
-
-# ── Design Tokens ──────────────────────────────────────────────────
+"""MiniMax 设计系统 → QSS 样式表。从 DESIGN.md 设计令牌编译为 Qt QSS。"""
 
 COLORS = {
     "primary": "#0a0a0a",
@@ -16,102 +11,74 @@ COLORS = {
     "ink": "#0a0a0a",
     "ink_strong": "#000000",
     "charcoal": "#222222",
-    "slate": "#45515e",
     "steel": "#5f5f5f",
     "stone": "#8e8e93",
     "muted": "#a8aab2",
-    "brand_coral": "#ff5530",
     "brand_blue": "#1456f0",
     "brand_blue_deep": "#1d4ed8",
-    "success_bg": "#e8ffea",
-    "success_text": "#1ba673",
-    "error_border": "#d45656",
-}
-
-RADIUS = {
-    "xs": "4px",
-    "sm": "6px",
-    "md": "8px",
-    "lg": "12px",
-    "xl": "16px",
-    "xxl": "20px",
-    "xxxl": "24px",
-    "hero": "32px",
-    "full": "9999px",
 }
 
 
 def _qss(*rules: str) -> str:
-    """Join QSS rule blocks."""
     return "\n\n".join(rules)
 
 
 def generate_stylesheet() -> str:
-    """Generate complete MiniMax-themed QSS stylesheet."""
     C = COLORS
-    R = RADIUS
 
     return _qss(
-        # ── Global ──────────────────────────────────────────
-        f"""
-        * {{
+        # ── Global fonts only (NO widget-level background/color override) ──
+        """
+        * {
             font-family: "DM Sans", "Inter", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
-        }}
-
-        QWidget {{
-            background-color: {C["canvas"]};
-            color: {C["charcoal"]};
-        }}
+        }
         """,
         # ── SessionList ──────────────────────────────────────
         f"""
-        /* [+] New Session Button */
-        QPushButton {{
-            background-color: {C["primary"]};
-            color: {C["on_primary"]};
-            font-size: 14px;
-            font-weight: 600;
-            border: none;
-            border-radius: {R["full"]};
-            padding: 8px 20px;
-            min-height: 36px;
-        }}
-        QPushButton:hover {{
-            background-color: {C["charcoal"]};
-        }}
-        QPushButton:disabled {{
-            background-color: {C["hairline"]};
-            color: {C["muted"]};
-        }}
-
-        /* Session List Items */
-        QListWidget {{
+        QListWidget#sessionList {{
             background-color: {C["canvas"]};
             border: none;
             outline: none;
             padding: 4px;
         }}
-        QListWidget::item {{
+        QListWidget#sessionList::item {{
             background-color: transparent;
             color: {C["charcoal"]};
             font-size: 14px;
             font-weight: 400;
             padding: 6px 12px;
-            border-radius: {R["sm"]};
-            border: none;
+            border-radius: 6px;
         }}
-        QListWidget::item:selected {{
+        QListWidget#sessionList::item:selected {{
             background-color: {C["surface"]};
             color: {C["ink"]};
             font-weight: 500;
         }}
-        QListWidget::item:hover {{
+        QListWidget#sessionList::item:hover {{
             background-color: {C["surface_soft"]};
+        }}
+
+        QPushButton#newSessionBtn {{
+            background-color: {C["primary"]};
+            color: {C["on_primary"]};
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 9999px;
+            padding: 8px 20px;
+            min-height: 36px;
+        }}
+        QPushButton#newSessionBtn:hover {{
+            background-color: {C["charcoal"]};
+        }}
+        QPushButton#newSessionBtn:disabled {{
+            background-color: {C["hairline"]};
+            color: {C["muted"]};
         }}
         """,
         # ── ChatView ─────────────────────────────────────────
         f"""
-        QScrollArea {{
+        QScrollArea#chatView {{
             background-color: {C["canvas"]};
             border: none;
         }}
@@ -134,35 +101,33 @@ def generate_stylesheet() -> str:
         """,
         # ── InputBar ─────────────────────────────────────────
         f"""
-        /* Text Input */
-        QLineEdit {{
+        QLineEdit#msgInput {{
             background-color: {C["canvas"]};
             color: {C["ink"]};
             font-size: 16px;
             font-weight: 400;
             border: 1px solid {C["hairline"]};
-            border-radius: {R["md"]};
+            border-radius: 8px;
             padding: 8px 14px;
             min-height: 36px;
             selection-background-color: {C["brand_blue"]};
             selection-color: {C["on_primary"]};
         }}
-        QLineEdit:focus {{
+        QLineEdit#msgInput:focus {{
             border: 2px solid {C["brand_blue_deep"]};
         }}
-        QLineEdit:disabled {{
+        QLineEdit#msgInput:disabled {{
             background-color: {C["surface"]};
             color: {C["muted"]};
         }}
 
-        /* Send Button */
         QPushButton#sendBtn {{
             background-color: {C["primary"]};
             color: {C["on_primary"]};
             font-size: 14px;
             font-weight: 600;
             border: none;
-            border-radius: {R["full"]};
+            border-radius: 9999px;
             padding: 8px 20px;
             min-height: 36px;
         }}
@@ -176,18 +141,18 @@ def generate_stylesheet() -> str:
         """,
         # ── MessageBubble ────────────────────────────────────
         f"""
-        /* User bubble (right-aligned) */
-        QLabel#userBubble {{
+        QFrame#userBubble {{
             background-color: {C["primary"]};
+            border-radius: 12px;
+            padding: 10px 16px;
+            margin: 4px 0;
+        }}
+        QFrame#userBubble QLabel {{
             color: {C["on_primary"]};
             font-size: 14px;
             font-weight: 400;
-            border-radius: {R["lg"]};
-            padding: 10px 16px;
-            max-width: 600px;
         }}
 
-        /* Thought bubble (gray italic) */
         QLabel#thoughtBubble {{
             color: {C["steel"]};
             font-size: 13px;
@@ -196,12 +161,12 @@ def generate_stylesheet() -> str:
             padding: 4px 0;
         }}
 
-        /* Tool call card */
         QFrame#toolCard {{
             background-color: {C["surface"]};
             border: 1px solid {C["hairline"]};
-            border-radius: {R["md"]};
+            border-radius: 8px;
             padding: 8px;
+            margin: 4px 0;
         }}
         QLabel#toolCardTitle {{
             color: {C["ink"]};
@@ -212,30 +177,34 @@ def generate_stylesheet() -> str:
             color: {C["steel"]};
             font-size: 13px;
             font-weight: 400;
-            font-family: "Courier New", monospace;
         }}
 
-        /* Observation block */
-        QTextEdit#observationBlock {{
+        QFrame#observationBlock {{
             background-color: {C["surface"]};
+            border: 1px solid {C["hairline"]};
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin: 4px 0;
+        }}
+        QFrame#observationBlock QTextEdit {{
             color: {C["charcoal"]};
             font-size: 13px;
             font-weight: 400;
-            font-family: "Courier New", monospace;
-            border: 1px solid {C["hairline"]};
-            border-radius: {R["md"]};
-            padding: 8px 12px;
+            background-color: transparent;
+            border: none;
         }}
 
-        /* Answer bubble (Markdown) */
-        QTextEdit#answerBubble {{
-            background-color: transparent;
+        QFrame#answerBubble {{
+            border: none;
+            margin: 4px 0;
+            padding: 4px 0;
+        }}
+        QFrame#answerBubble QTextEdit {{
             color: {C["charcoal"]};
             font-size: 15px;
             font-weight: 400;
+            background-color: transparent;
             border: none;
-            padding: 4px 0;
-            line-height: 1.5;
         }}
         """,
         # ── PermissionDialog ─────────────────────────────────
@@ -254,9 +223,12 @@ def generate_stylesheet() -> str:
             font-size: 14px;
             font-weight: 600;
             border: none;
-            border-radius: {R["full"]};
+            border-radius: 9999px;
             padding: 8px 24px;
             min-height: 36px;
+        }}
+        QPushButton#permAllow:hover {{
+            background-color: {C["charcoal"]};
         }}
         QPushButton#permDeny {{
             background-color: transparent;
@@ -264,12 +236,9 @@ def generate_stylesheet() -> str:
             font-size: 14px;
             font-weight: 600;
             border: 1px solid {C["ink"]};
-            border-radius: {R["full"]};
+            border-radius: 9999px;
             padding: 8px 24px;
             min-height: 36px;
-        }}
-        QPushButton#permAllow:hover {{
-            background-color: {C["charcoal"]};
         }}
         QPushButton#permDeny:hover {{
             background-color: {C["surface"]};
@@ -287,6 +256,3 @@ def generate_stylesheet() -> str:
         }}
         """,
     )
-
-
-__all__ = ["generate_stylesheet"]

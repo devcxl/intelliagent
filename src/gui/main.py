@@ -41,19 +41,19 @@ async def _async_main(app: QApplication) -> None:
     # 5. Create EventBridge
     bridge = EventBridge(runtime)
 
-    # 6. Create and show MainWindow
+    # 6. Apply theme BEFORE showing window
+    ThemeManager.apply_light(app)
+
+    # 7. Create and show MainWindow
     window = MainWindow(bridge, conv_repo, msg_repo)
     window.show()
 
-    # 7. Apply initial theme (light)
-    ThemeManager.apply_light(app)
-
-    # 7. Wait for the Qt main window to close
+    # 8. Wait for the Qt main window to close
     close_event = asyncio.Event()
     app.aboutToQuit.connect(close_event.set)
     await close_event.wait()
 
-    # 8. Cleanup
+    # 9. Cleanup
     await session.close()
     await runtime.shutdown()
 

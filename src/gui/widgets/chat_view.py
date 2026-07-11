@@ -27,6 +27,7 @@ class ChatView(QScrollArea):
         self.setWidget(self._container)
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setObjectName("chatView")
 
     def append_event(self, event: dict) -> None:
         """Append a message bubble for the given event dict.

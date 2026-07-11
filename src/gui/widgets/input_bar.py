@@ -36,6 +36,7 @@ class InputBar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self._input = QLineEdit()
+        self._input.setObjectName("msgInput")
         self._input.setPlaceholderText("输入消息...（/help 查看命令）")
         self._input.returnPressed.connect(self._on_submit)
         layout.addWidget(self._input)
