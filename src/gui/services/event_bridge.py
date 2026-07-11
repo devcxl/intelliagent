@@ -51,7 +51,7 @@ class EventBridge(QObject):
         except asyncio.CancelledError:
             pass
 
-    async def resume_session(self, conversation_id: str) -> None:
+    def resume_session(self, conversation_id: str) -> None:
         """切换到已有会话，下次 submit_task 将使用此会话。
 
         Args:

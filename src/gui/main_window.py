@@ -1,11 +1,9 @@
-"""MainWindow — Discord 风格双栏主窗口，组装所有 GUI 组件。
-
-基于 QFluentWidgets FluentWindow 获取 Fluent Design 样式。
-"""
+"""MainWindow — Discord 风格双栏主窗口，组装所有 GUI 组件。"""
 
 from __future__ import annotations
 
 import asyncio
+import traceback
 from typing import Any
 
 from PyQt5.QtCore import Qt, QTimer
@@ -16,7 +14,6 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qasync import asyncSlot
 from qfluentwidgets import FluentWindow
 
 from src.db.repositories.conversation import ConversationRepository
@@ -29,6 +26,20 @@ from src.gui.widgets.session_list import SessionList
 
 _STATUS_READY = "就绪"
 _STATUS_RUNNING = "引擎运行中..."
+
+
+def _async_guard(coro, on_error=None):
+    """安全的 async 任务调度 — 异常不传播到事件循环顶层。"""
+
+    async def _runner():
+        try:
+            await coro
+        except Exception:
+            traceback.print_exc()
+            if on_error:
+                on_error()
+
+    asyncio.ensure_future(_runner())
 
 
 class MainWindow(FluentWindow):
@@ -45,7 +56,7 @@ class MainWindow(FluentWindow):
         self._conv_repo = conv_repo
         self._msg_repo = msg_repo
         self._current_conv_id: str | None = None
-        self._switching = False  # 防止并发切换
+        self._switching = False
 
         self._command_parser = CommandParser()
         self._session_list = SessionList(conv_repo, msg_repo)
@@ -56,11 +67,10 @@ class MainWindow(FluentWindow):
         self._register_commands()
         self._connect_signals()
 
-        # Hide built-in navigation
         self.navigationInterface.hide()
 
-        # Deferred init: load session list after event loop is running
-        QTimer.singleShot(0, self._post_init)
+        # 延迟加载会话列表（不自动切换）
+        QTimer.singleShot(100, lambda: _async_guard(self._session_list.refresh()))
 
     # ------------------------------------------------------------------
     # UI 构建
@@ -106,13 +116,13 @@ class MainWindow(FluentWindow):
         p.register("/help", self._cmd_help)
 
     def _cmd_new(self, _args: str) -> str:
-        asyncio.ensure_future(self._session_list._create_session())
+        _async_guard(self._session_list._create_session())
         return ""
 
     def _cmd_delete(self, _args: str) -> str:
         if self._current_conv_id is None:
             return "当前没有选中会话"
-        asyncio.ensure_future(self._do_delete_current())
+        _async_guard(self._do_delete_current())
         return ""
 
     def _cmd_resume(self, args: str) -> str:
@@ -120,12 +130,11 @@ class MainWindow(FluentWindow):
         if not conv_id:
             self._chat_view.append_event({"type": "thought", "content": "用法: /resume <会话ID>"})
             return ""
-        asyncio.ensure_future(self._switch_to_session(conv_id))
+        _async_guard(self._switch_to_session(conv_id))
         return ""
 
     def _cmd_help(self, _args: str) -> str:
-        help_text = "可用命令: /new /delete /resume <id> /help"
-        self._chat_view.append_event({"type": "thought", "content": help_text})
+        self._chat_view.append_event({"type": "thought", "content": "可用命令: /new /delete /resume <id> /help"})
         return ""
 
     # ------------------------------------------------------------------
@@ -133,27 +142,28 @@ class MainWindow(FluentWindow):
     # ------------------------------------------------------------------
 
     def _connect_signals(self) -> None:
-        self._bridge.event_received.connect(self._on_event_received)
+        self._bridge.event_received.connect(self._on_event_safe)
         self._bridge.engine_started.connect(self._on_engine_started)
         self._bridge.engine_finished.connect(self._on_engine_finished)
         self._bridge.error_occurred.connect(self._on_error)
+
         self._session_list.session_selected.connect(self._on_session_selected)
         self._session_list.session_created.connect(self._on_session_created)
+
         self._input_bar.submitted.connect(self._on_user_submitted)
 
     # ------------------------------------------------------------------
     # EventBridge 信号
     # ------------------------------------------------------------------
 
-    def _on_event_received(self, event: dict) -> None:
-        """安全的追加事件（在主线程执行）。"""
+    def _on_event_safe(self, event: dict) -> None:
         try:
             event_type = event.get("type", "answer")
-            content = event.get("data", event.get("content", str(event)))
-            payload = {"type": event_type, "content": content}
-            self._chat_view.append_event(payload)
+            data = event.get("data", event)
+            content = data.get("content", str(data)) if isinstance(data, dict) else str(data)
+            self._chat_view.append_event({"type": event_type, "content": content})
         except Exception:
-            pass  # 静默忽略渲染错误，不打断引擎流程
+            pass
 
     def _on_engine_started(self) -> None:
         self._input_bar.setEnabled(False)
@@ -161,32 +171,30 @@ class MainWindow(FluentWindow):
 
     def _on_engine_finished(self, result: dict[str, Any]) -> None:
         self._input_bar.setEnabled(True)
-        self._update_status(_STATUS_READY if result.get("success", False) else "引擎执行出错")
+        ok = isinstance(result, dict) and result.get("success", False)
+        self._update_status(_STATUS_READY if ok else "引擎执行出错")
 
     def _on_error(self, message: str) -> None:
         QMessageBox.critical(self, "引擎错误", message)
 
     # ------------------------------------------------------------------
-    # SessionList 信号
+    # SessionList 信号 → async guarded
     # ------------------------------------------------------------------
 
-    @asyncSlot()
-    async def _on_session_selected(self, conv_id: str) -> None:
-        await self._switch_to_session(conv_id)
+    def _on_session_selected(self, conv_id: str) -> None:
+        _async_guard(self._switch_to_session(conv_id))
 
-    @asyncSlot()
-    async def _on_session_created(self, conv_id: str) -> None:
-        await self._switch_to_session(conv_id)
+    def _on_session_created(self, conv_id: str) -> None:
+        _async_guard(self._switch_to_session(conv_id))
 
     # ------------------------------------------------------------------
     # InputBar 信号
     # ------------------------------------------------------------------
 
-    @asyncSlot()
-    async def _on_user_submitted(self, text: str) -> None:
+    def _on_user_submitted(self, text: str) -> None:
         if self._current_conv_id is None:
-            await self._session_list._create_session()
-        await self._bridge.submit_task(text)
+            _async_guard(self._session_list._create_session())
+        _async_guard(self._bridge.submit_task(text))
 
     # ------------------------------------------------------------------
     # 内部
@@ -196,46 +204,44 @@ class MainWindow(FluentWindow):
         prefix = f"会话: {self._current_conv_id[:8]}..." if self._current_conv_id else "无会话"
         self._status_label.setText(f"{prefix} | {text}")
 
-    @asyncSlot()
-    async def _post_init(self) -> None:
-        """启动后异步加载会话列表（不自动选中，等用户点击）。"""
-        try:
-            await self._session_list.refresh()
-        except Exception:
-            pass  # DB 错误不崩溃
-
-    @asyncSlot()
     async def _switch_to_session(self, conv_id: str) -> None:
-        """切换到指定会话：更新 bridge、清空 UI、加载历史（防并发）。"""
         if conv_id == self._current_conv_id or self._switching:
             return
 
         self._switching = True
+        prev_id = self._current_conv_id
         try:
-            await self._bridge.resume_session(conv_id)
+            self._bridge.resume_session(conv_id)
+            # 更新 UI 状态
+            prev_id = self._current_conv_id
             self._current_conv_id = conv_id
             self._session_list.set_current(conv_id)
             self._update_status(_STATUS_READY)
 
-            # 清空对话区（直接重建容器，避免 deleteLater 残留）
+            # 安全清空 UI 后再异步加载
             self._chat_view.clear()
-            await self._load_history(conv_id)
+            # 用 _current_conv_id 做快照传给延迟回调，防止并发切换
+            target_id = conv_id
+            QTimer.singleShot(10, lambda tid=target_id: _async_guard(self._load_history_async(tid)))
         except Exception:
-            self._update_status("加载会话历史失败")
+            self._current_conv_id = prev_id
+            self._update_status("切换失败")
         finally:
             self._switching = False
 
-    async def _load_history(self, conv_id: str) -> None:
-        """从 DB 加载会话历史消息。"""
+    async def _load_history_async(self, conv_id: str) -> None:
+        # 二次确认：只有在仍选中目标会话时才加载
+        if self._current_conv_id != conv_id:
+            return
         try:
             messages = await self._msg_repo.list_by_conversation(conv_id)
         except Exception:
             return
         for msg in messages:
-            event_type = _role_to_event_type(msg.role)
-            self._chat_view.append_event({"type": event_type, "content": msg.content})
+            if self._current_conv_id != conv_id:
+                return  # 中途切换到其他会话，停止加载
+            self._chat_view.append_event({"type": _role_to_event(msg.role), "content": msg.content})
 
-    @asyncSlot()
     async def _do_delete_current(self) -> None:
         if self._current_conv_id is None:
             return
@@ -249,9 +255,8 @@ class MainWindow(FluentWindow):
         self._update_status(_STATUS_READY)
         if self._session_list._list.count() > 0:
             first_item = self._session_list._list.item(0)
-            await self._switch_to_session(first_item.data(Qt.UserRole))
+            _async_guard(self._switch_to_session(first_item.data(Qt.UserRole)))
 
 
-def _role_to_event_type(role: str) -> str:
-    mapping = {"user": "user", "assistant": "answer", "tool": "observation"}
-    return mapping.get(role, "answer")
+def _role_to_event(role: str) -> str:
+    return {"user": "user", "assistant": "answer", "tool": "observation"}.get(role, "answer")
