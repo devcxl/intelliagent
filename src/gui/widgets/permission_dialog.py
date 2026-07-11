@@ -41,8 +41,13 @@ class PermissionDialog(QDialog):
         layout.setSpacing(12)
 
         # 工具名
-        layout.addWidget(QLabel(f"<b>工具</b>：{tool_name}"))
-        layout.addWidget(QLabel(f"<b>原因</b>：{reason}"))
+        title_label = QLabel(f"<b>工具</b>：{tool_name}")
+        title_label.setObjectName("permTitle")
+        layout.addWidget(title_label)
+
+        reason_label = QLabel(f"<b>原因</b>：{reason}")
+        reason_label.setObjectName("permTitle")
+        layout.addWidget(reason_label)
 
         # 参数信息（等宽字体 JSON 预览）
         args_text = json.dumps(args, indent=2, ensure_ascii=False)
@@ -59,11 +64,11 @@ class PermissionDialog(QDialog):
         btn_layout.addStretch()
 
         deny_btn = QPushButton("拒绝")
-        deny_btn.setStyleSheet("QPushButton { padding: 6px 24px; }")
+        deny_btn.setObjectName("permDeny")
         deny_btn.clicked.connect(lambda: self.done(QDialog.Rejected))
 
         allow_btn = QPushButton("允许")
-        allow_btn.setStyleSheet("QPushButton { padding: 6px 24px; font-weight: bold; }")
+        allow_btn.setObjectName("permAllow")
         allow_btn.setDefault(True)
         allow_btn.clicked.connect(lambda: self.done(QDialog.Accepted))
 

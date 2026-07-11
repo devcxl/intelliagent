@@ -100,6 +100,7 @@ class MainWindow(FluentWindow):
 
         # -- Status bar (inline instead of QMainWindow.statusBar) --
         self._status_label = QLabel(_STATUS_READY)
+        self._status_label.setObjectName("statusLabel")
         self._status_label.setFixedHeight(28)
         self._status_label.setStyleSheet(
             "padding: 2px 8px; background: palette(window); border-top: 1px solid palette(mid);"

@@ -41,6 +41,7 @@ class InputBar(QWidget):
         layout.addWidget(self._input)
 
         self._send_btn = QPushButton("发送")
+        self._send_btn.setObjectName("sendBtn")
         self._send_btn.clicked.connect(self._on_submit)
         layout.addWidget(self._send_btn)
 
