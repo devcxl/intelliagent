@@ -22,6 +22,12 @@ dependencies = [
 dev = [
     "ruff>=0.11.0",
 ]
+gui = [
+    "PyQt5>=5.15",
+    "PyQt-Fluent-Widgets>=1.6",
+    "qasync>=0.27",
+    "mistune>=3.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

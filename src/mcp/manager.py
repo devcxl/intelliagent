@@ -141,10 +141,9 @@ class MCPClientManager:
         conn = _ServerConnection(name=server.name, config=server)
         try:
             if server.url:
-                from mcp.client.streamable_http import streamable_http_client
-                from mcp.client.sse import sse_client
-
                 import httpx
+                from mcp.client.sse import sse_client
+                from mcp.client.streamable_http import streamable_http_client
 
                 client_kwargs: dict[str, Any] = {}
                 if server.headers:
