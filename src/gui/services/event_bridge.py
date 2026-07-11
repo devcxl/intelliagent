@@ -30,7 +30,7 @@ class EventBridge(QObject):
         super().__init__()
         self._runtime = runtime
         self._task: asyncio.Task[None] | None = None
-        self._conversation_id: str | None = None
+        self._pending_session_id: str | None = None
 
     # ------------------------------------------------------------------
     # 公共 API
@@ -49,16 +49,15 @@ class EventBridge(QObject):
         try:
             await self._task
         except asyncio.CancelledError:
-            # 用户取消，不额外 emit
             pass
 
     async def resume_session(self, conversation_id: str) -> None:
-        """切换到已有会话，下次 submit_task 将沿用此会话。
+        """切换到已有会话，下次 submit_task 将使用此会话。
 
         Args:
             conversation_id: 目标会话ID
         """
-        self._conversation_id = conversation_id
+        self._pending_session_id = conversation_id
 
     def cancel(self) -> None:
         """取消当前正在执行的任务。"""
@@ -74,13 +73,24 @@ class EventBridge(QObject):
             self._task.cancel()
         self._task = None
 
+    async def _switch_session_if_needed(self) -> None:
+        """切换到待处理的会话（如有）。"""
+        if self._pending_session_id is None:
+            return
+        # 已在目标会话中，跳过
+        if self._runtime.conversation_id == self._pending_session_id:
+            self._pending_session_id = None
+            return
+        # 切换到目标会话（重置内部 session 状态）
+        self._runtime.switch_session(self._pending_session_id)
+        self._pending_session_id = None
+
     async def _run_engine(self, text: str) -> None:
         """在后台任务中消费 engine 事件流并发射信号。"""
-        self.engine_started.emit()
+        # 切换会话（如有待处理的切换）
+        await self._switch_session_if_needed()
 
-        # 如果指定了会话ID，先切到对应会话
-        if self._conversation_id is not None:
-            await self._runtime.setup_conversation(text, session_id=self._conversation_id, resume=True)
+        self.engine_started.emit()
 
         try:
             async for event in self._runtime.execute(text):

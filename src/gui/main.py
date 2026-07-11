@@ -47,7 +47,7 @@ async def main() -> None:
     ThemeManager.apply_light(app)
 
     # 8. Enter Qt event loop (qasync-integrated)
-    app.exec()
+    await app.exec_()
 
     # 9. Cleanup
     await session.close()

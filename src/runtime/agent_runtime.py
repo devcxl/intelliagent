@@ -96,6 +96,14 @@ class AgentRuntime:
         """数据库 session factory，供 GUI 等外部模块创建仓储实例。"""
         return self._components.database.get_session_factory()
 
+    def switch_session(self, conversation_id: str) -> None:
+        """切换到指定会话，下次 execute() 将使用此会话的上下文。
+
+        重置内部 ConversationSession，下次 execute 时从 DB 重新加载历史。
+        """
+        self._session = None
+        self._components.conversation_service._conversation_id = conversation_id
+
     async def initialize(self) -> None:
         """初始化数据库表结构并启动 MCP 连接。首次使用前必须调用。"""
         await self._components.database.initialize()
