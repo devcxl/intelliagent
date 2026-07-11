@@ -25,24 +25,27 @@ async def _async_main(app: QApplication) -> None:
     # 1. Load configuration
     config = UnifiedConfig.load()
 
-    # 2. Create AgentRuntime and initialize (DB + MCP)
+    # 2. Initialize QFluentWidgets styling
+    ThemeManager.setup(app)
+
+    # 3. Create AgentRuntime and initialize (DB + MCP)
     runtime = AgentRuntime(config)
     await runtime.initialize()
 
-    # 3. Create repositories (share a session from the runtime's factory)
+    # 4. Create repositories (share a session from the runtime's factory)
     session_factory = runtime.session_factory
     session = session_factory()
     conv_repo = ConversationRepository(session)
     msg_repo = MessageRepository(session)
 
-    # 4. Create EventBridge
+    # 5. Create EventBridge
     bridge = EventBridge(runtime)
 
-    # 5. Create and show MainWindow
+    # 6. Create and show MainWindow
     window = MainWindow(bridge, conv_repo, msg_repo)
     window.show()
 
-    # 6. Apply initial theme (light)
+    # 7. Apply initial theme (light)
     ThemeManager.apply_light(app)
 
     # 7. Wait for the Qt main window to close

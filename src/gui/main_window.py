@@ -1,4 +1,7 @@
-"""MainWindow — Discord 风格双栏主窗口，组装所有 GUI 组件。"""
+"""MainWindow — Discord 风格双栏主窗口，组装所有 GUI 组件。
+
+基于 QFluentWidgets FluentWindow 获取 Fluent Design 样式。
+"""
 
 from __future__ import annotations
 
@@ -8,13 +11,13 @@ from typing import Any
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QLabel,
-    QMainWindow,
     QMessageBox,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
 from qasync import asyncSlot
+from qfluentwidgets import FluentWindow
 
 from src.db.repositories.conversation import ConversationRepository
 from src.db.repositories.message import MessageRepository
@@ -28,7 +31,7 @@ _STATUS_READY = "就绪"
 _STATUS_RUNNING = "引擎运行中..."
 
 
-class MainWindow(QMainWindow):
+class MainWindow(FluentWindow):
     """Discord 风格双栏主窗口。
 
     Layout::
@@ -65,9 +68,12 @@ class MainWindow(QMainWindow):
         self._chat_view = ChatView()
         self._input_bar = InputBar(self._command_parser)
 
-        self._setup_ui()
+        self._setup_content()
         self._register_commands()
         self._connect_signals()
+
+        # Hide built-in navigation (we use our own SessionList sidebar)
+        self.navigationInterface.hide()
 
         # Async post-init: load sessions from DB after event loop starts
         QTimer.singleShot(0, self._post_init)
@@ -76,20 +82,29 @@ class MainWindow(QMainWindow):
     # UI 构建
     # ------------------------------------------------------------------
 
-    def _setup_ui(self) -> None:
+    def _setup_content(self) -> None:
+        """Build the Discord-style layout inside FluentWindow's content area."""
         self.setWindowTitle("IntelliAgent")
         self.resize(1200, 800)
 
         # -- Left: SessionList --
         self._session_list.setFixedWidth(220)
 
-        # -- Right: ChatView + InputBar --
+        # -- Right: ChatView + InputBar + StatusBar --
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
         right_layout.addWidget(self._chat_view, stretch=1)
         right_layout.addWidget(self._input_bar, stretch=0)
+
+        # -- Status bar (inline instead of QMainWindow.statusBar) --
+        self._status_label = QLabel(_STATUS_READY)
+        self._status_label.setFixedHeight(28)
+        self._status_label.setStyleSheet(
+            "padding: 2px 8px; background: palette(window); border-top: 1px solid palette(mid);"
+        )
+        right_layout.addWidget(self._status_label, stretch=0)
 
         # -- Splitter --
         splitter = QSplitter(Qt.Horizontal)
@@ -99,11 +114,9 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 1)
         splitter.setSizes([220, 980])
 
-        self.setCentralWidget(splitter)
-
-        # -- Status bar --
-        self._status_label = QLabel(_STATUS_READY)
-        self.statusBar().addWidget(self._status_label)
+        # Embed in FluentWindow's content area
+        self.stackedWidget.addWidget(splitter)
+        self.stackedWidget.setCurrentWidget(splitter)
 
     # ------------------------------------------------------------------
     # CommandParser 命令注册
