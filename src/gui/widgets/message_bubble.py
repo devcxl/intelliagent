@@ -1,36 +1,64 @@
 """消息气泡组件 — 根据事件类型工厂式创建对应 UI。
 
-样式由 MiniMax QSS (styles/minimax_qss.py) 统一管理。
+所有内部文本组件禁用独立滚动条，由外层 ChatView (QScrollArea) 统一管理滚动。
 """
 
 import json
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QTextEdit, QVBoxLayout
+from PyQt5.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QSizePolicy,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 from src.gui.styles.markdown import MarkdownRenderer
 
 _markdown_renderer = MarkdownRenderer()
 
 
-class _UserBubble(QFrame):
-    """用户消息 — 右对齐深色气泡。"""
+def _no_scroll_text(parent=None) -> QTextEdit:
+    """Create a read-only QTextEdit that never shows its own scrollbar."""
+    w = QTextEdit(parent)
+    w.setReadOnly(True)
+    w.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    w.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    # Auto-resize height to fit content
+    w.document().documentLayout().documentSizeChanged.connect(lambda: _auto_height(w))
+    return w
 
-    def __init__(self, content: str, parent=None) -> None:
+
+def _auto_height(text_edit: QTextEdit) -> None:
+    """Set QTextEdit's fixed height to exactly fit its document content."""
+    doc = text_edit.document()
+    doc.setTextWidth(text_edit.viewport().width())
+    margins = text_edit.contentsMargins()
+    h = int(doc.size().height()) + margins.top() + margins.bottom() + 4
+    text_edit.setFixedHeight(h)
+
+
+# ── Bubble Classes ───────────────────────────────────────────────
+
+
+class _UserBubble(QFrame):
+    def __init__(self, content: str, parent=None):
         super().__init__(parent)
         self.setObjectName("userBubble")
-
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         label = QLabel(content)
         label.setWordWrap(True)
+        label.setMaximumWidth(500)
         layout.addWidget(label)
 
 
 class _ThoughtBubble(QLabel):
-    """思考过程 — 灰色斜体小字号。"""
-
-    def __init__(self, content: str, parent=None) -> None:
+    def __init__(self, content: str, parent=None):
         super().__init__(parent)
         self.setObjectName("thoughtBubble")
         self.setText(content)
@@ -38,9 +66,7 @@ class _ThoughtBubble(QLabel):
 
 
 class _ToolCallCard(QFrame):
-    """工具调用卡片 — 点击可展开/折叠参数详情。"""
-
-    def __init__(self, data: dict, parent=None) -> None:
+    def __init__(self, data: dict, parent=None):
         super().__init__(parent)
         self._expanded = False
         self.setObjectName("toolCard")
@@ -50,43 +76,38 @@ class _ToolCallCard(QFrame):
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(4)
 
-        # Title line: tool name
         tool_name = data.get("name", data.get("tool", "unknown"))
         self._title = QLabel(f"🔧 {tool_name}")
         self._title.setObjectName("toolCardTitle")
+        self._title.setCursor(Qt.PointingHandCursor)
         layout.addWidget(self._title)
 
-        # Collapsible detail area
         args = data.get("args", data.get("input", {}))
         args_text = json.dumps(args, indent=2, ensure_ascii=False) if args else "（无参数）"
-        self._detail = QTextEdit()
+        self._detail = _no_scroll_text(self)
         self._detail.setObjectName("toolCardArg")
         self._detail.setPlainText(args_text)
-        self._detail.setReadOnly(True)
-        self._detail.setMaximumHeight(0)
+        self._detail.setVisible(False)
         layout.addWidget(self._detail)
 
+        # Use QLabel click instead of mousePressEvent override
         self._title.mousePressEvent = lambda _: self._toggle()
 
-    def _toggle(self) -> None:
+    def _toggle(self):
         self._expanded = not self._expanded
-        self._detail.setMaximumHeight(400 if self._expanded else 0)
+        self._detail.setVisible(self._expanded)
 
 
 class _ObservationBlock(QFrame):
-    """工具执行结果 — 等宽字体回显块。"""
-
-    def __init__(self, content: str, parent=None) -> None:
+    def __init__(self, content: str, parent=None):
         super().__init__(parent)
         self.setObjectName("observationBlock")
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
 
-        text_edit = QTextEdit()
+        text_edit = _no_scroll_text(self)
         text_edit.setObjectName("observationBlock")
         text_edit.setPlainText(content)
-        text_edit.setReadOnly(True)
         font = QFont("Courier New", 10)
         font.setStyleHint(QFont.Monospace)
         text_edit.setFont(font)
@@ -94,43 +115,24 @@ class _ObservationBlock(QFrame):
 
 
 class _AnswerBubble(QFrame):
-    """最终回答 — Markdown 渲染。"""
-
-    def __init__(self, content: str, parent=None) -> None:
+    def __init__(self, content: str, parent=None):
         super().__init__(parent)
         self.setObjectName("answerBubble")
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        text_edit = QTextEdit()
+        text_edit = _no_scroll_text(self)
         text_edit.setObjectName("answerBubble")
-        text_edit.setReadOnly(True)
         _markdown_renderer.apply_to_text_edit(text_edit, content)
         layout.addWidget(text_edit)
 
 
+# ── Factory ──────────────────────────────────────────────────────
+
+
 class MessageBubble(QFrame):
-    """Factory-style widget that renders a single message/event.
-
-    Usage::
-
-        bubble = MessageBubble.create("thought", {"content": "..."}, parent)
-        layout.addWidget(bubble)
-    """
-
     @staticmethod
     def create(event_type: str, data: dict, parent=None) -> QFrame:
-        """Create the appropriate message bubble widget for the event type.
-
-        Args:
-            event_type: One of "user", "thought", "action", "observation", "answer".
-            data: Event payload dict.
-            parent: Optional parent widget.
-
-        Returns:
-            A QFrame subclass instance suitable for the event type.
-        """
         if event_type == "user":
             return _UserBubble(data.get("content", ""), parent)
         elif event_type == "thought":
