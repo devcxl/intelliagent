@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import traceback
 from typing import Any
 
@@ -10,6 +11,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QLabel,
     QMessageBox,
+    QPushButton,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -57,6 +59,7 @@ class MainWindow(FluentWindow):
         self._msg_repo = msg_repo
         self._current_conv_id: str | None = None
         self._switching = False
+        self._last_action_bubble = None
 
         self._command_parser = CommandParser()
         self._session_list = SessionList(conv_repo, msg_repo)
@@ -82,6 +85,21 @@ class MainWindow(FluentWindow):
 
         self._session_list.setFixedWidth(220)
 
+        # 左侧面板：会话列表 + 设置按钮
+        left_panel = QWidget()
+        left_panel.setFixedWidth(220)
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+        left_layout.addWidget(self._session_list, stretch=1)
+
+        settings_btn = QPushButton("⚙ 设置")
+        settings_btn.setObjectName("settingsBtn")
+        settings_btn.setFixedHeight(36)
+        settings_btn.setCursor(Qt.PointingHandCursor)
+        settings_btn.clicked.connect(self._open_settings)
+        left_layout.addWidget(settings_btn, stretch=0)
+
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
@@ -95,7 +113,7 @@ class MainWindow(FluentWindow):
         right_layout.addWidget(self._status_label, stretch=0)
 
         splitter = QSplitter(Qt.Horizontal)
-        splitter.addWidget(self._session_list)
+        splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
@@ -137,6 +155,12 @@ class MainWindow(FluentWindow):
         self._chat_view.append_event({"type": "thought", "content": "可用命令: /new /delete /resume <id> /help"})
         return ""
 
+    def _open_settings(self) -> None:
+        from src.gui.widgets.settings_dialog import SettingsDialog
+
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
     # ------------------------------------------------------------------
     # 信号连接
     # ------------------------------------------------------------------
@@ -159,11 +183,31 @@ class MainWindow(FluentWindow):
     def _on_event_safe(self, event: dict) -> None:
         try:
             event_type = event.get("type", "answer")
-            data = event.get("data", event)
-            content = data.get("content", str(data)) if isinstance(data, dict) else str(data)
-            self._chat_view.append_event({"type": event_type, "content": content})
+            data = event.get("data", {})
+
+            if event_type == "thought":
+                self._chat_view.append_event({"type": "thought", "content": data.get("content", "")})
+            elif event_type == "action":
+                self._last_action_bubble = self._chat_view.append_event(
+                    {"type": "action", "name": data.get("tool", "?"), "args": data.get("args", {})}
+                )
+            elif event_type == "observation":
+                if self._last_action_bubble is not None and hasattr(self._last_action_bubble, "set_result"):
+                    self._last_action_bubble.set_result(
+                        data.get("result", str(data)),
+                        data.get("status", "success"),
+                    )
+                    self._last_action_bubble = None
+                else:
+                    self._chat_view.append_event({"type": "observation", "content": data.get("result", str(data))})
+            elif event_type == "answer":
+                self._chat_view.append_event({"type": "answer", "content": data.get("answer", str(data))})
+            else:
+                self._chat_view.append_event({"type": event_type, "content": str(data)})
         except Exception:
-            pass
+            import traceback
+
+            traceback.print_exc()
 
     def _on_engine_started(self) -> None:
         self._input_bar.setEnabled(False)
@@ -171,6 +215,7 @@ class MainWindow(FluentWindow):
 
     def _on_engine_finished(self, result: dict[str, Any]) -> None:
         self._input_bar.setEnabled(True)
+        self._last_action_bubble = None
         ok = isinstance(result, dict) and result.get("success", False)
         self._update_status(_STATUS_READY if ok else "引擎执行出错")
 
@@ -220,6 +265,7 @@ class MainWindow(FluentWindow):
 
             # 安全清空 UI 后再异步加载
             self._chat_view.clear()
+            self._last_action_bubble = None
             # 用 _current_conv_id 做快照传给延迟回调，防止并发切换
             target_id = conv_id
             QTimer.singleShot(10, lambda tid=target_id: _async_guard(self._load_history_async(tid)))
@@ -228,6 +274,7 @@ class MainWindow(FluentWindow):
             self._update_status("切换失败")
         finally:
             self._switching = False
+            self._input_bar.setEnabled(True)
 
     async def _load_history_async(self, conv_id: str) -> None:
         # 二次确认：只有在仍选中目标会话时才加载
@@ -237,10 +284,39 @@ class MainWindow(FluentWindow):
             messages = await self._msg_repo.list_by_conversation(conv_id)
         except Exception:
             return
+        pending_actions: list = []  # 队列：action 卡片等待 observation 配对
         for msg in messages:
             if self._current_conv_id != conv_id:
                 return  # 中途切换到其他会话，停止加载
-            self._chat_view.append_event({"type": _role_to_event(msg.role), "content": msg.content})
+            event_type = _role_to_event(msg.role)
+            # 工具结果已配对到 action 卡片中，不再单独渲染 observation 块
+            if msg.role == "tool" and pending_actions:
+                card = pending_actions.pop(0)
+                if hasattr(card, "set_result"):
+                    card.set_result(msg.content)
+                continue
+            self._chat_view.append_event({"type": event_type, "content": msg.content})
+            # 渲染工具调用卡片（assistant 消息中携带的 tool_calls）
+            if msg.role == "assistant" and msg.tool_calls:
+                try:
+                    tool_calls = json.loads(msg.tool_calls)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                for tc in tool_calls:
+                    fn = tc.get("function", {})
+                    args_raw = fn.get("arguments", "{}")
+                    try:
+                        args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                    except (json.JSONDecodeError, TypeError):
+                        args = {}
+                    card = self._chat_view.append_event(
+                        {
+                            "type": "action",
+                            "name": fn.get("name", "?"),
+                            "args": args,
+                        }
+                    )
+                    pending_actions.append(card)
 
     async def _do_delete_current(self) -> None:
         if self._current_conv_id is None:
@@ -253,9 +329,10 @@ class MainWindow(FluentWindow):
         self._chat_view.clear()
         self._current_conv_id = None
         self._update_status(_STATUS_READY)
-        if self._session_list._list.count() > 0:
-            first_item = self._session_list._list.item(0)
-            _async_guard(self._switch_to_session(first_item.data(Qt.UserRole)))
+        if self._session_list.count > 0:
+            first_id = self._session_list.first_session_id()
+            if first_id is not None:
+                _async_guard(self._switch_to_session(first_id))
 
 
 def _role_to_event(role: str) -> str:

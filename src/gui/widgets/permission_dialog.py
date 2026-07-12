@@ -28,57 +28,62 @@ class PermissionDialog(QDialog):
     def __init__(self, tool_name: str, args: dict[str, Any], reason: str) -> None:
         super().__init__()
         self.setWindowTitle("权限确认")
+        self.setObjectName("permDialog")
         self.setModal(True)
-        self.setMinimumWidth(480)
+        self.setMinimumWidth(520)
         self._build_ui(tool_name, args, reason)
-
-    # ------------------------------------------------------------------
-    # UI 构建
-    # ------------------------------------------------------------------
 
     def _build_ui(self, tool_name: str, args: dict[str, Any], reason: str) -> None:
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(16)
 
-        # 工具名
+        # Warning header
+        header = QLabel('<span style="font-size: 20px;">⚠️</span> <b>权限请求</b> — 此操作需要您的确认')
+        header.setObjectName("permHeader")
+        layout.addWidget(header)
+
+        # Tool name
         title_label = QLabel(f"<b>工具</b>：{tool_name}")
         title_label.setObjectName("permTitle")
         layout.addWidget(title_label)
 
+        # Reason
         reason_label = QLabel(f"<b>原因</b>：{reason}")
-        reason_label.setObjectName("permTitle")
+        reason_label.setObjectName("permReason")
+        reason_label.setWordWrap(True)
         layout.addWidget(reason_label)
 
-        # 参数信息（等宽字体 JSON 预览）
+        # Args preview
         args_text = json.dumps(args, indent=2, ensure_ascii=False)
+        args_label = QLabel("<b>参数</b>：")
+        args_label.setObjectName("permArgsLabel")
+        layout.addWidget(args_label)
+
         args_edit = QTextEdit()
+        args_edit.setObjectName("permArgs")
         args_edit.setPlainText(args_text)
         args_edit.setReadOnly(True)
         args_edit.setMaximumHeight(200)
-        args_edit.setStyleSheet("font-family: monospace;")
-        layout.addWidget(QLabel("<b>参数</b>："))
         layout.addWidget(args_edit)
 
-        # 按钮栏
+        # Button row
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        deny_btn = QPushButton("拒绝")
+        deny_btn = QPushButton("拒绝执行")
         deny_btn.setObjectName("permDeny")
+        deny_btn.setToolTip("拒绝本次操作，通知 LLM 用户已取消")
         deny_btn.clicked.connect(lambda: self.done(QDialog.Rejected))
 
-        allow_btn = QPushButton("允许")
+        allow_btn = QPushButton("允许执行")
         allow_btn.setObjectName("permAllow")
         allow_btn.setDefault(True)
+        allow_btn.setToolTip("允许本次操作继续执行")
         allow_btn.clicked.connect(lambda: self.done(QDialog.Accepted))
 
         btn_layout.addWidget(deny_btn)
         btn_layout.addWidget(allow_btn)
         layout.addLayout(btn_layout)
-
-    # ------------------------------------------------------------------
-    # PermissionCallbackProtocol 实现
-    # ------------------------------------------------------------------
 
     @classmethod
     async def on_prompt(cls, tool_name: str, args: dict[str, Any], reason: str) -> bool:

@@ -1,7 +1,7 @@
 """对话视图 — 基于 QScrollArea 的流式消息列表。"""
 
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtWidgets import QScrollArea, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QScrollArea, QTextEdit, QVBoxLayout, QWidget
 
 from src.gui.widgets.message_bubble import MessageBubble
 
@@ -21,7 +21,7 @@ class ChatView(QScrollArea):
         self._container = QWidget()
         self._layout = QVBoxLayout(self._container)
         self._layout.setAlignment(Qt.AlignTop)
-        self._layout.setSpacing(4)
+        self._layout.setSpacing(12)
         self._layout.setContentsMargins(8, 8, 8, 8)
 
         self.setWidget(self._container)
@@ -29,12 +29,21 @@ class ChatView(QScrollArea):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setObjectName("chatView")
 
-    def append_event(self, event: dict) -> None:
-        """Append a message bubble for the given event dict. Bubbles handle their own alignment."""
+    def append_event(self, event: dict) -> QWidget:
+        """Append a message bubble for the given event dict. Returns the bubble widget."""
         event_type = event.get("type", "answer")
         bubble = MessageBubble.create(event_type, event, self._container)
         self._layout.addWidget(bubble)
-        QTimer.singleShot(50, self._scroll_to_bottom)
+        self._scroll_after_layout()
+        for te in bubble.findChildren(QTextEdit):
+            try:
+                te.document().documentLayout().documentSizeChanged.connect(lambda: self._scroll_after_layout())
+            except Exception:
+                pass
+        return bubble
+
+    def _scroll_after_layout(self) -> None:
+        QTimer.singleShot(0, self._scroll_to_bottom)
 
     def clear(self) -> None:
         """Clear all messages (e.g., when switching conversations)."""

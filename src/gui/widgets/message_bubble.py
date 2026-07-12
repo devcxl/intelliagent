@@ -22,7 +22,7 @@ _md = MarkdownRenderer()
 # ── Shared helpers ─────────────────────────────────────────────
 
 
-def _rich_text(content: str, parent=None) -> QTextEdit:
+def _rich_text(parent=None) -> QTextEdit:
     w = QTextEdit(parent)
     w.setReadOnly(True)
     w.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -42,21 +42,12 @@ def _auto_fit(te: QTextEdit) -> None:
     te.setFixedHeight(max(h, 24))
 
 
-def _bubble_widget(bubble_color: str, text_color: str, content_widget: QWidget) -> QFrame:
-    """Wrap a content widget in a rounded bubble frame."""
+def _bubble_widget(object_name: str, content_widget: QWidget) -> QFrame:
     bubble = QFrame()
-    bubble.setObjectName("chatBubble")
-    bubble.setStyleSheet(
-        f"#chatBubble {{ background-color: {bubble_color}; border-radius: 16px; padding: 10px 14px; }}"
-    )
+    bubble.setObjectName(object_name)
     layout = QVBoxLayout(bubble)
     layout.setContentsMargins(0, 0, 0, 0)
     layout.addWidget(content_widget)
-
-    # Style for any QLabel or QTextEdit inside the bubble
-    content_widget.setStyleSheet(
-        f"color: {text_color}; background: transparent; border: none; font-size: 15px; font-weight: 400;"
-    )
     return bubble
 
 
@@ -64,6 +55,15 @@ def _spacer() -> QWidget:
     w = QWidget()
     w.setFixedWidth(40)
     return w
+
+
+def _status_emoji(status: str) -> str:
+    if status == "success":
+        return '<span style="color: #16a34a; font-weight: bold;">✓</span>'
+    elif status == "error":
+        return '<span style="color: #dc2626; font-weight: bold;">✗</span>'
+    else:
+        return '<span style="color: #ca8a04; font-weight: bold;">!</span>'
 
 
 # ── Bubble types ────────────────────────────────────────────────
@@ -74,10 +74,9 @@ class _UserMsg(QWidget):
 
     def __init__(self, text: str, parent=None):
         super().__init__(parent)
-        label = QLabel(text)
-        label.setWordWrap(True)
-        label.setMaximumWidth(480)
-        bubble = _bubble_widget("#0a0a0a", "#ffffff", label)
+        te = _rich_text()
+        te.setPlainText(text)
+        bubble = _bubble_widget("userBubble", te)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 4, 16, 4)
@@ -92,7 +91,7 @@ class _AssistantMsg(QWidget):
         super().__init__(parent)
         te = _rich_text()
         _md.apply_to_text_edit(te, text)
-        bubble = _bubble_widget("#f2f3f5", "#222222", te)
+        bubble = _bubble_widget("answerBubble", te)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(16, 4, 16, 4)
@@ -116,7 +115,7 @@ class _ThoughtMsg(QLabel):
 
 
 class _ToolCallMsg(QFrame):
-    """工具调用 — 可折叠卡片。"""
+    """工具调用 — 可折叠卡片，内含参数和结果。"""
 
     def __init__(self, data: dict, parent=None):
         super().__init__(parent)
@@ -136,13 +135,14 @@ class _ToolCallMsg(QFrame):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
 
-        tool_name = data.get("name", data.get("tool", "?"))
+        self._tool_name = data.get("name", data.get("tool", "?"))
 
+        # Header with toggle
         header = QHBoxLayout()
-        toggle = QPushButton(f"▼ {tool_name}")
-        toggle.setFlat(True)
-        toggle.setCursor(Qt.PointingHandCursor)
-        toggle.setStyleSheet(
+        self._toggle = QPushButton(f"▼ {self._tool_name}")
+        self._toggle.setFlat(True)
+        self._toggle.setCursor(Qt.PointingHandCursor)
+        self._toggle.setStyleSheet(
             "QPushButton {"
             " text-align: left;"
             " font-weight: 600;"
@@ -152,18 +152,30 @@ class _ToolCallMsg(QFrame):
             " background: transparent;"
             " }"
         )
-        toggle.clicked.connect(self._toggle)
-        header.addWidget(toggle)
+        self._toggle.clicked.connect(self._toggle_all)
+        header.addWidget(self._toggle)
+
+        self._status_icon = QLabel("")
+        self._status_icon.setTextFormat(Qt.RichText)
+        self._status_icon.setStyleSheet(
+            "QLabel { font-size: 14px; padding: 0 4px; background: transparent; border: none; }"
+        )
+        header.addWidget(self._status_icon)
         header.addStretch()
         layout.addLayout(header)
 
+        # Args section
         args = data.get("args", data.get("input", {}))
-        self._detail_text = json.dumps(args, indent=2, ensure_ascii=False) if args else "（无参数）"
-        self._detail = QTextEdit()
-        self._detail.setReadOnly(True)
-        self._detail.setPlainText(self._detail_text)
-        self._detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._detail.setStyleSheet(
+        args_text = json.dumps(args, indent=2, ensure_ascii=False) if args else "（无参数）"
+        self._args_label = QLabel("<b>参数</b>")
+        self._args_label.setStyleSheet("color: #5f5f5f; font-size: 12px; font-weight: 600; padding: 2px 0;")
+        layout.addWidget(self._args_label)
+
+        self._args_detail = QTextEdit()
+        self._args_detail.setReadOnly(True)
+        self._args_detail.setPlainText(args_text)
+        self._args_detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._args_detail.setStyleSheet(
             "QTextEdit {"
             " font-size: 12px;"
             " font-family: monospace;"
@@ -172,29 +184,75 @@ class _ToolCallMsg(QFrame):
             " background: transparent;"
             " }"
         )
-        layout.addWidget(self._detail)
+        layout.addWidget(self._args_detail)
 
-        # Start collapsed (the toggle's visual height doesn't matter — _detail starts at 0)
-        self._header = toggle
-        self._detail.setFixedHeight(0)
+        # Result section (hidden until populated)
+        self._result_label = QLabel("<b>结果</b>")
+        self._result_label.setStyleSheet("color: #5f5f5f; font-size: 12px; font-weight: 600; padding: 2px 0;")
+        layout.addWidget(self._result_label)
 
-    def _toggle(self):
-        self._expanded = not self._expanded
+        self._result_detail = QTextEdit()
+        self._result_detail.setReadOnly(True)
+        self._result_detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._result_detail.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._result_detail.setStyleSheet(
+            "QTextEdit {"
+            " font-size: 12px;"
+            " font-family: monospace;"
+            " color: #45515e;"
+            " border: none;"
+            " background: transparent;"
+            " }"
+        )
+        layout.addWidget(self._result_detail)
+
+        # Start collapsed
+        self._collapse()
+
+    def set_result(self, text: str, status: str = "success") -> None:
+        _md.apply_to_text_edit(self._result_detail, text)
+        self._status_icon.setText(_status_emoji(status))
+        self._expanded = True
+        self._apply_collapse()
+
+    def _apply_collapse(self) -> None:
         if self._expanded:
-            doc = self._detail.document()
-            doc.setTextWidth(self._detail.viewport().width() or 400)
-            self._detail.setFixedHeight(int(doc.size().height()) + 10)
-            self._header.setText(f"▲ {self._header.text()[2:]}")
+            self._toggle.setText(f"▲ {self._tool_name}")
+            # Args
+            self._args_label.setVisible(True)
+            doc = self._args_detail.document()
+            doc.setTextWidth(self._args_detail.viewport().width() or 400)
+            self._args_detail.setFixedHeight(int(doc.size().height()) + 10)
+            # Result
+            if self._result_detail.toPlainText():
+                self._result_label.setVisible(True)
+                doc = self._result_detail.document()
+                doc.setTextWidth(self._result_detail.viewport().width() or 400)
+                self._result_detail.setFixedHeight(int(doc.size().height()) + 10)
+            else:
+                self._result_label.setVisible(False)
+                self._result_detail.setFixedHeight(0)
         else:
-            self._detail.setFixedHeight(0)
-            self._header.setText(f"▼ {self._header.text()[2:]}")
+            self._collapse()
+
+    def _collapse(self) -> None:
+        self._toggle.setText(f"▼ {self._tool_name}")
+        self._args_label.setVisible(False)
+        self._args_detail.setFixedHeight(0)
+        self._result_label.setVisible(False)
+        self._result_detail.setFixedHeight(0)
+
+    def _toggle_all(self):
+        self._expanded = not self._expanded
+        self._apply_collapse()
 
 
 class _ObservationMsg(QFrame):
-    """工具执行结果 — 等宽代码块。"""
+    """工具执行结果 — 默认折叠的代码块。"""
 
     def __init__(self, text: str, parent=None):
         super().__init__(parent)
+        self._expanded = False
         self.setObjectName("observationBlock")
         self.setStyleSheet(
             "#observationBlock {"
@@ -207,14 +265,36 @@ class _ObservationMsg(QFrame):
         )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
 
-        te = QTextEdit()
-        te.setPlainText(text)
-        te.setReadOnly(True)
-        te.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        te.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        te.setStyleSheet(
+        # Header with toggle
+        header = QHBoxLayout()
+        self._toggle = QPushButton("▼ 查看结果")
+        self._toggle.setFlat(True)
+        self._toggle.setCursor(Qt.PointingHandCursor)
+        self._toggle.setStyleSheet(
+            "QPushButton {"
+            " text-align: left;"
+            " font-weight: 600;"
+            " font-size: 13px;"
+            " color: #45515e;"
+            " border: none;"
+            " background: transparent;"
+            " }"
+        )
+        self._toggle.clicked.connect(self._toggle_detail)
+        header.addWidget(self._toggle)
+        header.addStretch()
+        layout.addLayout(header)
+
+        # Detail area (collapsed initially)
+        self._detail = QTextEdit()
+        self._detail.setPlainText(text)
+        self._detail.setReadOnly(True)
+        self._detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._detail.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._detail.setStyleSheet(
             "QTextEdit {"
             " font-size: 12px;"
             " font-family: monospace;"
@@ -223,9 +303,20 @@ class _ObservationMsg(QFrame):
             " background: transparent;"
             " }"
         )
-        # auto height for observation too
-        te.document().documentLayout().documentSizeChanged.connect(lambda t=te: _auto_fit(t))
-        layout.addWidget(te)
+        self._detail.document().documentLayout().documentSizeChanged.connect(lambda: _auto_fit(self._detail))
+        layout.addWidget(self._detail)
+        self._detail.setFixedHeight(0)
+
+    def _toggle_detail(self):
+        self._expanded = not self._expanded
+        if self._expanded:
+            doc = self._detail.document()
+            doc.setTextWidth(self._detail.viewport().width() or 400)
+            self._detail.setFixedHeight(int(doc.size().height()) + 10)
+            self._toggle.setText("▲ 查看结果")
+        else:
+            self._detail.setFixedHeight(0)
+            self._toggle.setText("▼ 查看结果")
 
 
 # ── Factory ──────────────────────────────────────────────────────

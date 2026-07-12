@@ -75,6 +75,21 @@ def generate_stylesheet() -> str:
             background-color: {C["hairline"]};
             color: {C["muted"]};
         }}
+        QPushButton#settingsBtn {{
+            background-color: transparent;
+            color: {C["steel"]};
+            font-size: 13px;
+            font-weight: 400;
+            border: none;
+            border-top: 1px solid {C["hairline"]};
+            border-radius: 0;
+            padding: 8px;
+            text-align: left;
+        }}
+        QPushButton#settingsBtn:hover {{
+            background-color: {C["surface_soft"]};
+            color: {C["ink"]};
+        }}
         """,
         # ── ChatView ─────────────────────────────────────────
         f"""
@@ -143,14 +158,15 @@ def generate_stylesheet() -> str:
         f"""
         QFrame#userBubble {{
             background-color: {C["primary"]};
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 10px 16px;
-            margin: 4px 0;
         }}
-        QFrame#userBubble QLabel {{
+        QFrame#userBubble QLabel, QFrame#userBubble QTextEdit {{
             color: {C["on_primary"]};
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 400;
+            background: transparent;
+            border: none;
         }}
 
         QLabel#thoughtBubble {{
@@ -201,7 +217,7 @@ def generate_stylesheet() -> str:
         }}
         QFrame#answerBubble QTextEdit {{
             color: {C["charcoal"]};
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 400;
             background-color: transparent;
             border: none;
@@ -209,13 +225,38 @@ def generate_stylesheet() -> str:
         """,
         # ── PermissionDialog ─────────────────────────────────
         f"""
-        QDialog {{
+        QDialog#permDialog {{
             background-color: {C["canvas"]};
+        }}
+        QLabel#permHeader {{
+            color: {C["ink"]};
+            font-size: 16px;
+            font-weight: 600;
+            padding: 4px 0;
         }}
         QLabel#permTitle {{
             color: {C["ink"]};
             font-size: 16px;
             font-weight: 600;
+        }}
+        QLabel#permReason {{
+            color: {C["charcoal"]};
+            font-size: 14px;
+            font-weight: 400;
+        }}
+        QLabel#permArgsLabel {{
+            color: {C["steel"]};
+            font-size: 13px;
+            font-weight: 600;
+        }}
+        QTextEdit#permArgs {{
+            color: {C["charcoal"]};
+            font-size: 13px;
+            font-family: monospace;
+            background-color: {C["surface"]};
+            border: 1px solid {C["hairline"]};
+            border-radius: 6px;
+            padding: 8px;
         }}
         QPushButton#permAllow {{
             background-color: {C["primary"]};
@@ -253,6 +294,81 @@ def generate_stylesheet() -> str:
             padding: 2px 8px;
             background-color: {C["canvas"]};
             border-top: 1px solid {C["hairline"]};
+        }}
+        """,
+        # ── SettingsDialog ────────────────────────────────────
+        f"""
+        QDialog#settingsDialog {{
+            background-color: {C["canvas"]};
+        }}
+        QDialog#settingsDialog QTabWidget::pane {{
+            border: none;
+            background-color: {C["canvas"]};
+        }}
+        QDialog#settingsDialog QTabBar::tab {{
+            background-color: transparent;
+            color: {C["steel"]};
+            font-size: 14px;
+            font-weight: 400;
+            padding: 8px 20px;
+            border: none;
+            border-bottom: 2px solid transparent;
+        }}
+        QDialog#settingsDialog QTabBar::tab:selected {{
+            color: {C["ink"]};
+            font-weight: 600;
+            border-bottom: 2px solid {C["primary"]};
+        }}
+        QPushButton#settingsCloseBtn {{
+            background-color: {C["surface"]};
+            color: {C["ink"]};
+            font-size: 14px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 24px;
+            margin: 12px 20px;
+        }}
+        QPushButton#settingsCloseBtn:hover {{
+            background-color: {C["hairline"]};
+        }}
+        QPushButton#settingsSaveBtn {{
+            background-color: {C["primary"]};
+            color: {C["on_primary"]};
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 24px;
+        }}
+        QPushButton#settingsSaveBtn:hover {{
+            background-color: {C["charcoal"]};
+        }}
+        QPushButton#settingsBrowseBtn {{
+            background-color: {C["surface"]};
+            color: {C["ink"]};
+            font-size: 13px;
+            border: 1px solid {C["hairline"]};
+            border-radius: 6px;
+            padding: 4px 12px;
+        }}
+        QPushButton#settingsBrowseBtn:hover {{
+            background-color: {C["hairline"]};
+        }}
+        QLineEdit#settingsInput {{
+            background-color: {C["canvas"]};
+            color: {C["ink"]};
+            font-size: 14px;
+            border: 1px solid {C["hairline"]};
+            border-radius: 6px;
+            padding: 6px 10px;
+        }}
+        QLineEdit#settingsInput:focus {{
+            border: 2px solid {C["brand_blue_deep"]};
+        }}
+        QCheckBox {{
+            color: {C["charcoal"]};
+            font-size: 14px;
         }}
         """,
     )

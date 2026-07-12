@@ -57,8 +57,8 @@ class SessionList(QWidget):
         self._list = QListWidget()
         self._list.setObjectName("sessionList")
 
-        layout.addWidget(self._new_btn)
-        layout.addWidget(self._list)
+        layout.addWidget(self._new_btn, stretch=0)
+        layout.addWidget(self._list, stretch=1)
 
         self._new_btn.clicked.connect(self._create_session)
         self._list.itemClicked.connect(self._on_item_clicked)
@@ -126,3 +126,12 @@ class SessionList(QWidget):
             if item.data(Qt.UserRole) == conversation_id:
                 self._list.setCurrentItem(item)
                 break
+
+    @property
+    def count(self) -> int:
+        return self._list.count()
+
+    def first_session_id(self) -> str | None:
+        if self._list.count() == 0:
+            return None
+        return self._list.item(0).data(Qt.UserRole)
