@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any, Literal
 
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
 from src.config.env_interpolator import deep_interpolate
@@ -106,8 +107,10 @@ class UnifiedConfig(BaseModel):
     def load(cls, path: str | Path = "intelliagent.json") -> UnifiedConfig:
         """从 JSON 文件加载配置，自动执行环境变量插值。
 
+        先加载 .env 文件（不覆盖已有环境变量），再读取 JSON 配置。
         文件不存在时返回全默认值。
         """
+        load_dotenv()
         path = Path(path)
         if not path.exists():
             return cls()
