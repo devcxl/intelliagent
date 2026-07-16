@@ -48,9 +48,10 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
-        run: uv sync --frozen --extra dev
+        run: uv sync --frozen --extra dev --extra gui
 
       - name: Run tests
         run: uv run pytest --tb=short
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          QT_QPA_PLATFORM: offscreen
