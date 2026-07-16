@@ -7,15 +7,21 @@ IntelliAgent 是一个**编码 Agent 框架**（非 Web 应用），核心目标
 ## 架构分层
 
 ```
+src/cli/       CLI 界面（参数解析 + REPL 循环 + 输出格式化）
 src/config/    类型化配置，无业务逻辑
 src/core/      ReAct 引擎 + 安全规则，无 provider 和持久化
+src/db/        持久化层（SQLAlchemy ORM + repositories）
+src/gui/       PyQt5 GUI 界面（qasync 桥接 asyncio + Qt 事件循环）
 src/llm/       LLM 适配器，无 agent 循环策略
-src/tools/     工具实现 + 注册表，无运行时组装
-src/runtime/   组合根，组装所有依赖
-src/db/        持久化层
-src/permission/ 独立权限包
-src/skills/    技能加载与注册
+src/memory/    记忆管理（MemoryProtocol 定义，实现待定）
 src/mcp/       MCP 服务器管理
+src/permission/ 独立权限包
+src/runtime/   组合根，组装所有依赖
+src/services/  领域服务（会话管理、Agent Team 协调）
+src/skills/    技能加载与注册
+src/tools/     工具实现 + 注册表，无运行时组装
+src/types/     类型定义（Protocol 接口：LLM/Memory/Provider）
+src/utils/     工具函数（路径策略、日志、密钥管理）
 ```
 
 ## 核心概念

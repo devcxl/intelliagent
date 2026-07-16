@@ -6,18 +6,21 @@
 
 ```
 src/
-├── cli/          CLI 界面（参数解析 + 输出格式化）
+├── cli/          CLI 界面（参数解析 + REPL + 输出格式化）
 ├── config/       统一配置（intelliagent.json + {env:VAR} 插值）
 ├── core/         ReAct 引擎核心循环
-├── db/           持久化（SQLAlchemy ORM）
+├── db/           持久化（SQLAlchemy ORM + repositories）
+├── gui/          PyQt5 GUI 界面（qasync 桥接 asyncio）
 ├── llm/          LLM 客户端适配器
 ├── mcp/          MCP 服务器管理
+├── memory/       记忆管理（MemoryProtocol，实现待定）
 ├── permission/   权限引擎（fnmatch + last-match-wins）
 ├── runtime/      运行时组装（AgentRuntime）
+├── services/     领域服务（会话管理、Agent Team 协调）
 ├── skills/       Skill 加载/注册/工具
 ├── tools/        工具注册表 + 内置工具
-├── types/        类型定义
-└── utils/        工具函数
+├── types/        类型定义（Protocol 接口）
+└── utils/        工具函数（路径策略、日志、密钥）
 ```
 
 **核心数据流**：`CLI → ConversationOrchestrator → AgentRuntime → ReactEngine → LLMClient → ToolRegistry`
@@ -41,6 +44,25 @@ uv run python -m src.main --resume
 # 查看历史对话
 uv run python -m src.main --history
 ```
+
+## GUI 界面
+
+PyQt5 GUI 作为 CLI 的替代品，提供图形化聊天界面：
+
+```bash
+# 安装 GUI 依赖
+uv sync --extra gui
+
+# 启动 GUI
+uv run python -m src.gui.main
+```
+
+GUI 特性：
+- 会话列表管理（新建/切换/删除）
+- Markdown 渲染聊天消息
+- 工具调用折叠展示
+- 权限确认弹窗
+- 主题切换
 
 ## 配置
 
