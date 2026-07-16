@@ -76,7 +76,17 @@ class ToolExecutor:
                         status="no_callback",
                     )
 
-        result = await self._registry.call_tool(tool_name=tool_name, **args)
+        try:
+            result = await self._registry.call_tool(tool_name=tool_name, **args)
+        except Exception as e:
+            return ToolExecutionResult(
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                tool_args=args,
+                content=json.dumps({"status": "error", "error": f"工具执行异常: {e}"}, ensure_ascii=False),
+                status="error",
+                error=str(e),
+            )
         return ToolExecutionResult(
             tool_call_id=tool_call_id,
             tool_name=tool_name,

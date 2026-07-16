@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,37 +13,72 @@ class ContextSummary:
 
 
 def _summarize_messages(messages: list[dict[str, Any]]) -> str:
-    lines: list[str] = []
-    current_task = ""
+    """按 ADR 0001 生成结构化摘要。
+
+    从消息列表中提取当前目标、已完成动作、关键观察、涉及文件，
+    输出结构化文本而非简单截断。
+    """
+    goals: list[str] = []
+    actions: list[str] = []
+    observations: list[str] = []
+    files: set[str] = set()
 
     for m in messages:
         role = m.get("role", "")
         content = m.get("content", "") or ""
-        if not content:
-            tool_calls = m.get("tool_calls")
-            if tool_calls:
-                calls = ", ".join(tc.get("function", {}).get("name", "?") for tc in tool_calls)
-                lines.append(f"助手调用工具: {calls}")
-            continue
+        tool_calls = m.get("tool_calls")
 
         if role == "user":
-            current_task = content[:200]
-            lines.append(f"用户目标: {current_task}")
+            goals.append(content[:200])
         elif role == "assistant":
-            truncated = content[:300]
-            lines.append(f"助手回复: {truncated}")
+            if tool_calls:
+                for tc in tool_calls:
+                    fn = tc.get("function", {})
+                    name = fn.get("name", "?")
+                    actions.append(f"调用工具 {name}")
+                    args_raw = fn.get("arguments", "{}")
+                    try:
+                        args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                        for key in ("path", "file", "filename"):
+                            if key in args and isinstance(args[key], str):
+                                files.add(args[key])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+            if content:
+                actions.append(content[:200])
         elif role == "tool":
-            truncated = content[:200]
-            lines.append(f"工具结果: {truncated}")
+            observations.append(content[:200])
 
-    if not lines:
-        lines.append("(空对话)")
+    sections: list[str] = ["以下是已压缩的上下文摘要："]
 
-    summary = "\n".join(lines)
+    if goals:
+        sections.append("\n当前目标:")
+        for g in goals[-3:]:
+            sections.append(f"- {g}")
+
+    if actions:
+        sections.append("\n已完成动作:")
+        for a in actions[-10:]:
+            sections.append(f"- {a}")
+
+    if observations:
+        sections.append("\n关键观察:")
+        for o in observations[-5:]:
+            sections.append(f"- {o}")
+
+    if files:
+        sections.append("\n涉及文件:")
+        for f in sorted(files):
+            sections.append(f"- {f}")
+
+    sections.append("\n下一步建议:")
+    sections.append("- 继续执行未完成的任务")
+
+    summary = "\n".join(sections)
     if len(summary) > 2000:
         summary = summary[:2000] + "\n...(截断)"
 
-    return f"以下是已压缩的上下文摘要：\n{summary}"
+    return summary
 
 
 class ContextManager:
@@ -75,6 +111,11 @@ class ContextManager:
 
     def load_history(self, messages: list[dict[str, Any]]) -> None:
         self._messages = [dict(m) for m in messages]
+
+    def reset(self) -> None:
+        """清空消息和摘要，保留 instructions。用于重新开始一轮对话。"""
+        self._messages = []
+        self._summary = None
 
     def compact_if_needed(self, estimated_tokens: int) -> ContextSummary | None:
         threshold = int(self._max_context_tokens * self._compact_threshold)

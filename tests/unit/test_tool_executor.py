@@ -107,3 +107,30 @@ async def test_result_fields():
     assert result.tool_call_id == "call_abc"
     assert result.tool_name == "echo"
     assert result.tool_args == {"msg": "hello"}
+
+
+class FailingRegistry:
+    def get_openai_tools(self):
+        return []
+
+    async def call_tool(self, tool_name: str, **kwargs: Any) -> str:
+        raise RuntimeError("工具内部错误")
+
+
+@pytest.mark.asyncio
+async def test_tool_exception_caught():
+    """工具抛异常时返回 error 结果，不传播异常。"""
+    executor = ToolExecutor(registry=FailingRegistry())
+    result = await executor.execute({"id": "c1", "function": {"name": "read_file", "arguments": '{"path": "x.py"}'}})
+    assert result.status == "error"
+    assert "工具内部错误" in result.error
+    assert "工具执行异常" in result.content
+
+
+@pytest.mark.asyncio
+async def test_tool_exception_does_not_propagate():
+    """工具异常不传播到调用方。"""
+    executor = ToolExecutor(registry=FailingRegistry())
+    result = await executor.execute({"id": "c1", "function": {"name": "bomb", "arguments": "{}"}})
+    assert result.status == "error"
+    assert result.tool_name == "bomb"

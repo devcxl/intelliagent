@@ -219,3 +219,67 @@ def test_load_history_then_compact():
     assert result is not None
     msgs = cm.get_messages()
     assert len(msgs) == 4
+
+
+# ============================================================================
+# ADR 0001 结构化摘要
+# ============================================================================
+
+
+def test_summary_contains_structured_sections():
+    """摘要包含 ADR 0001 要求的结构化字段。"""
+    cm = _make_cm(max_tokens=100)
+    cm.add_user_message("修复 auth 模块的 bug")
+    cm.add_assistant_message("好的，我来检查")
+    cm.add_tool_message("call_1", "发现空指针")
+    cm.add_assistant_message("已修复")
+
+    cm.compact_if_needed(estimated_tokens=80)
+    summary = cm.get_messages()[3]["content"]
+
+    assert "当前目标" in summary
+    assert "已完成动作" in summary
+    assert "关键观察" in summary
+    assert "下一步建议" in summary
+
+
+def test_summary_extracts_file_paths_from_tool_calls():
+    """从工具调用参数中提取涉及文件。"""
+    cm = _make_cm(max_tokens=100)
+    cm.add_user_message("读取文件")
+    cm.add_assistant_message(
+        content=None,
+        tool_calls=[
+            {"id": "c1", "type": "function", "function": {"name": "read_file", "arguments": '{"path": "src/main.py"}'}}
+        ],
+    )
+    cm.add_tool_message("c1", "文件内容")
+
+    cm.compact_if_needed(estimated_tokens=80)
+    summary = cm.get_messages()[3]["content"]
+
+    assert "涉及文件" in summary
+    assert "src/main.py" in summary
+
+
+def test_summary_preserves_current_task():
+    """当前任务（最后一条 user 消息）出现在摘要中。"""
+    cm = _make_cm(max_tokens=100)
+    cm.add_user_message("第一个任务")
+    cm.add_assistant_message("完成")
+    cm.add_user_message("重构数据库层")
+
+    cm.compact_if_needed(estimated_tokens=80)
+    summary = cm.get_messages()[3]["content"]
+
+    assert "重构数据库层" in summary
+
+
+def test_summary_empty_conversation():
+    """空对话也能生成摘要。"""
+    cm = _make_cm(max_tokens=100)
+    cm.compact_if_needed(estimated_tokens=80)
+    summary = cm.get_messages()[3]["content"]
+
+    assert "摘要" in summary
+    assert "下一步建议" in summary

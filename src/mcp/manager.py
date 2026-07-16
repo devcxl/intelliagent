@@ -242,15 +242,15 @@ class MCPClientManager:
         if conn._session is not None:
             try:
                 await conn._session.__aexit__(None, None, None)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"MCP 关闭 session 失败 [{conn.name}]: {e}")
             conn._session = None
 
         if conn._stdio_ctx is not None:
             try:
                 await conn._stdio_ctx.__aexit__(None, None, None)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"MCP 关闭 stdio 上下文失败 [{conn.name}]: {e}")
             conn._stdio_ctx = None
             conn._read_stream = None
             conn._write_stream = None
@@ -258,6 +258,6 @@ class MCPClientManager:
         if conn._http_client is not None:
             try:
                 await conn._http_client.aclose()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"MCP 关闭 HTTP 客户端失败 [{conn.name}]: {e}")
             conn._http_client = None

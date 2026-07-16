@@ -55,4 +55,12 @@ def observation_event(
     }
 
 
-__all__ = ["answer_event", "thought_event", "action_event", "observation_event"]
+def error_event(step: int, error: str) -> dict[str, Any]:
+    return {
+        "type": "error",
+        "iteration": step,
+        "data": {"error": error},
+    }
+
+
+__all__ = ["answer_event", "thought_event", "action_event", "observation_event", "error_event"]

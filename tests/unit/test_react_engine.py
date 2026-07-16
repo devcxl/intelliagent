@@ -138,3 +138,62 @@ class TestReactEngineIterSteps:
 
         types = [e["type"] for e in events]
         assert types == ["thought", "action", "observation", "answer"]
+
+
+class TestReactEngineMaxSteps:
+    @pytest.mark.asyncio
+    async def test_max_steps_limit(self, mock_engine):
+        """超过最大步数时产生 error 事件并停止。"""
+        mock_engine.max_steps = 3
+        mock_engine.llm_client.chat_async.return_value = _make_response(
+            tool_calls=[_make_tool_call("call_1", "read_file", '{"path": "test.txt"}')]
+        )
+
+        result = await mock_engine.run("无限循环测试")
+
+        assert result["success"] is False
+        assert "最大步数" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_default_max_steps_is_50(self, mock_engine):
+        assert mock_engine.max_steps == 50
+
+
+class TestReactEngineErrorRecovery:
+    @pytest.mark.asyncio
+    async def test_llm_error_returns_failure(self, mock_engine):
+        """LLM 调用失败时 run 返回失败结果。"""
+        mock_engine.llm_client.chat_async.side_effect = RuntimeError("API 连接失败")
+
+        result = await mock_engine.run("测试任务")
+
+        assert result["success"] is False
+        assert "API 连接失败" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_iter_steps_yields_error_on_llm_failure(self, mock_engine):
+        """iter_steps 在 LLM 失败时 yield error 事件。"""
+        mock_engine.llm_client.chat_async.side_effect = RuntimeError("网络错误")
+
+        events = []
+        async for event in mock_engine.iter_steps("测试"):
+            events.append(event)
+
+        assert any(e["type"] == "error" for e in events)
+        assert "网络错误" in events[-1]["data"]["error"]
+
+    @pytest.mark.asyncio
+    async def test_error_after_tool_calls(self, mock_engine):
+        """前几轮正常工具调用，第三轮 LLM 失败。"""
+        mock_engine.llm_client.chat_async.side_effect = [
+            _make_response(tool_calls=[_make_tool_call("c1", "read_file", '{"path": "x.py"}')]),
+            RuntimeError("超时"),
+        ]
+
+        events = []
+        async for event in mock_engine.iter_steps("测试"):
+            events.append(event)
+
+        types = [e["type"] for e in events]
+        assert "error" in types
+        assert types[-1] == "error"

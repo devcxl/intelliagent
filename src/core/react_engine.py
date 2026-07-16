@@ -6,7 +6,7 @@ from typing import Any, AsyncGenerator, Protocol
 
 from src.core.constants import DEFAULT_SYSTEM_PROMPT
 from src.core.context_manager import ContextManager
-from src.core.events import action_event, answer_event, observation_event, thought_event
+from src.core.events import action_event, answer_event, error_event, observation_event, thought_event
 from src.core.tool_executor import ToolExecutor
 from src.permission import (
     PermissionCallbackProtocol,
@@ -72,6 +72,7 @@ class ReactEngine:
         context_limit: int | None = None,
         skill_registry: SkillRegistry | None = None,
         compact_callback: Callable[[list[str], str], Awaitable[None]] | None = None,
+        max_steps: int = 50,
     ):
         self.llm_client = llm_client
         self._registry = tools_registry if tools_registry is not None else NoopToolRegistry()
@@ -79,6 +80,7 @@ class ReactEngine:
         self._permission_callback = permission_callback
         self._skill_registry = skill_registry
         self._compact_callback = compact_callback
+        self.max_steps = max_steps
 
         self.max_context_tokens = context_limit or 128_000
         self._context_manager = ContextManager(max_context_tokens=self.max_context_tokens)
@@ -88,7 +90,7 @@ class ReactEngine:
             permission_callback=self._permission_callback,
         )
 
-        self.messages: list[dict[str, Any]] = []
+        self._initialized: bool = False
         self.total_tokens = 0
 
     # ------------------------------------------------------------------
@@ -96,24 +98,18 @@ class ReactEngine:
     # ------------------------------------------------------------------
 
     def add_user_message(self, content: str):
-        self.messages.append({"role": "user", "content": content})
         self._context_manager.add_user_message(content)
 
     def add_assistant_message(self, content: str | None = None, tool_calls: list[dict[str, Any]] | None = None):
-        msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
-        if tool_calls:
-            msg["tool_calls"] = tool_calls
-        self.messages.append(msg)
         self._context_manager.add_assistant_message(content=content, tool_calls=tool_calls)
 
     def add_tool_message(self, tool_call_id: str, content: str):
-        self.messages.append({"role": "tool", "tool_call_id": tool_call_id, "content": content})
         self._context_manager.add_tool_message(tool_call_id, content)
 
     def load_history(self, messages: list[dict[str, Any]]) -> None:
         self._refresh_instructions()
         self._context_manager.load_history(messages)
-        self.messages = [self._build_system_message(), *(dict(message) for message in messages)]
+        self._initialized = True
 
     def _build_system_message(self) -> dict[str, Any]:
         content = DEFAULT_SYSTEM_PROMPT
@@ -140,7 +136,6 @@ class ReactEngine:
             return
 
         self._refresh_instructions()
-        self.messages = [self._build_system_message(), {"role": "user", "content": summary.content}]
         self.total_tokens = int(self.total_tokens * 0.5)
 
         if self._compact_callback:
@@ -164,24 +159,34 @@ class ReactEngine:
 
         while True:
             step += 1
-            logger.debug(f"ReactEngine - 第 {step} 轮 | tokens={self.total_tokens}")
-
-            await self._maybe_compact_context()
-            response = await self._call_llm()
-            self.total_tokens += usage.record(response)
-
-            content, tool_calls = self._extract_response(response)
-
-            self.add_assistant_message(content=content, tool_calls=tool_calls)
-
-            if not tool_calls:
-                logger.info(f"Agent 完成 | turns={step} tokens={self.total_tokens}")
-                yield answer_event(step, content, self.total_tokens, usage.prompt, usage.completion, usage.cached)
+            if step > self.max_steps:
+                logger.warning(f"ReactEngine 达到最大步数 {self.max_steps}，强制停止")
+                yield error_event(step, f"达到最大步数限制 ({self.max_steps})，强制停止")
                 return
 
-            yield thought_event(step, content, tool_calls)
-            async for event in self._execute_tool_calls(tool_calls, step):
-                yield event
+            logger.debug(f"ReactEngine - 第 {step} 轮 | tokens={self.total_tokens}")
+
+            try:
+                await self._maybe_compact_context()
+                response = await self._call_llm()
+                self.total_tokens += usage.record(response)
+
+                content, tool_calls = self._extract_response(response)
+
+                self.add_assistant_message(content=content, tool_calls=tool_calls)
+
+                if not tool_calls:
+                    logger.info(f"Agent 完成 | turns={step} tokens={self.total_tokens}")
+                    yield answer_event(step, content, self.total_tokens, usage.prompt, usage.completion, usage.cached)
+                    return
+
+                yield thought_event(step, content, tool_calls)
+                async for event in self._execute_tool_calls(tool_calls, step):
+                    yield event
+            except Exception as e:
+                logger.error(f"ReactEngine 第 {step} 轮异常: {e}")
+                yield error_event(step, str(e))
+                return
 
     async def _call_llm(self) -> Any:
         context = self._context_manager.get_messages()
@@ -217,9 +222,9 @@ class ReactEngine:
         self,
         task: str,
     ) -> dict[str, Any]:
-        if not self.messages:
-            self.messages = [self._build_system_message()]
+        if not self._initialized:
             self._refresh_instructions()
+            self._initialized = True
         self.add_user_message(task)
 
         async for event in self._loop():
@@ -234,6 +239,12 @@ class ReactEngine:
                     "completion_tokens": data["completion_tokens"],
                     "cached_tokens": data["cached_tokens"],
                 }
+            if event["type"] == "error":
+                return {
+                    "success": False,
+                    "answer": "",
+                    "error": event["data"]["error"],
+                }
 
         return {"success": False, "answer": ""}
 
@@ -246,9 +257,11 @@ class ReactEngine:
         task: str,
         reset_state: bool = True,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        if reset_state or not self.messages:
-            self.messages = [self._build_system_message()]
+        if reset_state or not self._initialized:
+            if reset_state:
+                self._context_manager.reset()
             self._refresh_instructions()
+            self._initialized = True
         self.add_user_message(task)
 
         async for event in self._loop():
