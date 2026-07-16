@@ -24,7 +24,7 @@ if __name__ == "__main__":
     task_text = " ".join(args.task) if args.task else ""
     if task_text and not args.history:
         build_parser().print_help()
-        print("\n❌ 多轮对话模式不支持命令行传入任务。请直接运行 python -m src.main 进入交互模式。")
+        print("\n❌ 多轮对话模式不支持命令行传入任务。请直接运行 python -m src.cli.main 进入交互模式。")
         sys.exit(1)
 
     asyncio.run(

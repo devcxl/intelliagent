@@ -46,7 +46,7 @@ AgentBus（全局单例，消息路由 + Worker 管理）
 
 ```
 # 模式 A：主 Agent（用户交互）
-python -m src.main interactive
+python -m src.cli.main interactive
   └─ 启动 AgentBus
        ├─ 注册所有 Agent 配置（从 DB 或配置文件）
        ├─ 启动所有 Worker
@@ -54,7 +54,7 @@ python -m src.main interactive
        └─ 子 Agent 的 Worker 进入消息循环（等 queue）
 
 # 模式 B：独立 Worker（子 Agent 单独进程）
-python -m src.main worker --agent-id analyst
+python -m src.cli.main worker --agent-id analyst
   └─ 启动 AgentBus
        ├─ 只注册自己
        ├─ 启动自己的 Worker
@@ -128,7 +128,7 @@ Conversation（降级为查询视图）
 ┌──────────────────────────────────────────────────────────────────────┐
 │                            main.py                                    │
 │                                                                       │
-│  python -m src.main interactive          python -m src.main worker    │
+│  python -m src.cli.main interactive      python -m src.cli.main worker │
 │  ──────────────────────────────          ─────────────────────────    │
 │                                                                       │
 └──────────────┬──────────────────────────────────┬─────────────────────┘
@@ -378,7 +378,7 @@ async def send_message(to_agent_name: str, content: str) -> str:
 ### 6.1 主 Agent 模式（用户交互）
 
 ```
-python -m src.main interactive
+python -m src.cli.main interactive
 
 1. 加载 intelliagent.json
 2. 创建 AgentBus（注入 db, llm, permission 工厂）
@@ -395,7 +395,7 @@ python -m src.main interactive
 ### 6.2 独立 Worker 模式
 
 ```
-python -m src.main worker --agent-id analyst
+python -m src.cli.main worker --agent-id analyst
 
 1. 加载 intelliagent.json
 2. 创建 AgentBus
@@ -457,7 +457,7 @@ python -m src.main worker --agent-id analyst
 | `src/tools/registry.py` | 反注册 5 个多余工具 |
 | `src/db/models.py` | `AgentMessage` 加 `status`/`correlation_id`/`reply_to_id`/`error` 字段 |
 | `src/db/repositories.py` | 加 `claim_next()`/`mark_done()`/`create_reply()` |
-| `src/main.py` | 新增 `interactive` 和 `worker` 子命令 |
+| `src/cli/main.py` | 新增 `interactive` 和 `worker` 子命令 |
 | `src/cli/parser.py` | 新增子命令解析 |
 | `src/runtime/conversation_orchestrator.py` | 降级为工具类（不再做入口） |
 
@@ -552,7 +552,7 @@ python -m src.main worker --agent-id analyst
 
 1. 删掉 5 个多余工具
 2. `send_message` 接入 AgentBus
-3. `src/main.py` 新增 `interactive` / `worker` 子命令
+3. `src/cli/main.py` 新增 `interactive` / `worker` 子命令
 4. `src/cli/parser.py` 新增子命令解析
 5. 集成测试：主 Agent 发消息 → 子 Agent 处理 → 回复
 

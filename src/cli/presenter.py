@@ -86,4 +86,4 @@ async def show_history(
 def show_save_info(conversation_id: str) -> None:
     """打印保存信息。"""
     print(f"已保存到 Conversation: {conversation_id}")
-    print(f"下次继续请使用: python -m src.main --session {conversation_id}")
+    print(f"下次继续请使用: python -m src.cli.main --session {conversation_id}")

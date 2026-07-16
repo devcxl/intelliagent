@@ -36,13 +36,13 @@ cp intelliagent.json.example intelliagent.json
 # 编辑 intelliagent.json，设置 OPENAI_API_KEY
 
 # 启动交互式对话
-uv run python -m src.main
+uv run python -m src.cli.main
 
 # 继续上一次对话
-uv run python -m src.main --resume
+uv run python -m src.cli.main --resume
 
 # 查看历史对话
-uv run python -m src.main --history
+uv run python -m src.cli.main --history
 ```
 
 ## GUI 界面
