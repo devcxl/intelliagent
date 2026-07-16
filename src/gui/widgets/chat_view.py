@@ -49,8 +49,10 @@ class ChatView(QScrollArea):
         """Clear all messages (e.g., when switching conversations)."""
         while self._layout.count():
             item = self._layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            w = item.widget()
+            if w:
+                w.setParent(None)
+                w.deleteLater()
 
     def _scroll_to_bottom(self) -> None:
         scrollbar = self.verticalScrollBar()

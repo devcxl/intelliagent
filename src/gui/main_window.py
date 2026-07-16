@@ -10,14 +10,17 @@ from typing import Any
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import (
     QLabel,
+    QMainWindow,
     QMessageBox,
     QPushButton,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
-from qfluentwidgets import FluentWindow
 
+from src.db.models import Conversation
+from src.db.repositories._utils import new_uuid
 from src.db.repositories.conversation import ConversationRepository
 from src.db.repositories.message import MessageRepository
 from src.gui.services.command_parser import CommandParser
@@ -44,7 +47,7 @@ def _async_guard(coro, on_error=None):
     asyncio.ensure_future(_runner())
 
 
-class MainWindow(FluentWindow):
+class MainWindow(QMainWindow):
     """Discord 风格双栏主窗口。"""
 
     def __init__(
@@ -70,8 +73,6 @@ class MainWindow(FluentWindow):
         self._register_commands()
         self._connect_signals()
 
-        self.navigationInterface.hide()
-
         # 延迟加载会话列表（不自动切换）
         QTimer.singleShot(100, lambda: _async_guard(self._session_list.refresh()))
 
@@ -83,11 +84,12 @@ class MainWindow(FluentWindow):
         self.setWindowTitle("IntelliAgent")
         self.resize(1200, 800)
 
-        self._session_list.setFixedWidth(220)
+        self._session_list.setFixedWidth(240)
 
         # 左侧面板：会话列表 + 设置按钮
         left_panel = QWidget()
-        left_panel.setFixedWidth(220)
+        left_panel.setObjectName("sidebarPanel")
+        left_panel.setFixedWidth(240)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
@@ -117,10 +119,12 @@ class MainWindow(FluentWindow):
         splitter.addWidget(right_panel)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([220, 980])
+        splitter.setSizes([240, 960])
 
-        self.stackedWidget.addWidget(splitter)
-        self.stackedWidget.setCurrentWidget(splitter)
+        self._stacked = QStackedWidget()
+        self._stacked.addWidget(splitter)
+        self._stacked.setCurrentWidget(splitter)
+        self.setCentralWidget(self._stacked)
 
     # ------------------------------------------------------------------
     # 命令
@@ -238,8 +242,20 @@ class MainWindow(FluentWindow):
 
     def _on_user_submitted(self, text: str) -> None:
         if self._current_conv_id is None:
-            _async_guard(self._session_list._create_session())
-        _async_guard(self._bridge.submit_task(text))
+            _async_guard(self._first_submit(text))
+        else:
+            _async_guard(self._bridge.submit_task(text))
+
+    async def _first_submit(self, text: str) -> None:
+        """首次提交：先创建会话，再提交任务，避免竞态条件。"""
+        conv = Conversation(id=new_uuid())
+        await self._conv_repo.save(conv)
+        await self._session_list.refresh()
+        self._bridge.resume_session(conv.id)
+        self._current_conv_id = conv.id
+        self._session_list.set_current(conv.id)
+        self._update_status(_STATUS_READY)
+        await self._bridge.submit_task(text)
 
     # ------------------------------------------------------------------
     # 内部
@@ -336,4 +352,4 @@ class MainWindow(FluentWindow):
 
 
 def _role_to_event(role: str) -> str:
-    return {"user": "user", "assistant": "answer", "tool": "observation"}.get(role, "answer")
+    return {"user": "user", "assistant": "answer", "tool": "observation"}.get(role, "thought")

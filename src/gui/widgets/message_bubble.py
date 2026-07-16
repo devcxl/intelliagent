@@ -3,7 +3,6 @@
 import json
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -107,10 +106,6 @@ class _ThoughtMsg(QLabel):
         self.setObjectName("thoughtBubble")
         self.setAlignment(Qt.AlignCenter)
         self.setWordWrap(True)
-        font = QFont()
-        font.setItalic(True)
-        font.setPointSize(font.pointSize() - 1)
-        self.setFont(font)
         self.setContentsMargins(40, 2, 40, 2)
 
 
@@ -121,15 +116,6 @@ class _ToolCallMsg(QFrame):
         super().__init__(parent)
         self._expanded = False
         self.setObjectName("toolCard")
-        self.setStyleSheet(
-            "#toolCard {"
-            " border: 1px solid #e5e7eb;"
-            " border-radius: 10px;"
-            " padding: 8px 12px;"
-            " margin: 4px 16px;"
-            " background: #fafafa;"
-            " }"
-        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -142,24 +128,11 @@ class _ToolCallMsg(QFrame):
         self._toggle = QPushButton(f"▼ {self._tool_name}")
         self._toggle.setFlat(True)
         self._toggle.setCursor(Qt.PointingHandCursor)
-        self._toggle.setStyleSheet(
-            "QPushButton {"
-            " text-align: left;"
-            " font-weight: 600;"
-            " font-size: 13px;"
-            " color: #45515e;"
-            " border: none;"
-            " background: transparent;"
-            " }"
-        )
         self._toggle.clicked.connect(self._toggle_all)
         header.addWidget(self._toggle)
 
         self._status_icon = QLabel("")
         self._status_icon.setTextFormat(Qt.RichText)
-        self._status_icon.setStyleSheet(
-            "QLabel { font-size: 14px; padding: 0 4px; background: transparent; border: none; }"
-        )
         header.addWidget(self._status_icon)
         header.addStretch()
         layout.addLayout(header)
@@ -168,42 +141,22 @@ class _ToolCallMsg(QFrame):
         args = data.get("args", data.get("input", {}))
         args_text = json.dumps(args, indent=2, ensure_ascii=False) if args else "（无参数）"
         self._args_label = QLabel("<b>参数</b>")
-        self._args_label.setStyleSheet("color: #5f5f5f; font-size: 12px; font-weight: 600; padding: 2px 0;")
         layout.addWidget(self._args_label)
 
         self._args_detail = QTextEdit()
         self._args_detail.setReadOnly(True)
         self._args_detail.setPlainText(args_text)
         self._args_detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._args_detail.setStyleSheet(
-            "QTextEdit {"
-            " font-size: 12px;"
-            " font-family: monospace;"
-            " color: #5f5f5f;"
-            " border: none;"
-            " background: transparent;"
-            " }"
-        )
         layout.addWidget(self._args_detail)
 
         # Result section (hidden until populated)
         self._result_label = QLabel("<b>结果</b>")
-        self._result_label.setStyleSheet("color: #5f5f5f; font-size: 12px; font-weight: 600; padding: 2px 0;")
         layout.addWidget(self._result_label)
 
         self._result_detail = QTextEdit()
         self._result_detail.setReadOnly(True)
         self._result_detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._result_detail.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._result_detail.setStyleSheet(
-            "QTextEdit {"
-            " font-size: 12px;"
-            " font-family: monospace;"
-            " color: #45515e;"
-            " border: none;"
-            " background: transparent;"
-            " }"
-        )
         layout.addWidget(self._result_detail)
 
         # Start collapsed
@@ -254,15 +207,6 @@ class _ObservationMsg(QFrame):
         super().__init__(parent)
         self._expanded = False
         self.setObjectName("observationBlock")
-        self.setStyleSheet(
-            "#observationBlock {"
-            " background-color: #f2f3f5;"
-            " border-radius: 8px;"
-            " padding: 8px 12px;"
-            " margin: 4px 16px 4px 56px;"
-            " border: 1px solid #e5e7eb;"
-            " }"
-        )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -273,16 +217,6 @@ class _ObservationMsg(QFrame):
         self._toggle = QPushButton("▼ 查看结果")
         self._toggle.setFlat(True)
         self._toggle.setCursor(Qt.PointingHandCursor)
-        self._toggle.setStyleSheet(
-            "QPushButton {"
-            " text-align: left;"
-            " font-weight: 600;"
-            " font-size: 13px;"
-            " color: #45515e;"
-            " border: none;"
-            " background: transparent;"
-            " }"
-        )
         self._toggle.clicked.connect(self._toggle_detail)
         header.addWidget(self._toggle)
         header.addStretch()
@@ -294,15 +228,6 @@ class _ObservationMsg(QFrame):
         self._detail.setReadOnly(True)
         self._detail.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._detail.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self._detail.setStyleSheet(
-            "QTextEdit {"
-            " font-size: 12px;"
-            " font-family: monospace;"
-            " color: #45515e;"
-            " border: none;"
-            " background: transparent;"
-            " }"
-        )
         self._detail.document().documentLayout().documentSizeChanged.connect(lambda: _auto_fit(self._detail))
         layout.addWidget(self._detail)
         self._detail.setFixedHeight(0)

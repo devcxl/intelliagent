@@ -30,6 +30,7 @@ class InputBar(QWidget):
 
     def __init__(self, command_parser: CommandParser, parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("inputPanel")
         self._parser = command_parser
 
         layout = QHBoxLayout(self)

@@ -17,6 +17,19 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
+_HIGH_RISK_KEYWORDS = {"bash", "run_shell", "shell", "write", "edit", "delete", "rm"}
+_LOW_RISK_KEYWORDS = {"read", "time", "grep", "list", "skill"}
+
+
+def _risk_level(tool_name: str) -> tuple[str, str]:
+    """根据工具名返回 (等级标签, 颜色)。"""
+    name_lower = tool_name.lower()
+    if any(k in name_lower for k in _HIGH_RISK_KEYWORDS):
+        return ("🔴 高风险", "#dc2626")
+    if any(k in name_lower for k in _LOW_RISK_KEYWORDS):
+        return ("🟢 低风险", "#16a34a")
+    return ("🟡 中风险", "#ca8a04")
+
 
 class PermissionDialog(QDialog):
     """模态权限确认对话框。
@@ -38,9 +51,15 @@ class PermissionDialog(QDialog):
         layout.setSpacing(16)
 
         # Warning header
-        header = QLabel('<span style="font-size: 20px;">⚠️</span> <b>权限请求</b> — 此操作需要您的确认')
+        header = QLabel('<span style="font-size: 20px;">⚠️</span> <b>权限请求</b> - 此操作需要您的确认')
         header.setObjectName("permHeader")
         layout.addWidget(header)
+
+        # Risk level indicator
+        risk_label_text, risk_color = _risk_level(tool_name)
+        risk_label = QLabel(f'<span style="color: {risk_color}; font-weight: 600;">{risk_label_text}</span>')
+        risk_label.setObjectName("permRiskLevel")
+        layout.addWidget(risk_label)
 
         # Tool name
         title_label = QLabel(f"<b>工具</b>：{tool_name}")
