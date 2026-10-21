@@ -14,6 +14,11 @@ from src.plugins.skill.model import Skill
 
 logger = logging.getLogger(__name__)
 
+# SKILL.md 尺寸上限：YAML alias 可构造膨胀结构（safe_load 防执行不防内存），超限拒绝。
+MAX_SKILL_FILE_BYTES = 1_000_000
+# frontmatter 分隔符必须独占一行（防 "---oops"、"----" 误判）。
+_FENCE = re.compile(r"^---[ \t]*$", re.MULTILINE)
+
 
 def load_skills(project_paths: Sequence[Path] = (), user_paths: Sequence[Path] = ()) -> tuple[Skill, ...]:
     """扫描路径列表收集 SKILL.md：项目级先扫（同名优先），用户级后扫；解析失败的文件跳过。"""
@@ -23,30 +28,45 @@ def load_skills(project_paths: Sequence[Path] = (), user_paths: Sequence[Path] =
         if not base.is_dir():
             logger.debug("Skill 扫描目录不存在，跳过: %s", base)
             continue
+        resolved_base = base.resolve()
         for skill_file in sorted(base.rglob("SKILL.md")):
-            skill = _parse_skill_file(skill_file)
-            if skill is None or skill.name in seen:
-                logger.debug("同名 skill 已收录或解析失败，跳过: %s", skill_file)
+            skill = _parse_skill_file(skill_file, resolved_base)
+            if skill is None:
+                logger.debug("SKILL.md 解析失败，跳过: %s", skill_file)
+                continue
+            if skill.name in seen:
+                logger.debug("同名 skill 已收录，跳过: %s", skill_file)
                 continue
             seen.add(skill.name)
             skills.append(skill)
     return tuple(skills)
 
 
-def _parse_skill_file(skill_file: Path) -> Skill | None:
-    """解析单个 SKILL.md；缺 frontmatter、缺必填字段或 YAML 不可解析时返回 None。"""
-    content = skill_file.read_text(encoding="utf-8")
-    if not content.startswith("---"):
+def _parse_skill_file(skill_file: Path, scan_root: Path) -> Skill | None:
+    """解析单个 SKILL.md；尺寸超限、读取失败、缺 frontmatter、缺必填字段或 YAML 不可解析时返回 None。
+
+    resolve 后校验包含于扫描根：目录内符号链接不得把 location/source_path 引到根外
+    （该路径会经 skill_load 返回给模型）。
+    """
+    try:
+        if skill_file.stat().st_size > MAX_SKILL_FILE_BYTES:
+            logger.warning("SKILL.md 超过尺寸上限 %d 字节，跳过: %s", MAX_SKILL_FILE_BYTES, skill_file)
+            return None
+        content = skill_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.warning("SKILL.md 读取失败，跳过: %s, error=%s", skill_file, exc)
+        return None
+    if not _FENCE.match(content):
         logger.warning("SKILL.md 缺少 YAML frontmatter: %s", skill_file)
         return None
     rest = content[3:].lstrip()
-    end_index = rest.find("\n---")
-    if end_index == -1:
+    closing = _FENCE.search(rest)
+    if closing is None:
         logger.warning("SKILL.md YAML frontmatter 未正确关闭: %s", skill_file)
         return None
 
     try:
-        raw = _load_yaml(rest[:end_index])
+        raw = _load_yaml(rest[: closing.start()])
     except yaml.YAMLError as exc:
         logger.warning("SKILL.md YAML 解析失败: %s, error=%s", skill_file, exc)
         return None
@@ -61,12 +81,15 @@ def _parse_skill_file(skill_file: Path) -> Skill | None:
         return None
 
     resolved = skill_file.resolve()
+    if not resolved.is_relative_to(scan_root):
+        logger.warning("SKILL.md 经符号链接指向扫描根之外，跳过: %s -> %s", skill_file, resolved)
+        return None
     return Skill(
         name=name,
         description=description,
         location=resolved,
         source_path=resolved.parent,
-        body=rest[end_index + 4 :].strip(),
+        body=rest[closing.end() :].strip(),
     )
 
 
