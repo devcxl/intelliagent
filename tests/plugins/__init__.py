@@ -1,1 +1,1 @@
-"""storage 插件测试（src/plugins/storage 的契约与行为）。"""
+"""内置插件包（`src/plugins/`）的测试：契约与各插件行为。"""
