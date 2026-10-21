@@ -1,7 +1,8 @@
 """Agent 层事件模型：事件是协议而非日志（ADR 0010、pi-engine-principles §2）。
 
-message_start/update/end 与 tool_execution_start/update/end 六类事件是引擎与前端、拦截器的共同语言：
+agent / turn / message / tool_execution 四个事件族是引擎与前端、拦截器的共同语言：
 
+- agent_start/agent_end 与 turn_start/turn_end 划分 run 与 turn 边界（turn 边界也是 hook 挂载点）。
 - tool_execution_start 在工具执行（含 hook）前发出——permission 拦截与"执行中"状态的基础；
   "先做后播"没有拦截能力，本协议明确禁止。
 - message_update 携带流式增量（text/toolcall delta），前端逐块渲染。
@@ -15,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from src.llm.stream import Done, Error, LLMEvent, StopReason, TextDelta, ToolCallDelta
 
@@ -24,6 +25,36 @@ if TYPE_CHECKING:
 
 MessageDelta = TextDelta | ToolCallDelta | Error
 """message_update 携带的流式增量：文本增量、工具调用增量或错误通知（Done 收尾，不进增量）。"""
+
+RunOutcome = Literal["settled", "terminated", "error", "aborted"]
+"""一次 run 的收束方式：settled 正常停止 / terminated 工具终止信号 / error、aborted 硬退出。"""
+
+
+@dataclass(frozen=True)
+class AgentStart:
+    """一次 run 开始（agent_start）。"""
+
+
+@dataclass(frozen=True)
+class AgentEnd:
+    """一次 run 收束（agent_end）：携带收束方式。"""
+
+    outcome: RunOutcome
+
+
+@dataclass(frozen=True)
+class TurnStart:
+    """一个 turn 开始（turn_start）：turn 是一次 assistant 响应 + 其工具结果，编号引擎级单调递增。"""
+
+    turn: int
+
+
+@dataclass(frozen=True)
+class TurnEnd:
+    """一个 turn 结束（turn_end）：携带该轮响应的终止原因。"""
+
+    turn: int
+    stop_reason: StopReason | None = None
 
 
 @dataclass(frozen=True)
@@ -78,8 +109,19 @@ class ToolExecutionEnd:
     observation: Observation
 
 
-AgentEvent = MessageStart | MessageUpdate | MessageEnd | ToolExecutionStart | ToolExecutionUpdate | ToolExecutionEnd
-"""事件协议的全部消息形态。"""
+AgentEvent = (
+    AgentStart
+    | AgentEnd
+    | TurnStart
+    | TurnEnd
+    | MessageStart
+    | MessageUpdate
+    | MessageEnd
+    | ToolExecutionStart
+    | ToolExecutionUpdate
+    | ToolExecutionEnd
+)
+"""事件协议的全部消息形态（Agent 层：agent / turn / message / tool_execution 四个事件族）。"""
 
 
 class EventSink(Protocol):
