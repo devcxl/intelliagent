@@ -18,6 +18,38 @@ DEFAULT_CONFIG_FILENAME = "intelliagent.yaml"
 
 _ENV_PATTERN = re.compile(r"\{env:([^:}]+)(?::([^}]*))?\}")
 
+# 过渡说明（issue #52 / Spec #49 expand 阶段）：
+# interpolate_env/deep_interpolate_env 与旧 src/config/env_interpolator.py、WorkspaceConfig 与旧
+# src/config/unified_config.py 存在刻意重复——旧配置层随 ticket #64（contract）整体删除，此处不复用
+# 将删代码，也不做双向同步。#64 落地后此注释可移除。
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader 收紧：拒绝重复键与非字符串键。
+
+    YAML 1.1 会把未加引号的 on/off/yes/no 解析为布尔键、重复键静默取后者，
+    这类"静默生效"的配置错误违背"misconfiguration is immediately actionable"（Spec #49）。
+    """
+
+
+def _construct_mapping(loader: yaml.SafeLoader, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if not isinstance(key, str):
+            mark = key_node.start_mark
+            raise yaml.YAMLError(
+                f"{mark.name}:{mark.line + 1}: 键必须是字符串（加引号可避免 on/off/yes/no 被解析为布尔值）"
+            )
+        if key in mapping:
+            mark = key_node.start_mark
+            raise yaml.YAMLError(f"{mark.name}:{mark.line + 1}: 重复的键 {key!r}")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping)
+
 
 class ConfigError(Exception):
     """非法配置 — 错误信息指明配置路径（含插件名与字段名）。"""
@@ -105,7 +137,7 @@ def _read_yaml_file(config_path: Path) -> dict[str, Any]:
     if not config_path.is_file():
         raise ConfigError(f"配置文件不存在: {config_path}")
     try:
-        raw = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        raw = yaml.load(config_path.read_text(encoding="utf-8"), Loader=_StrictLoader)  # noqa: S506 — _StrictLoader 基于 SafeLoader
     except yaml.YAMLError as exc:
         raise ConfigError(f"{config_path}: YAML 解析失败: {exc}") from exc
     if raw is None:

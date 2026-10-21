@@ -201,3 +201,25 @@ def test_old_json_is_not_read_as_fallback(tmp_path: Path) -> None:
     _write_config(tmp_path, '{"model": "from-json"}', name="intelliagent.json")
     with pytest.raises(ConfigError, match="intelliagent.yaml"):
         load_config(tmp_path / "intelliagent.yaml")
+
+
+class TestStrictYamlLoader:
+    """YAML 静默陷阱防线（PR #66 审查 Spec 轴 medium）：重复键与布尔化键必须显式报错。"""
+
+    def test_duplicate_key_rejected(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "intelliagent.yaml"
+        config_file.write_text("model: openai/gpt-4o\nmodel: deepseek/chat\n", encoding="utf-8")
+        with pytest.raises(ConfigError, match="重复的键"):
+            load_config(config_file)
+
+    def test_booleanified_key_rejected(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "intelliagent.yaml"
+        config_file.write_text("plugins:\n  on:\n    enabled: true\n", encoding="utf-8")
+        with pytest.raises(ConfigError, match="键必须是字符串"):
+            load_config(config_file)
+
+    def test_quoted_on_key_accepted(self, tmp_path: Path) -> None:
+        config_file = tmp_path / "intelliagent.yaml"
+        config_file.write_text('plugins:\n  "on":\n    enabled: true\n', encoding="utf-8")
+        config = load_config(config_file)
+        assert "on" in config.plugins
