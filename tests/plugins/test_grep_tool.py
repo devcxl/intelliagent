@@ -98,7 +98,7 @@ class TestGrepTool:
     async def test_missing_ripgrep_is_diagnosable(
         self, tmp_path: Path, policy: PathPolicy, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr("src.plugins.basic_tools.grep_tool.shutil.which", lambda name: None)
+        monkeypatch.setattr("shutil.which", lambda name: None)
         (tmp_path / "a.txt").write_text("text\n", encoding="utf-8")
 
         data = envelope(await grep_tool(path_policy=policy).run(pattern="text", path=str(tmp_path)))

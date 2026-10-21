@@ -168,7 +168,9 @@ class TestWriteTool:
         assert target.read_text(encoding="utf-8") == "new\n"
 
     async def test_oversized_content_is_rejected(self, tmp_path: Path, policy: PathPolicy) -> None:
-        data = envelope(await write_tool(path_policy=policy).run(path=str(tmp_path / "big.txt"), content="x" * 1_000_001))
+        data = envelope(
+            await write_tool(path_policy=policy).run(path=str(tmp_path / "big.txt"), content="x" * 1_000_001)
+        )
 
         assert data["status"] == "error"
         assert data["code"] == "CONTENT_TOO_LARGE"
@@ -213,7 +215,7 @@ class TestEditTool:
         )
 
         assert data["status"] == "ok"
-        assert target.read_text(encoding="utf-8") == "def f():\n    return 1\n\n\ndef g():\n    return 2\n"
+        assert target.read_text(encoding="utf-8") == "def f():\n    return 1\n\ndef g():\n    return 2\n"
 
     async def test_multiple_matches_require_explicit_strategy(self, tmp_path: Path, policy: PathPolicy) -> None:
         target = tmp_path / "dup.txt"
@@ -221,7 +223,9 @@ class TestEditTool:
         target.write_text(original, encoding="utf-8")
 
         data = envelope(
-            await edit_tool(path_policy=policy).run(path=str(target), oldString="foo", newString="baz", replaceAll=False)
+            await edit_tool(path_policy=policy).run(
+                path=str(target), oldString="foo", newString="baz", replaceAll=False
+            )
         )
 
         assert data["status"] == "error"
