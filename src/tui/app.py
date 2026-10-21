@@ -1,7 +1,8 @@
 """IntelliAgentApp：消息流 + 多行输入编辑器 + 状态栏的 pi 最简 TUI（ADR 0009、issue #61）。
 
 事件驱动（pi-engine-principles §2）：TuiEventSink 把引擎事件翻译进 TuiTarget 落点（本类实现），
-组件按整步刷新更新；用户消息在提交处本地渲染（引擎事件流不含用户输入，pi 同型）。
+message_update 边收边渲染（issue #63，合并重绘见 MessageView），其余组件按事件整步刷新；
+用户消息在提交处本地渲染（引擎事件流不含用户输入，pi 同型）。
 
 执行入口是 TaskRunner（引擎结构上满足）：提交触发 run；运行中提交转交 steer（引擎的插话 seam），
 避免对运行中的引擎重复 run（Engine 拒绝并发 run）。runner 经 RunnerFactory 装配，
@@ -112,20 +113,25 @@ class IntelliAgentApp(App[None]):
         self._run_worker = self.run_worker(self._run(text), exclusive=True)
 
     async def _run(self, task: str) -> None:
-        """跑一个 Run；异常不逃逸出 worker（引擎已发 agent_end 收束事件），错误落到消息流与状态栏。"""
+        """跑一个 Run；异常不逃逸出 worker（引擎已发 agent_end 收束事件），错误落到消息流与状态栏。
+
+        异常收束时缺 MessageEnd 的半程增量在此清算落屏（PR #76 审查遗留）。
+        """
         try:
             await self._runner.run(task)
         except Exception as exc:
+            self._stream.flush_pending()
             self._stream.add_message(MessageView("system", text=f"运行异常：{redact_secrets(str(exc))}"))
             self._status.set_run_state(RUN_STATE_LABELS["error"])
 
-    # --- TuiTarget 落点（TuiEventSink 按事件顺序调用；整步刷新，issue #63 负责流式增量渲染） ---
+    # --- TuiTarget 落点（TuiEventSink 按事件顺序调用；增量渲染，issue #63：message_update 边收边渲染） ---
 
     def show_run_started(self) -> None:
         self._status.set_run_state("运行中")
 
     def show_run_finished(self, outcome: RunOutcome) -> None:
         self._run_settled = True
+        self._stream.flush_pending()
         self._status.set_run_state(RUN_STATE_LABELS[outcome])
 
     def show_message_started(self, message_id: str, role: str) -> None:

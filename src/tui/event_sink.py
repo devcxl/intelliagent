@@ -1,9 +1,9 @@
 """TuiEventSink：引擎事件 → TUI 更新的唯一通道（EventSink 实现，ADR 0009、pi-engine-principles §2）。
 
-TUI 只消费事件流（issue #61）：本模块把 AgentEvent 族翻译成 TuiTarget 的整步刷新调用，
+TUI 只消费事件流（issue #61）：本模块把 AgentEvent 族翻译成 TuiTarget 的更新调用，
 事件顺序即界面更新顺序；不碰持久化、不读 repository。
 
-message_update 的逐块流式渲染是 issue #63——本票原样转交增量，由 MessageView 缓冲后在消息结束时整步刷新。
+message_update 的逐块流式渲染（issue #63）：本模块原样转交增量，MessageView 边收边渲染。
 turn_start/turn_end 是循环边界信号，骨架 UI 不渲染（协议事件不等于渲染事件）。
 """
 
