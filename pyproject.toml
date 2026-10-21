@@ -30,6 +30,13 @@ gui = [
     "mistune>=3.0.0",
 ]
 
+[project.scripts]
+intelliagent = "src.headless.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
