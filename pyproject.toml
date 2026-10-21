@@ -31,6 +31,13 @@ gui = [
     "mistune>=3.0.0",
 ]
 
+[project.scripts]
+intelliagent = "src.headless.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
@@ -41,6 +48,11 @@ line-length = 120
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
+
+[tool.ruff.lint.isort]
+# 包名 src 在 editable 安装后会被 isort 误判为 third-party（本地/CI 环境检测不一致，
+# CI 曾因此对同一文件给出不同判定）；显式声明消除歧义。
+known-first-party = ["src"]
 
 [tool.ruff.format]
 quote-style = "double"

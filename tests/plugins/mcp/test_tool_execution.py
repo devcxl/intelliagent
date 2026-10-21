@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from src.plugins.mcp import McpPlugin, McpTool
-from src.plugins.mcp.connection import McpCallResult
-
 from src.core.plugin_host import CapabilityKind, PluginHost
 from src.core.tool_pipeline import ToolPipeline, ToolRequest
+from src.plugins.mcp import McpPlugin, McpTool
+from src.plugins.mcp.connection import McpCallResult
 from tests.plugins.mcp.fakes import FakeConnection, FakeConnector, demo_config, tool_definition
 
 ECHO_SCHEMA: dict[str, Any] = {
