@@ -32,6 +32,7 @@ class ScriptedRunner:
         self.steered: list[str] = []
         self.follow_ups: list[str] = []
         self.gate: asyncio.Event | None = None
+        self.raise_error: Exception | None = None
         self._scripts: list[list[AgentEvent]] = []
 
     def enqueue(self, *events: AgentEvent) -> None:
@@ -48,6 +49,8 @@ class ScriptedRunner:
         self.tasks.append(task)
         for event in self._scripts.pop(0) if self._scripts else []:
             self.sink.emit(event)
+        if self.raise_error is not None:
+            raise self.raise_error
         if self.gate is not None:
             await self.gate.wait()
         return RunResult(outcome="settled", turns=1, stop_reason="stop")
