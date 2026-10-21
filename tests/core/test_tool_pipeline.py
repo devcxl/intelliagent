@@ -22,6 +22,7 @@ from src.core.tool_pipeline import (
     ToolPipeline,
     ToolRequest,
 )
+from src.core.turn_hooks import PrepareRequestHook, RequestContext
 from src.plugins.basic_tools import BasicToolsPlugin, ToolSpec, tool_error, tool_success
 from src.utils.path_policy import PathPolicy
 from tests.core.plugin_host.fakes import FakePlugin, build_manifest
@@ -522,3 +523,37 @@ class TestReviewRegressions:
         observation = await pipeline.run(ToolRequest(tool_call_id="c1", name="t", arguments=None))  # type: ignore[arg-type]
         assert observation.status == "error"
         assert "must be a mapping or JSON string" in (observation.error or "")
+
+
+class TestTurnHookPassThrough:
+    """turn 边界 hook（T7b）与工具 hook 同走 CapabilityKind.HOOK：流水线跳过它们，未知形态仍显式拒绝。"""
+
+    async def test_from_host_passes_turn_hooks_without_running_them_in_the_tool_chain(self) -> None:
+        calls: list[str] = []
+
+        async def prepare(request: RequestContext) -> None:
+            calls.append("prepare_request")
+
+        host = PluginHost()
+        tool_capability = CapabilityDeclaration(kind=CapabilityKind.TOOL, name="echo")
+        hook_capability = CapabilityDeclaration(kind=CapabilityKind.HOOK, name="engine.prepare_request")
+        host.load(FakePlugin(manifest=build_manifest(name="echo-tool", capabilities=(tool_capability,)),
+                             providers={(CapabilityKind.TOOL, "echo"): make_tool([])}))
+        host.load(FakePlugin(manifest=build_manifest(name="turn-hooks", capabilities=(hook_capability,)),
+                             providers={(CapabilityKind.HOOK, "engine.prepare_request"): PrepareRequestHook(callback=prepare)}))
+        pipeline = ToolPipeline.from_host(host)
+
+        observation = await pipeline.run(make_request())
+
+        assert observation.status == "success"
+        assert calls == []
+
+    async def test_result_envelope_terminate_flag_lands_on_observation(self) -> None:
+        """工具经结果信封 {"status": "ok", "terminate": true} 请求终止；默认 False。"""
+        pipeline = ToolPipeline(tools={"t": make_tool([], result=tool_success(terminate=True))})
+        observation = await pipeline.run(make_request())
+        assert observation.terminate is True
+
+        pipeline = ToolPipeline(tools={"t": make_tool([])})
+        observation = await pipeline.run(make_request())
+        assert observation.terminate is False
