@@ -14,7 +14,8 @@ from typing import TextIO
 
 from src.config.yaml_config import IntelliAgentConfig
 from src.core.plugin_host import CapabilityKind, Plugin, PluginHost, discover_entry_points, resolve_plugin
-from src.llm.litellm_client import LiteLLMClient
+from src.llm.client import ProviderClient
+from src.llm.protocols.litellm_adapter import LitellmAdapter
 from src.llm.stream import LLMClient
 from src.plugins.basic_tools import BasicToolsPlugin
 from src.plugins.storage import StoragePlugin
@@ -40,8 +41,8 @@ def redact_secrets(text: str) -> str:
 
 
 def create_llm_client() -> LLMClient:
-    """默认 LLM 客户端（litellm 统一接入）；测试经 monkeypatch 替换为 fake。"""
-    return LiteLLMClient()
+    """默认 LLM 客户端（litellm 临时适配器）；测试经 monkeypatch 替换为 fake。"""
+    return ProviderClient(LitellmAdapter())
 
 
 def build_host(config: IntelliAgentConfig) -> PluginHost:

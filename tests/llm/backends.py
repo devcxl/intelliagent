@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.llm.litellm_client import LiteLLMClient
+from src.llm.client import ProviderClient
 from src.llm.stream import StreamRequest
 from tests.llm.recorded import (
     EXPECTED_TOOL_NAME,
@@ -28,7 +28,7 @@ class FakeBackend:
     """录制传输后端：每个场景请求前先录制对应的 chunk 序列。"""
 
     recorder: Recorder
-    client: LiteLLMClient
+    client: ProviderClient
 
     def text_request(self) -> StreamRequest:
         self.recorder.record(
@@ -55,7 +55,7 @@ class FakeBackend:
 class RealBackend:
     """真实 litellm 后端：构造确定性尽量高的真实请求。"""
 
-    client: LiteLLMClient
+    client: ProviderClient
 
     def text_request(self) -> StreamRequest:
         return StreamRequest(

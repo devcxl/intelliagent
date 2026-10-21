@@ -114,3 +114,8 @@ class LLMClient(Protocol):
             流式事件迭代器：text/toolcall 增量在前，Done 收尾（出错时 Error 先于 Done）。
         """
         ...
+
+
+def abort_requested(abort: threading.Event | None) -> bool:
+    """中止信号是否已置位；None 表示未提供信号。"""
+    return abort is not None and abort.is_set()

@@ -1,1 +1,1 @@
-"""LLM 接入层测试（src/llm/stream.py + src/llm/litellm_client.py）。"""
+"""LLM 接入层测试（流协议、编排层与协议适配器）。"""

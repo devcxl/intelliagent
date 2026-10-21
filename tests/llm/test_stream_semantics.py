@@ -6,7 +6,8 @@ import threading
 
 import pytest
 
-from src.llm.litellm_client import LiteLLMClient
+from src.llm.client import ProviderClient
+from src.llm.protocols.litellm_adapter import LitellmAdapter
 from src.llm.stream import Done, Error, StreamRequest, TextDelta, ToolCallDelta, Usage
 from tests.llm.recorded import (
     FAKE_MODEL,
@@ -23,7 +24,7 @@ def _request() -> StreamRequest:
     return StreamRequest(model=FAKE_MODEL, messages=[{"role": "user", "content": "hi"}])
 
 
-def test_event_sequence_matches_recorded_stream(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_event_sequence_matches_recorded_stream(recorder: Recorder, client: ProviderClient) -> None:
     recorder.record(
         [
             text_chunk("hel"),
@@ -60,7 +61,7 @@ def test_event_sequence_matches_recorded_stream(recorder: Recorder, client: Lite
     ],
 )
 def test_stop_reason_classification(
-    recorder: Recorder, client: LiteLLMClient, finish_reason: str | None, expected: str
+    recorder: Recorder, client: ProviderClient, finish_reason: str | None, expected: str
 ) -> None:
     recorder.record([text_chunk("x"), finish_chunk(finish_reason)])
 
@@ -70,7 +71,7 @@ def test_stop_reason_classification(
     assert events[-1].stop_reason == expected
 
 
-def test_usage_ledger_records_every_response(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_usage_ledger_records_every_response(recorder: Recorder, client: ProviderClient) -> None:
     recorder.record([text_chunk("one"), finish_chunk("stop", usage(10, 5, 15))])
     recorder.record([text_chunk("two"), finish_chunk("stop", usage(7, 3, 10))])
 
@@ -82,7 +83,7 @@ def test_usage_ledger_records_every_response(recorder: Recorder, client: LiteLLM
     assert client.usage_log == [Usage(10, 5, 15), Usage(7, 3, 10)]
 
 
-def test_usage_only_chunk_is_collected(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_usage_only_chunk_is_collected(recorder: Recorder, client: ProviderClient) -> None:
     recorder.record([text_chunk("hi"), finish_chunk("stop"), usage_only_chunk(usage(10, 5, 15))])
 
     events = list(client.stream(_request()))
@@ -90,7 +91,7 @@ def test_usage_only_chunk_is_collected(recorder: Recorder, client: LiteLLMClient
     assert events[-1] == Done("stop", Usage(10, 5, 15))
 
 
-def test_request_fields_pass_through_to_litellm(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_request_fields_pass_through_to_litellm(recorder: Recorder, client: ProviderClient) -> None:
     tools = [{"type": "function", "function": {"name": "get_weather"}}]
     recorder.record([finish_chunk("stop", usage(1, 1, 2))])
     request = StreamRequest(
@@ -113,7 +114,7 @@ def test_request_fields_pass_through_to_litellm(recorder: Recorder, client: Lite
     assert call["stream_options"] == {"include_usage": True}
 
 
-def test_tools_request_skips_litellm_mcp_gateway(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_tools_request_skips_litellm_mcp_gateway(recorder: Recorder, client: ProviderClient) -> None:
     """tools 非空时跳过 litellm 的 MCP 网关导入：该分支要求 mcp>=2.2，本项目锁 mcp 1.x。
 
     回归：缺该参数时 litellm 在发出请求前就 ImportError（CacheableResult），工具调用全不可用。
@@ -126,7 +127,7 @@ def test_tools_request_skips_litellm_mcp_gateway(recorder: Recorder, client: Lit
     assert recorder.calls[0]["_skip_mcp_handler"] is True
 
 
-def test_abort_before_stream_ends_with_aborted(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_abort_before_stream_ends_with_aborted(recorder: Recorder, client: ProviderClient) -> None:
     abort = threading.Event()
     abort.set()
 
@@ -136,7 +137,7 @@ def test_abort_before_stream_ends_with_aborted(recorder: Recorder, client: LiteL
     assert recorder.calls == []
 
 
-def test_abort_mid_stream_ends_with_aborted(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_abort_mid_stream_ends_with_aborted(recorder: Recorder, client: ProviderClient) -> None:
     recorder.record([text_chunk("one"), text_chunk("two"), text_chunk("three"), finish_chunk("stop", usage(1, 1, 2))])
     abort = threading.Event()
     stream = client.stream(_request(), abort=abort)
@@ -169,12 +170,12 @@ class TestReviewRegressions:
 
         chunks = [text_chunk("hi"), finish_chunk("stop", usage(1, 1, 2))]
         recorder.record(ClosePoisonStream(chunks))
-        client = LiteLLMClient(sleep=recorder.sleep)
+        client = ProviderClient(LitellmAdapter(), sleep=recorder.sleep)
         events = list(client.stream(_request()))
         assert sum(isinstance(e, Done) for e in events) == 1
         assert not any(isinstance(e, Error) for e in events)
 
-    def test_unknown_finish_reason_maps_to_length_not_stop(self, recorder: Recorder, client: LiteLLMClient) -> None:
+    def test_unknown_finish_reason_maps_to_length_not_stop(self, recorder: Recorder, client: ProviderClient) -> None:
         """content_filter 等未知 finish_reason 携带残缺 tool call，必须归 length（US22）。"""
         recorder.record(
             [tool_chunk(index=0, id="c1", name="f", arguments='{"a": '), finish_chunk("content_filter", None)]
@@ -193,14 +194,14 @@ class TestReviewRegressions:
             yield text_chunk("more")
 
         recorder.record(episode())
-        client = LiteLLMClient(sleep=recorder.sleep)
+        client = ProviderClient(LitellmAdapter(), sleep=recorder.sleep)
         events = list(client.stream(_request(), abort=abort))
         done = [e for e in events if isinstance(e, Done)][-1]
         assert done.stop_reason == "aborted"
         assert done.usage is not None  # 已消耗的 token 不丢账
         assert client.usage_log == [done.usage]
 
-    def test_programming_errors_are_not_swallowed_into_stream(self, recorder: Recorder, client: LiteLLMClient) -> None:
+    def test_programming_errors_are_not_swallowed_into_stream(self, recorder: Recorder, client: ProviderClient) -> None:
         """TypeError 等编程错误必须 rethrow，不得伪装成模型错误进流。"""
 
         class BrokenStream:

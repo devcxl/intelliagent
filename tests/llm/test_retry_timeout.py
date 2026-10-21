@@ -9,7 +9,8 @@ import pytest
 from litellm.exceptions import BadRequestError, RateLimitError
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
-from src.llm.litellm_client import LiteLLMClient
+from src.llm.client import ProviderClient
+from src.llm.protocols.litellm_adapter import LitellmAdapter
 from src.llm.stream import Done, Error, StreamRequest, TextDelta, Usage
 from tests.llm.recorded import FAKE_MODEL, Recorder, finish_chunk, text_chunk, usage
 
@@ -18,7 +19,7 @@ def _request() -> StreamRequest:
     return StreamRequest(model=FAKE_MODEL, messages=[{"role": "user", "content": "hi"}])
 
 
-def test_timeout_retries_then_succeeds(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_timeout_retries_then_succeeds(recorder: Recorder, client: ProviderClient) -> None:
     recorder.record(TimeoutError("connect timed out"))
     recorder.record([text_chunk("ok"), finish_chunk("stop", usage(10, 5, 15))])
 
@@ -29,7 +30,7 @@ def test_timeout_retries_then_succeeds(recorder: Recorder, client: LiteLLMClient
     assert recorder.sleeps == [1.0]
 
 
-def test_litellm_transient_errors_retry_with_growing_backoff(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_litellm_transient_errors_retry_with_growing_backoff(recorder: Recorder, client: ProviderClient) -> None:
     recorder.record(LiteLLMTimeout(message="t", model="m", llm_provider="p"))
     recorder.record(RateLimitError(message="r", model="m", llm_provider="p"))
     recorder.record([finish_chunk("stop", usage(1, 1, 2))])
@@ -42,7 +43,7 @@ def test_litellm_transient_errors_retry_with_growing_backoff(recorder: Recorder,
     assert recorder.sleeps == [1.0, 2.0]
 
 
-def test_retries_exhausted_emits_error_event(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_retries_exhausted_emits_error_event(recorder: Recorder, client: ProviderClient) -> None:
     for _ in range(3):
         recorder.record(TimeoutError("boom"))
 
@@ -53,7 +54,7 @@ def test_retries_exhausted_emits_error_event(recorder: Recorder, client: LiteLLM
     assert recorder.sleeps == [1.0, 2.0]
 
 
-def test_non_retryable_error_fails_fast(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_non_retryable_error_fails_fast(recorder: Recorder, client: ProviderClient) -> None:
     recorder.record(BadRequestError(message="bad request", model="m", llm_provider="p"))
 
     events = list(client.stream(_request()))
@@ -64,7 +65,7 @@ def test_non_retryable_error_fails_fast(recorder: Recorder, client: LiteLLMClien
     assert recorder.sleeps == []
 
 
-def test_error_after_partial_stream_is_not_retried(recorder: Recorder, client: LiteLLMClient) -> None:
+def test_error_after_partial_stream_is_not_retried(recorder: Recorder, client: ProviderClient) -> None:
     def flaky_stream() -> Iterator[Any]:
         yield text_chunk("partial")
         raise ConnectionError("stream dropped")
@@ -79,7 +80,7 @@ def test_error_after_partial_stream_is_not_retried(recorder: Recorder, client: L
 
 
 def test_request_timeout_forwarded_to_litellm(recorder: Recorder) -> None:
-    client = LiteLLMClient(request_timeout=30.0, sleep=recorder.sleep)
+    client = ProviderClient(LitellmAdapter(), request_timeout=30.0, sleep=recorder.sleep)
     recorder.record([finish_chunk("stop", usage(1, 1, 2))])
 
     list(client.stream(_request()))
@@ -88,7 +89,7 @@ def test_request_timeout_forwarded_to_litellm(recorder: Recorder) -> None:
 
 
 def test_retry_budget_is_finite(recorder: Recorder) -> None:
-    client = LiteLLMClient(max_retries=0, sleep=recorder.sleep)
+    client = ProviderClient(LitellmAdapter(), max_retries=0, sleep=recorder.sleep)
     recorder.record(TimeoutError("boom"))
 
     events = list(client.stream(_request()))
@@ -123,10 +124,31 @@ class TestRealPathRetryContract:
             return real_completion(**kwargs)
 
         monkeypatch.setattr(litellm, "completion", fail_once_then_real)
-        client = LiteLLMClient()
+        client = ProviderClient(LitellmAdapter())
         events = list(
             client.stream(StreamRequest(model="openai/gpt-4o-mini", messages=[{"role": "user", "content": "hi"}]))
         )
         assert calls["n"] == 2  # 故障一次 + 真实重试一次
         assert isinstance(events[-1], Done) and events[-1].stop_reason == "stop"
         assert client.usage_log  # 真实 usage 落账
+
+
+def test_close_failure_before_done_is_treated_as_call_error(recorder: Recorder) -> None:
+    """close 在 Done 之前失败时按调用类错误进流，而不是同步抛出（T0 回归）。"""
+
+    class FailingStream:
+        def __iter__(self) -> object:
+            return self
+
+        def __next__(self) -> object:
+            raise ConnectionError("stream dropped")
+
+        def close(self) -> None:
+            raise ConnectionError("close failed")
+
+    recorder.record(FailingStream())
+    client = ProviderClient(LitellmAdapter(), max_retries=0, sleep=recorder.sleep)
+
+    events = list(client.stream(_request()))
+
+    assert events == [Error("ConnectionError: close failed"), Done("error", None)]

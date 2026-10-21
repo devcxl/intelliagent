@@ -8,7 +8,8 @@ from collections.abc import Iterator
 import litellm
 import pytest
 
-from src.llm.litellm_client import LiteLLMClient
+from src.llm.client import ProviderClient
+from src.llm.protocols.litellm_adapter import LitellmAdapter
 from tests.llm.backends import Backend, FakeBackend, RealBackend
 from tests.llm.recorded import Recorder
 
@@ -24,9 +25,9 @@ def recorder(monkeypatch: pytest.MonkeyPatch) -> Recorder:
 
 
 @pytest.fixture
-def client(recorder: Recorder) -> LiteLLMClient:
+def client(recorder: Recorder) -> ProviderClient:
     """录制传输上的客户端；退避只记录不等待。"""
-    return LiteLLMClient(sleep=recorder.sleep)
+    return ProviderClient(LitellmAdapter(), sleep=recorder.sleep)
 
 
 @pytest.fixture(params=["fake", "real"])
@@ -39,10 +40,10 @@ def backend(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> 
     if request.param == "fake":
         rec = Recorder()
         monkeypatch.setattr(litellm, "completion", rec.completion)
-        yield FakeBackend(recorder=rec, client=LiteLLMClient(sleep=rec.sleep))
+        yield FakeBackend(recorder=rec, client=ProviderClient(LitellmAdapter(), sleep=rec.sleep))
     else:
         if not request.node.get_closest_marker("integration"):
             pytest.skip("真实路径需显式 opt-in：pytest -m integration（避免默认触网）")
         if not os.environ.get("OPENAI_API_KEY"):
             pytest.skip("需要 OPENAI_API_KEY 环境变量（真实 litellm 路径）")
-        yield RealBackend(client=LiteLLMClient())
+        yield RealBackend(client=ProviderClient(LitellmAdapter()))

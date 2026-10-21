@@ -1,14 +1,13 @@
-"""litellm 统一模型接入：消费 litellm 流式接口，产出统一流协议事件（src/llm/stream.py）。
+"""litellm 临时适配器（T0）：保留既有传输行为，作为编排层替换前的过渡实现。
 
-provider 差异由 litellm 的 model 字符串（如 "openai/gpt-4o"）收敛，本模块不做 provider 分类。
-照搬 pi 的两条纪律（docs/pi-engine-principles.md §7）：错误进流而非同步抛出、usage 逐响应落账。
+T1 用原生 openai-compatible 适配器取代本模块后删除。这里的职责只有：
+请求参数拼装、流 chunk 翻译、litellm/OpenAI 异常到 ProviderError 的分类。
 """
 
 from __future__ import annotations
 
 import threading
-import time
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from typing import Any
 
 import litellm
@@ -22,7 +21,8 @@ from litellm.exceptions import (
 )
 from openai import OpenAIError
 
-from src.llm.stream import Done, Error, LLMEvent, StopReason, StreamRequest, TextDelta, ToolCallDelta, Usage
+from src.llm.errors import ProviderError
+from src.llm.stream import Done, LLMEvent, StopReason, StreamRequest, TextDelta, ToolCallDelta, Usage, abort_requested
 
 # 调用类异常：进入流（Error + Done("error")）而非同步抛出（pi 纪律）。
 # 基类用 openai.OpenAIError——litellm 的全部 API 异常（BadRequest/Timeout/RateLimit...）继承它。
@@ -43,76 +43,24 @@ _RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
 _COMPLETE_FINISH_REASONS = frozenset({"stop", "tool_calls", "function_call"})
 
 
-class LiteLLMClient:
-    """基于 litellm 的 LLMClient 实现：token 级流式、usage 落账、超时重试。
+class LitellmAdapter:
+    """把 litellm 的一次流式调用翻译为统一 LLMEvent 序列。"""
 
-    Attributes:
-        usage_log: 逐响应落账的 token 用量（每个正常完成的响应一条）。
-    """
-
-    def __init__(
-        self,
-        *,
-        request_timeout: float = 60.0,
-        max_retries: int = 2,
-        backoff_base_seconds: float = 1.0,
-        sleep: Callable[[float], None] = time.sleep,
-    ) -> None:
-        """初始化客户端。
-
-        Args:
-            request_timeout: 单次模型调用的超时（秒），透传给 litellm。
-            max_retries: 瞬时错误的最大重试次数（总尝试次数 = max_retries + 1，不做无限重试）。
-            backoff_base_seconds: 退避基数（秒），第 n 次重试前等待 backoff_base * 2**n。
-            sleep: 退避等待函数，测试中注入以记录延迟而不真正等待。
-        """
-        self._request_timeout = request_timeout
-        self._max_retries = max_retries
-        self._backoff_base_seconds = backoff_base_seconds
-        self._sleep = sleep
-        self.usage_log: list[Usage] = []
-
-    def stream(self, request: StreamRequest, *, abort: threading.Event | None = None) -> Iterator[LLMEvent]:
+    def stream(
+        self, request: StreamRequest, abort: threading.Event | None = None, *, timeout: float
+    ) -> Iterator[LLMEvent]:
         """产出一次模型响应的流式事件序列，每条流以恰好一个 Done 结束。"""
-        yield from self._stream_with_retries(request, abort)
-
-    def _stream_with_retries(self, request: StreamRequest, abort: threading.Event | None) -> Iterator[LLMEvent]:
-        failed_attempts = 0
-        while True:
-            if _is_aborted(abort):
-                yield Done(stop_reason="aborted", usage=None)
-                return
-            emitted = False
-            try:
-                for event in self._attempt(request, abort):
-                    emitted = True
-                    yield event
-                return
-            except Exception as exc:
-                # 只处理调用类异常（litellm/OpenAIError、超时、网络）；编程错误
-                # （AttributeError/TypeError 等 bug）必须原样抛出，不伪装成模型错误进流。
-                if not isinstance(exc, _CALL_EXCEPTIONS):
-                    raise
-                # 已产出增量的流不重试：重放会把增量重复发给消费者；错误进流而非同步抛出。
-                if not emitted and failed_attempts < self._max_retries and isinstance(exc, _RETRYABLE_EXCEPTIONS):
-                    self._sleep(self._backoff_base_seconds * (2**failed_attempts))
-                    failed_attempts += 1
-                    continue
-                yield Error(message=f"{type(exc).__name__}: {exc}")
-                yield Done(stop_reason="error", usage=None)
-                return
-
-    def _attempt(self, request: StreamRequest, abort: threading.Event | None) -> Iterator[LLMEvent]:
-        stream = self._open_stream(request)
+        try:
+            stream = self._open_stream(request, timeout)
+        except _CALL_EXCEPTIONS as exc:
+            raise _provider_error(exc) from exc
         done_yielded = False
         try:
             finish_reason: str | None = None
             usage: Usage | None = None
             for chunk in stream:
-                if _is_aborted(abort):
-                    # abort 时已消耗的 token 仍要落账（pi 纪律：usage 逐响应落账）。
-                    if usage is not None:
-                        self.usage_log.append(usage)
+                if abort_requested(abort):
+                    # abort 时已消耗的 token 仍随 Done 落账（编排层从 Done 记账）。
                     done_yielded = True
                     yield Done(stop_reason="aborted", usage=usage)
                     return
@@ -131,28 +79,31 @@ class LiteLLMClient:
                     if chunk_finish is not None:
                         finish_reason = chunk_finish
             done = Done(stop_reason=_map_stop_reason(finish_reason), usage=usage)
-            if usage is not None:
-                self.usage_log.append(usage)
             done_yielded = True
             yield done
+        except _CALL_EXCEPTIONS as exc:
+            raise _provider_error(exc) from exc
         finally:
             close = getattr(stream, "close", None)
             if callable(close):
                 try:
                     close()
-                except Exception:
+                except _CALL_EXCEPTIONS as exc:
                     # close 失败仅在 Done 尚未产出时才可行动（抛给重试/错误进流）；
                     # Done 之后的清理异常不得二次产出事件破坏"恰好一个 Done"协议。
                     if not done_yielded:
+                        raise _provider_error(exc) from exc
+                except Exception:
+                    if not done_yielded:
                         raise
 
-    def _open_stream(self, request: StreamRequest) -> Any:
+    def _open_stream(self, request: StreamRequest, timeout: float) -> Any:
         kwargs: dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
             "stream": True,
             "stream_options": {"include_usage": True},
-            "timeout": self._request_timeout,
+            "timeout": timeout,
         }
         if request.tools is not None:
             kwargs["tools"] = request.tools
@@ -163,13 +114,13 @@ class LiteLLMClient:
         # litellm 1.106 只要 tools 非空就导入其 proxy MCP 模块，该模块要求 mcp>=2.2；
         # 本项目锁定的 mcp 1.x 没有 CacheableResult，运行期 ImportError 会让所有工具调用不可用。
         # 本项目不使用 litellm 的 MCP 网关（MCP 由内置插件自管），故跳过该分支。
-        # 解除条件：mcp 升到 2.x（或 litellm 改为按需导入）后删除此参数。
+        # T1 用原生适配器取代 litellm 后随本模块一起删除。
         kwargs["_skip_mcp_handler"] = True
         return litellm.completion(**kwargs)
 
 
-def _is_aborted(abort: threading.Event | None) -> bool:
-    return abort is not None and abort.is_set()
+def _provider_error(exc: Exception) -> ProviderError:
+    return ProviderError(f"{type(exc).__name__}: {exc}", retryable=isinstance(exc, _RETRYABLE_EXCEPTIONS))
 
 
 def _field(obj: Any, name: str) -> Any:

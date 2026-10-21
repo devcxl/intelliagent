@@ -31,7 +31,7 @@ IntelliAgent is a coding-agent skeleton, not a web application. Its architecture
 
 - `src/core/`: Engine loop, plugin host, tool pipeline, compaction. No provider-specific setup and no persistence ownership.
 - `src/plugins/`: Built-in plugins (basic_tools, mcp, skill, storage). Same contract as external plugins.
-- `src/llm/`: litellm-based model access. No agent-loop policy.
+- `src/llm/`: Streaming protocol, orchestration (retry/abort/usage), protocol adapters. No agent-loop policy.
 - `src/runtime/`: Composition root (config → PluginHost → Engine).
 - `src/config/`: YAML settings only.
 - `src/tui/` + `src/headless/`: Frontends consuming the engine event stream only.

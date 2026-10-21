@@ -124,7 +124,7 @@ _Avoid_: CLI mode, batch mode
 src/
 ├── core/        Engine、hook 管线、插件宿主（PluginHost）。无 provider 细节，无持久化所有权
 ├── plugins/     内置插件：read/write/bash/edit/grep、mcp、skill、storage
-├── llm/         litellm 统一接入
+├── llm/         流协议、编排层（重试/abort/usage）与协议适配器
 ├── config/      YAML 配置读取
 ├── runtime/     组合根（plugin_assembly：配置 → PluginHost → Engine）
 ├── utils/       路径策略（PathPolicy）
