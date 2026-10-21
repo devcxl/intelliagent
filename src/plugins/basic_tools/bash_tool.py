@@ -23,11 +23,13 @@ async def run_bash(command: str, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> st
         return tool_error("EMPTY_COMMAND", "command 参数为空或仅包含空格")
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
         return tool_error("INVALID_ARGUMENT", "timeout 必须为正数（秒）")
+    if timeout > MAX_TIMEOUT_SECONDS:
+        return tool_error("INVALID_ARGUMENT", f"timeout 超出上限 {MAX_TIMEOUT_SECONDS} 秒（收到 {timeout}）")
     shell_path = shutil.which("bash") or shutil.which("sh")
     if shell_path is None:
         return tool_error("SHELL_NOT_FOUND", "PATH 上找不到 bash/sh，无法执行命令")
 
-    timeout = min(float(timeout), MAX_TIMEOUT_SECONDS)
+    timeout = float(timeout)
     accumulator = OutputAccumulator(
         max_lines=TAIL_MAX_LINES, max_chars=TAIL_MAX_CHARS, offload_prefix="intelliagent-bash"
     )

@@ -5,8 +5,14 @@ from __future__ import annotations
 import codecs
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import TextIO
+
+# 落盘文件的保留窗口：超龄文件在下次落盘时顺带清理（/tmp 由系统回收兜底）。
+OFFLOAD_MAX_AGE_SECONDS = 24 * 60 * 60
+# LineSplitter 单行缓冲上限：超长无换行内容（压缩 JS 等）截断后按行吐出，避免无界堆积。
+MAX_LINE_CHARS = 64 * 1024
 
 
 class OutputAccumulator:
@@ -45,6 +51,8 @@ class OutputAccumulator:
         if remainder:
             self._total_chars += len(remainder)
             self._tail = (self._tail + remainder)[-self._max_chars :]
+            if self._offload_file is not None:
+                self._offload_file.write(remainder)  # 尾部 flush 也进落盘，保证"完整输出"真的完整
         if self._offload_file is not None:
             self._offload_file.close()
             self._offload_file = None
@@ -74,12 +82,29 @@ class OutputAccumulator:
         return self._total_chars > self._max_chars or self._total_lines > self._max_lines
 
     def _open_offload(self) -> None:
+        _cleanup_stale_offloads(self._offload_prefix)
         fd, name = tempfile.mkstemp(prefix=self._offload_prefix, suffix=".log")
         self._offload_path = Path(name)
         self._offload_file = os.fdopen(fd, "w", encoding="utf-8")
         if self._accumulated:
             self._offload_file.write(self._accumulated)
             self._accumulated = ""
+
+
+def _cleanup_stale_offloads(prefix: str, max_age_seconds: int = OFFLOAD_MAX_AGE_SECONDS) -> None:
+    """删除超龄的落盘文件，防止 /tmp 无界累积（当前落盘文件供调用方回读，24h 后回收）。"""
+    cutoff = time.time() - max_age_seconds
+    tmp_dir = Path(tempfile.gettempdir())
+    try:
+        candidates = tmp_dir.glob(f"{prefix}*.log")
+    except OSError:
+        return
+    for path in candidates:
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+        except OSError:
+            pass  # 竞争或已删除：清理尽力而为，/tmp 系统回收兜底
 
 
 class LineSplitter:
@@ -90,10 +115,16 @@ class LineSplitter:
         self._buffer = ""
 
     def feed(self, chunk: bytes) -> list[str]:
-        """消费一段字节，返回其中已完整的行（不含换行符）。"""
+        """消费一段字节，返回其中已完整的行（不含换行符）。
+
+        单行超过 MAX_LINE_CHARS 时截断吐出（附加标记），避免无换行内容无界堆积。
+        """
         self._buffer += self._decoder.decode(chunk)
         parts = self._buffer.split("\n")
         self._buffer = parts.pop()
+        if len(self._buffer) > MAX_LINE_CHARS:
+            parts.append(self._buffer[:MAX_LINE_CHARS] + "...[line truncated]")
+            self._buffer = ""
         return [part[:-1] if part.endswith("\r") else part for part in parts]
 
     def close(self) -> list[str]:

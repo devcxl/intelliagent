@@ -53,7 +53,8 @@ async def run_grep(pattern: str, path: str = ".", *, path_policy: PathPolicy | N
             file_name, line_number, text = parsed
             clipped = text[:MAX_LINE_CHARS]
             matches.append({"file": file_name, "line_number": line_number, "line": clipped})
-            collected_chars += len(clipped)
+            # 总量口径含字段开销（pi §5："整体 50KB"指序列化结果而非纯正文）
+            collected_chars += len(clipped) + len(file_name) + len(str(line_number)) + 64
             if len(matches) >= MAX_MATCHES or collected_chars >= MAX_RESULT_CHARS:
                 limit_reached = True
                 return

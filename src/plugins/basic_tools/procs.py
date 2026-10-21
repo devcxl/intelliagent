@@ -23,13 +23,14 @@ class ProcessOutcome(NamedTuple):
 
 
 def kill_process_group(process: asyncio.subprocess.Process) -> None:
-    """SIGKILL 整个进程组（配合 start_new_session），进程已退出时静默返回。"""
+    """SIGKILL 整个进程组（配合 start_new_session），进程已退出时静默返回。
+
+    注意：pgid 必须用 spawn 时固化的 pid（start_new_session 下子进程即组长），
+    不能运行时 getpgid——直接子进程被 reaped 后 getpgid 抛 ProcessLookupError
+    会静默跳过 kill，同组孙进程存活（US13：不得留孤儿进程）。
+    """
     try:
-        pgid = os.getpgid(process.pid)
-    except ProcessLookupError:
-        return
-    try:
-        os.killpg(pgid, signal.SIGKILL)
+        os.killpg(process.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass  # 进程组已消失
 

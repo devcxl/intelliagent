@@ -33,9 +33,35 @@ async def run_read(
     if file_path.is_dir():
         return tool_error("IS_DIRECTORY", f"路径是目录而非文件: {file_path}", path=str(file_path))
 
-    text = file_path.read_text(encoding="utf-8", errors="replace")
-    lines = text.splitlines()
-    total_lines = len(lines)
+    # 单遍流式读取：只保留窗口内容，总行数边读边计，内存 O(窗口) 而非 O(文件)。
+    lines_in_window: list[str] = []
+    total_lines = 0
+    end_line = offset - 1
+    line_cut = False
+    window_exhausted = False
+    end_candidate = offset - 1 + min(limit, MAX_READ_LINES)
+    used = 0
+    with file_path.open(encoding="utf-8", errors="replace") as handle:
+        for index, raw_line in enumerate(handle, start=1):
+            total_lines = index
+            if index < offset or window_exhausted:
+                continue
+            line = raw_line.rstrip("\n")
+            if index > end_candidate:
+                window_exhausted = True
+                continue
+            extra = len(line) + (1 if lines_in_window else 0)
+            if used + extra > MAX_RESULT_CHARS:
+                if not lines_in_window:
+                    lines_in_window.append(line[:MAX_RESULT_CHARS])
+                    end_line += 1
+                    line_cut = True
+                window_exhausted = True
+                continue
+            lines_in_window.append(line)
+            used += extra
+            end_line += 1
+
     if total_lines == 0:
         if offset != 1:
             return tool_error("OFFSET_OUT_OF_RANGE", f"offset {offset} 超出文件行数 0", total_lines=0)
@@ -45,22 +71,7 @@ async def run_read(
     if offset > total_lines:
         return tool_error("OFFSET_OUT_OF_RANGE", f"offset {offset} 超出文件行数 {total_lines}", total_lines=total_lines)
 
-    end_candidate = min(offset - 1 + min(limit, MAX_READ_LINES), total_lines)
-    selected: list[str] = []
-    used = 0
-    end_line = offset - 1
-    line_cut = False
-    for line in lines[offset - 1 : end_candidate]:
-        extra = len(line) + (1 if selected else 0)
-        if used + extra > MAX_RESULT_CHARS:
-            if not selected:
-                selected.append(line[:MAX_RESULT_CHARS])
-                end_line += 1
-                line_cut = True
-            break
-        selected.append(line)
-        used += extra
-        end_line += 1
+    selected = lines_in_window
 
     notes: list[str] = []
     if line_cut:
