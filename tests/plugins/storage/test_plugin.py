@@ -39,3 +39,18 @@ async def test_storage_plugin_default_config_registers_provider() -> None:
 def test_storage_plugin_rejects_unknown_config_fields() -> None:
     with pytest.raises(PluginConfigError, match="bogus"):
         PluginHost().load(StoragePlugin(), {"bogus": 1})
+
+
+def test_register_rejects_wrong_config_type() -> None:
+    """错误配置类型必须显式报错，不得静默回退默认值（PR #70 审查 Standards medium）。"""
+    from pydantic import BaseModel
+
+    from src.core.plugin_host import CapabilityRegistrar
+
+    class WrongConfig(BaseModel):
+        pass
+
+    plugin = StoragePlugin()
+    registrar = CapabilityRegistrar(plugin.manifest.name, plugin.manifest)
+    with pytest.raises(TypeError, match="StorageConfig"):
+        plugin.register(registrar, WrongConfig())

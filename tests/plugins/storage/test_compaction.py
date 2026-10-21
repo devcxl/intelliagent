@@ -8,7 +8,6 @@ from src.plugins.storage import (
     ENTRY_TYPE_COMPACTION,
     ENTRY_TYPE_MESSAGE,
     CompactionRecord,
-    EntryNotFoundError,
     StorageError,
     StorageStore,
 )
@@ -19,7 +18,7 @@ async def test_compaction_round_trip(store: StorageStore) -> None:
     checkpoint = {"system_prompt": "You are IntelliAgent.", "tools": ["read", "bash"]}
 
     record = await store.append_compaction(
-        summary="前情已总结", first_kept_entry_id=kept.id, prompt_checkpoint=checkpoint
+        summary="前情已总结", first_kept_entry_id=kept.id, prompt_checkpoint=checkpoint, parent_id=kept.id
     )
 
     assert record.summary == "前情已总结"
@@ -32,9 +31,12 @@ async def test_compaction_round_trip(store: StorageStore) -> None:
     assert CompactionRecord.from_entry(loaded) == record
 
 
-async def test_append_compaction_requires_existing_first_kept(store: StorageStore) -> None:
-    with pytest.raises(EntryNotFoundError, match="first_kept_entry_id"):
-        await store.append_compaction(summary="s", first_kept_entry_id="missing", prompt_checkpoint={})
+async def test_append_compaction_requires_first_kept_on_branch(store: StorageStore) -> None:
+    root = await store.append_entry(ENTRY_TYPE_MESSAGE, {"n": 1})
+    with pytest.raises(StorageError, match="first_kept_entry_id"):
+        await store.append_compaction(
+            summary="s", first_kept_entry_id="missing", prompt_checkpoint={}, parent_id=root.id
+        )
 
 
 async def test_projection_without_compaction_returns_whole_path(store: StorageStore) -> None:
@@ -91,13 +93,39 @@ async def test_projection_uses_latest_compaction(store: StorageStore) -> None:
     assert await store.get_entry(first.entry_id) is not None
 
 
-async def test_projection_rejects_first_kept_off_branch(store: StorageStore) -> None:
+async def test_append_compaction_rejects_first_kept_off_branch(store: StorageStore) -> None:
+    """切点在兄弟分支上的坏记录在写入时即拒绝（append-only 无法事后修复）。"""
     root = await store.append_entry(ENTRY_TYPE_MESSAGE, {"n": 0})
     side = await store.append_entry(ENTRY_TYPE_MESSAGE, {"side": True}, parent_id=root.id)
     tip = await store.append_entry(ENTRY_TYPE_MESSAGE, {"tip": True}, parent_id=root.id)
-    compaction = await store.append_compaction(
-        summary="s", first_kept_entry_id=side.id, prompt_checkpoint={}, parent_id=tip.id
-    )
 
     with pytest.raises(StorageError, match="first_kept_entry_id"):
-        await store.projection(compaction.entry_id)
+        await store.append_compaction(summary="s", first_kept_entry_id=side.id, prompt_checkpoint={}, parent_id=tip.id)
+
+
+async def test_append_compaction_rejects_unserializable_checkpoint(store: StorageStore) -> None:
+    """checkpoint 必须 JSON 保真：int 键/不可序列化值在写入时拒绝（US37 保真）。"""
+    root = await store.append_entry(ENTRY_TYPE_MESSAGE, {"n": 1})
+    with pytest.raises(StorageError, match="prompt_checkpoint"):
+        await store.append_compaction(
+            summary="s", first_kept_entry_id=root.id, prompt_checkpoint={"bad": object()}, parent_id=root.id
+        )
+    with pytest.raises(StorageError, match="string"):
+        await store.append_compaction(
+            summary="s", first_kept_entry_id=root.id, prompt_checkpoint={1: "int key"}, parent_id=root.id
+        )
+
+
+async def test_run_status_fork_is_detected(store: StorageStore) -> None:
+    """状态链分叉（同一 parent 挂多个 run_status）必须显式报错而非静默取其一。"""
+
+    from src.plugins.storage.models import EntryRow
+
+    run = await store.append_run()
+    await store.append_run_status(run.run_id, status="ok")
+    # 绕过 API 直接造第二个子节点（模拟跨进程竞争写入）
+    async with store._session() as session:  # noqa: SLF001
+        session.add(EntryRow(id="forked", parent_id=run.run_id, type="run_status", payload={"status": "other"}))
+        await session.commit()
+    with pytest.raises(StorageError, match="forked"):
+        await store.get_run(run.run_id)

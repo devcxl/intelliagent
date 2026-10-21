@@ -30,5 +30,7 @@ class StoragePlugin:
     )
 
     def register(self, registrar: CapabilityRegistrar, config: BaseModel | None) -> None:
-        settings = config if isinstance(config, StorageConfig) else StorageConfig()
+        if config is not None and not isinstance(config, StorageConfig):
+            raise TypeError(f"storage plugin expects StorageConfig, got {type(config).__name__}")
+        settings = config if config is not None else StorageConfig()
         registrar.register(CapabilityKind.STORAGE, STORAGE_CAPABILITY_NAME, StorageStore(settings.database_url))
