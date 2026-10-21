@@ -1,0 +1,30 @@
+# IntelliAgent 配置示例（ADR 0009）
+#
+# 用法：
+#   cp intelliagent.yaml.example intelliagent.yaml
+#
+# 模型密钥按 litellm 惯例从环境变量读取（如 OpenAI 用 OPENAI_API_KEY），不要写进本文件。
+# 任意字符串值支持环境变量插值："{env:VAR}" 或 "{env:VAR:默认值}"（引号必须保留）。
+
+# 必填：litellm 模型标识（provider/model）。缺失时 TUI / 无头模式启动即报错。
+model: "openai/gpt-4o"
+
+# 工作区目录（TUI 状态栏显示）。
+# 注意：工具的文件路径边界目前由 INTELLIAGENT_WORKSPACE_ROOT 环境变量控制，不由该字段决定。
+workspace:
+  dir: "."
+
+plugins:
+  # 内置工具插件：read / write / edit / grep / bash。
+  basic-tools:
+    enabled: true
+
+  # 内置存储插件：SQLite append-only 记录（相对路径按启动目录解析）。
+  storage:
+    enabled: true
+    config:
+      database_url: "sqlite:///intelliagent.db"
+
+# 说明：mcp / skill 插件已在 src/plugins/ 实现契约，但尚未接入组合根
+# （src/runtime/plugin_assembly.py 当前只加载 basic-tools 与 storage）。
+# 接入前写 plugins.mcp / plugins.skill 不会生效。

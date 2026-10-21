@@ -29,24 +29,8 @@ src/
 # 安装依赖
 uv sync --extra dev
 
-# 配置
-touch intelliagent.yaml   # 见下方配置示例
-```
-
-`intelliagent.yaml`：
-
-```yaml
-model: "openai/gpt-4o"     # litellm 模型标识（provider/model）
-max_steps: 50
-workspace:
-  dir: "."
-plugins:
-  basic-tools:
-    enabled: true
-  skill:
-    enabled: true
-    config:
-      project_paths: [".agents/skills"]
+# 配置（字段与注释见示例文件）
+cp intelliagent.yaml.example intelliagent.yaml
 ```
 
 环境变量插值：`"{env:OPENAI_API_KEY}"` / `"{env:VAR:default}"`（引号必须保留）。
