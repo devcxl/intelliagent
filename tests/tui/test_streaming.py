@@ -172,3 +172,72 @@ async def test_half_message_flushed_on_runner_exception() -> None:
         assert views[1].rendered_text == "半程文本"
         assert "运行异常" in views[-1].text
         assert "出错" in app.query_one(StatusBar).text
+
+
+class TestReviewRegressions:
+    """PR #78 审查回归：半程清算钉死（变异敏感）、合并机制钉死、空态占位边角。"""
+
+    async def test_flush_pending_settles_message_without_message_end(self) -> None:
+        """缺 MessageEnd 的空消息经清算落空态占位，而非裸角色标签（Standards medium）。"""
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            await pilot.pause()
+            app._stream.flush_pending()  # 收束清算路径（异常/收束兜底）
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            assert view.rendered_text == "（无内容）"
+
+    async def test_settle_flushes_buffered_text_without_natural_flush_window(self) -> None:
+        """钉死清算：无自然 flush 窗口（不 pause）时缓冲文本必须经 settle 落屏。
+
+        变异敏感：settle/flush_pending 改回不落屏语义后本测试失败，
+        不依赖 call_later 的自然合并窗口（PR #78 审查 Spec medium）。
+        """
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            sink.emit(MessageUpdate("m1", TextDelta("half text")))
+            app._stream.flush_pending()  # 不 pause：合并窗口未到，清算必须兜住
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            assert view.rendered_text == "half text"
+
+    async def test_sync_burst_schedules_single_redraw(self) -> None:
+        """合并机制钉死：同步突发的多个增量只安排一次 call_later（pi requestRender 合并语义）。"""
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            view = app.query_one(MessageView)
+            scheduled: list[object] = []
+            original = view.call_later
+
+            def spy(callback):
+                scheduled.append(callback)
+                return original(callback)
+
+            view.call_later = spy  # type: ignore[method-assign]
+            sink.emit(MessageUpdate("m1", TextDelta("a")))
+            sink.emit(MessageUpdate("m1", TextDelta("b")))
+            sink.emit(MessageUpdate("m1", TextDelta("c")))
+            assert len(scheduled) == 1  # 合并标志生效：一次安排（变异敏感：去掉 _flush_scheduled 则为 3）
+            await pilot.pause()
+
+    async def test_flush_resets_merge_flag(self) -> None:
+        """flush 复位合并标志：回调被丢弃后后续增量仍能安排重绘（不悬挂）。"""
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            sink.emit(MessageUpdate("m1", TextDelta("a")))
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            view._flush_scheduled = True  # 模拟回调被丢弃的悬挂态  # noqa: SLF001
+            view.flush()  # 兜底路径复位标志
+            scheduled_after: list[object] = []
+            view.call_later = lambda cb: (scheduled_after.append(cb), True)[1]  # type: ignore[method-assign]
+            sink.emit(MessageUpdate("m1", TextDelta("b")))
+            assert len(scheduled_after) == 1

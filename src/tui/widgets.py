@@ -64,7 +64,12 @@ class MessageView(Static):
                 self._flush_soon()
 
     def flush(self) -> None:
-        """把缓冲的增量立即落屏（幂等；无待落屏内容时不动，避免多余重绘）。"""
+        """把缓冲的增量立即落屏（幂等；无待落屏内容时不动，避免多余重绘）。
+
+        顺带复位合并标志：call_later 回调被丢弃（pump 关闭竞态）时不留悬挂，
+        后续增量仍能安排重绘。
+        """
+        self._flush_scheduled = False
         if not self._dirty:
             return
         self._dirty = False
@@ -75,6 +80,10 @@ class MessageView(Static):
         self._finished = True
         self._dirty = True
         self.flush()
+
+    def settle(self) -> None:
+        """收束清算（缺 MessageEnd 的兜底）：缓冲落屏，空消息落空态占位而非裸角色标签。"""
+        self.finish()
 
     def _flush_soon(self) -> None:
         """合并窗口收口（call_later 回调）：一轮事件的增量在此合成一次重绘。"""
@@ -153,9 +162,10 @@ class MessageStream(VerticalScroll):
         self.scroll_end(animate=False)
 
     def flush_pending(self) -> None:
-        """半程清算：所有消息单元的缓冲增量立即落屏（缺 MessageEnd 的收束不悬挂文本）。"""
+        """半程清算：缺 MessageEnd 的消息按收束落屏——缓冲增量落屏，空消息落空态占位
+        （而非裸角色标签，PR #78 审查 Standards medium）。已 finish 的单元幂等跳过。"""
         for view in self.query(MessageView):
-            view.flush()
+            view.settle()
 
 
 class StatusBar(Static):
