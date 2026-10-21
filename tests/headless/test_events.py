@@ -6,7 +6,6 @@ import io
 import json
 
 import pytest
-from src.headless.events import JsonLineSink, delta_to_dict, event_to_dict, observation_to_dict
 
 from src.core.agent_events import (
     AgentEnd,
@@ -20,6 +19,7 @@ from src.core.agent_events import (
     TurnStart,
 )
 from src.core.tool_pipeline import Observation
+from src.headless.events import JsonLineSink, delta_to_dict, event_to_dict, observation_to_dict
 from src.llm.stream import Error, TextDelta, ToolCallDelta
 
 
