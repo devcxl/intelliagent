@@ -15,7 +15,8 @@ from typing import TextIO
 from src.config.yaml_config import IntelliAgentConfig
 from src.core.plugin_host import CapabilityKind, Plugin, PluginHost, discover_entry_points, resolve_plugin
 from src.llm.client import ProviderClient
-from src.llm.protocols.litellm_adapter import LitellmAdapter
+from src.llm.protocols.openai_chat import OpenAIChatAdapter
+from src.llm.provider_registry import ModelRegistry, ModelSettings, ProviderSettings
 from src.llm.stream import LLMClient
 from src.plugins.basic_tools import BasicToolsPlugin
 from src.plugins.storage import StoragePlugin
@@ -40,9 +41,42 @@ def redact_secrets(text: str) -> str:
     return _SECRET_PATTERN.sub(_sub, text)
 
 
-def create_llm_client() -> LLMClient:
-    """默认 LLM 客户端（litellm 临时适配器）；测试经 monkeypatch 替换为 fake。"""
-    return ProviderClient(LitellmAdapter())
+def create_llm_client(config: IntelliAgentConfig) -> LLMClient:
+    """按配置组装 LLM 客户端：解析默认模型并在启动期校验 provider/model/密钥。
+
+    目前只有 openai-compatible 适配器；openai / anthropic 的配置可解析，但运行期
+    会给出明确的“适配器尚未实现”错误，直到 T2/T3 落地。
+    """
+    if config.default_model is None:
+        raise ValueError("配置缺少 default_model（如 deepseek/deepseek-flash）")
+    registry = _build_registry(config)
+    target = registry.resolve(config.default_model)
+    adapters = {"openai-compatible": OpenAIChatAdapter()}
+    if target.protocol not in adapters:
+        raise ValueError(f"协议 {target.protocol!r} 的适配器尚未实现（T2/T3）")
+    return ProviderClient(registry, adapters)
+
+
+def _build_registry(config: IntelliAgentConfig) -> ModelRegistry:
+    """配置模型 → llm 运行时声明（边界转换；llm 不导入 pydantic 配置）。"""
+    providers = {
+        name: ProviderSettings(
+            protocol=provider.type,
+            api_base=provider.api,
+            env=tuple(provider.env),
+            models={
+                model_id: ModelSettings(
+                    wire_model=model.id or model_id,
+                    supports_tools=model.tool_call,
+                    max_output_tokens=model.limit.output,
+                    context_window=model.limit.context,
+                )
+                for model_id, model in provider.models.items()
+            },
+        )
+        for name, provider in config.providers.items()
+    }
+    return ModelRegistry(providers)
 
 
 def build_host(config: IntelliAgentConfig) -> PluginHost:

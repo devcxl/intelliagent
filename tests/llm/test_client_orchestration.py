@@ -9,6 +9,7 @@ import pytest
 
 from src.llm.client import ProviderClient
 from src.llm.errors import ProviderError
+from src.llm.provider_registry import ModelRegistry, ModelSettings, ModelTarget, ProviderSettings
 from src.llm.stream import Done, Error, LLMEvent, StreamRequest, TextDelta, ToolCallDelta, Usage
 
 
@@ -20,7 +21,12 @@ class ScriptedAdapter:
         self.calls = 0
 
     def stream(
-        self, request: StreamRequest, abort: threading.Event | None = None, *, timeout: float
+        self,
+        target: ModelTarget,
+        request: StreamRequest,
+        abort: threading.Event | None = None,
+        *,
+        timeout: float,
     ) -> Iterator[LLMEvent]:
         self.calls += 1
         episode = self.episodes.pop(0)
@@ -37,6 +43,21 @@ class SleepRecorder:
         self.sleeps.append(seconds)
 
 
+REGISTRY = ModelRegistry(
+    {
+        "test": ProviderSettings(
+            protocol="openai-compatible",
+            api_base="http://test.invalid/v1",
+            models={"model": ModelSettings(wire_model="model")},
+        )
+    }
+)
+
+
+def _client(adapter: ScriptedAdapter, **kwargs: object) -> ProviderClient:
+    return ProviderClient(REGISTRY, {"openai-compatible": adapter}, **kwargs)  # type: ignore[arg-type]
+
+
 def _request() -> StreamRequest:
     return StreamRequest(model="test/model", messages=[{"role": "user", "content": "hi"}])
 
@@ -48,7 +69,7 @@ def test_retryable_error_before_first_event_is_retried() -> None:
         [TextDelta("ok"), Done("stop", Usage(10, 5, 15))],
     )
     sleep = SleepRecorder()
-    client = ProviderClient(adapter, sleep=sleep)
+    client = _client(adapter, sleep=sleep)
 
     events = list(client.stream(_request()))
 
@@ -67,7 +88,7 @@ def test_error_after_first_event_is_not_retried() -> None:
 
     adapter = ScriptedAdapter(partial_then_fail())
     sleep = SleepRecorder()
-    client = ProviderClient(adapter, sleep=sleep)
+    client = _client(adapter, sleep=sleep)
 
     events = list(client.stream(_request()))
 
@@ -79,7 +100,7 @@ def test_error_after_first_event_is_not_retried() -> None:
 def test_non_retryable_error_fails_fast() -> None:
     adapter = ScriptedAdapter(ProviderError("BadRequestError: bad request", retryable=False))
     sleep = SleepRecorder()
-    client = ProviderClient(adapter, sleep=sleep)
+    client = _client(adapter, sleep=sleep)
 
     events = list(client.stream(_request()))
 
@@ -92,7 +113,7 @@ def test_programming_errors_are_not_swallowed() -> None:
     adapter = ScriptedAdapter(TypeError("simulated bug"))
 
     with pytest.raises(TypeError):
-        list(ProviderClient(adapter).stream(_request()))
+        list(_client(adapter).stream(_request()))
 
 
 def test_abort_before_stream_does_not_call_adapter() -> None:
@@ -100,7 +121,7 @@ def test_abort_before_stream_does_not_call_adapter() -> None:
     abort = threading.Event()
     abort.set()
 
-    events = list(ProviderClient(adapter).stream(_request(), abort=abort))
+    events = list(_client(adapter).stream(_request(), abort=abort))
 
     assert events == [Done("aborted", None)]
     assert adapter.calls == 0
@@ -116,7 +137,7 @@ def test_seam_carries_tool_deltas_and_exactly_one_done() -> None:
         ]
     )
 
-    events = list(ProviderClient(adapter).stream(_request()))
+    events = list(_client(adapter).stream(_request()))
 
     assert events == [
         ToolCallDelta(0, "call_1", "read", '{"pa'),

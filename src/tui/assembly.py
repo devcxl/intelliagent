@@ -26,18 +26,18 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
         已接好引擎的 TUI 应用，调用 .run() 即启动。
     """
     config = load_config(config_path)
-    model = _require_model(config)
+    model = _require_default_model(config)
     cwd = Path(config.workspace.dir).resolve()
     host = build_host(config)
     warn_missing_permission_plugin(host, sys.stderr)
 
     def runner_factory(sink: EventSink) -> TaskRunner:
-        return Engine.from_host(host, llm=create_llm_client(), model=model, sink=sink)
+        return Engine.from_host(host, llm=create_llm_client(config), model=model, sink=sink)
 
     return IntelliAgentApp(runner_factory=runner_factory, model=model, cwd=cwd)
 
 
-def _require_model(config: IntelliAgentConfig) -> str:
-    if config.model is None:
-        raise ConfigError("model: 未配置模型（intelliagent.yaml 需要 model 字段，如 openai/gpt-4o）")
-    return config.model
+def _require_default_model(config: IntelliAgentConfig) -> str:
+    if config.default_model is None:
+        raise ConfigError("default_model: 未配置模型（intelliagent.yaml 需要 default_model 与 providers 段）")
+    return config.default_model

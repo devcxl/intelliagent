@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 
 from src.llm.errors import ProviderError
 from src.llm.protocols.base import ProtocolAdapter
+from src.llm.provider_registry import ModelRegistry, ModelTarget
 from src.llm.stream import Done, Error, LLMEvent, StreamRequest, Usage, abort_requested
 
 
@@ -27,7 +28,8 @@ class ProviderClient:
 
     def __init__(
         self,
-        adapter: ProtocolAdapter,
+        registry: ModelRegistry,
+        adapters: Mapping[str, ProtocolAdapter],
         *,
         request_timeout: float = 60.0,
         max_retries: int = 2,
@@ -37,13 +39,15 @@ class ProviderClient:
         """初始化编排层。
 
         Args:
-            adapter: 协议适配器（唯一传输依赖）。
+            registry: Model Ref 解析表。
+            adapters: 协议 → 适配器映射；缺失协议在解析时给出可诊断错误。
             request_timeout: 单次模型调用的超时（秒），每次尝试透传给适配器。
             max_retries: 瞬时错误的最大重试次数（总尝试次数 = max_retries + 1，不做无限重试）。
             backoff_base_seconds: 退避基数（秒），第 n 次重试前等待 backoff_base * 2**n。
             sleep: 退避等待函数，测试中注入以记录延迟而不真正等待。
         """
-        self._adapter = adapter
+        self._registry = registry
+        self._adapters = dict(adapters)
         self._request_timeout = request_timeout
         self._max_retries = max_retries
         self._backoff_base_seconds = backoff_base_seconds
@@ -52,9 +56,19 @@ class ProviderClient:
 
     def stream(self, request: StreamRequest, *, abort: threading.Event | None = None) -> Iterator[LLMEvent]:
         """产出一次模型响应的流式事件序列，每条流以恰好一个 Done 结束。"""
-        yield from self._stream_with_retries(request, abort)
+        target = self._registry.resolve(request.model)
+        adapter = self._adapters.get(target.protocol)
+        if adapter is None:
+            raise ValueError(f"协议 {target.protocol!r} 尚无适配器实现（provider {target.provider!r}）")
+        yield from self._stream_with_retries(adapter, target, request, abort)
 
-    def _stream_with_retries(self, request: StreamRequest, abort: threading.Event | None) -> Iterator[LLMEvent]:
+    def _stream_with_retries(
+        self,
+        adapter: ProtocolAdapter,
+        target: ModelTarget,
+        request: StreamRequest,
+        abort: threading.Event | None,
+    ) -> Iterator[LLMEvent]:
         failed_attempts = 0
         while True:
             if abort_requested(abort):
@@ -62,7 +76,7 @@ class ProviderClient:
                 return
             emitted = False
             try:
-                for event in self._adapter.stream(request, abort, timeout=self._request_timeout):
+                for event in adapter.stream(target, request, abort, timeout=self._request_timeout):
                     emitted = True
                     if isinstance(event, Done) and event.usage is not None:
                         self.usage_log.append(event.usage)

@@ -11,6 +11,16 @@ from src.core.engine import Engine
 from src.tui.assembly import build_app
 from src.tui.widgets import StatusBar
 
+_DEFAULT_CONFIG = (
+    "default_model: fake/model\n"
+    "providers:\n"
+    "  fake:\n"
+    "    type: openai-compatible\n"
+    "    api: http://127.0.0.1:9/v1\n"
+    "    models:\n"
+    "      model: {}\n"
+)
+
 
 def _write_config(tmp_path: Path, body: str) -> Path:
     config = tmp_path / "intelliagent.yaml"
@@ -19,13 +29,13 @@ def _write_config(tmp_path: Path, body: str) -> Path:
 
 
 def test_build_app_wires_engine_as_task_runner(tmp_path: Path) -> None:
-    config = _write_config(tmp_path, "model: fake/model\nworkspace:\n  dir: /work/project\n")
+    config = _write_config(tmp_path, _DEFAULT_CONFIG + "workspace:\n  dir: /work/project\n")
     app = build_app(config)
     assert isinstance(app.task_runner, Engine)
 
 
 async def test_status_bar_shows_configured_cwd_and_model(tmp_path: Path) -> None:
-    config = _write_config(tmp_path, "model: fake/model\nworkspace:\n  dir: /work/project\n")
+    config = _write_config(tmp_path, _DEFAULT_CONFIG + "workspace:\n  dir: /work/project\n")
     app = build_app(config)
     async with app.run_test() as pilot:
         bar = pilot.app.query_one(StatusBar)
@@ -35,5 +45,5 @@ async def test_status_bar_shows_configured_cwd_and_model(tmp_path: Path) -> None
 
 def test_build_app_requires_model(tmp_path: Path) -> None:
     config = _write_config(tmp_path, "workspace:\n  dir: .\n")
-    with pytest.raises(ConfigError, match="model"):
+    with pytest.raises(ConfigError, match="default_model"):
         build_app(config)

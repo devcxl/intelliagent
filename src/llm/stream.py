@@ -80,10 +80,10 @@ ToolSchema = dict[str, Any]
 
 @dataclass(frozen=True)
 class StreamRequest:
-    """一次模型请求。messages/tools 采用 litellm 统一（OpenAI chat）格式，provider 差异由 litellm 收敛。
+    """一次模型请求。messages/tools 采用 OpenAI chat 格式，provider 差异由协议适配器收敛。
 
     Attributes:
-        model: litellm 的 model 字符串，如 "openai/gpt-4o"、"deepseek/deepseek-chat"。
+        model: Model Ref（`provider/model-id`），由 LLM 接入层解析为协议与端点。
         messages: 发给模型的消息列表。
         tools: 工具 schema 列表（function calling）。
         temperature: 采样温度，None 表示不传。

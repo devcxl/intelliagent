@@ -50,7 +50,18 @@ class RunOutput:
         return [json.loads(line) for line in self.stdout.splitlines()]
 
 
-def _write_config(tmp_path: Path, body: str = "model: fake/model\n") -> Path:
+_DEFAULT_CONFIG = (
+    "default_model: fake/model\n"
+    "providers:\n"
+    "  fake:\n"
+    "    type: openai-compatible\n"
+    "    api: http://127.0.0.1:9/v1\n"
+    "    models:\n"
+    "      model: {}\n"
+)
+
+
+def _write_config(tmp_path: Path, body: str = _DEFAULT_CONFIG) -> Path:
     config_path = tmp_path / "intelliagent.yaml"
     config_path.write_text(body, encoding="utf-8")
     return config_path
@@ -66,7 +77,7 @@ def _run(
 ) -> RunOutput:
     """经 main() 端到端跑一次无头运行：fake LLM 注入（不触网），abort 恒注入（避开信号装拆）。"""
     fake = fake if fake is not None else FakeLLM()
-    monkeypatch.setattr("src.headless.cli.create_llm_client", lambda: fake)  # type: ignore[attr-defined]
+    monkeypatch.setattr("src.headless.cli.create_llm_client", lambda config: fake)  # type: ignore[attr-defined]
     stdout, stderr = io.StringIO(), io.StringIO()
     code = main(
         argv,
@@ -222,7 +233,7 @@ def test_missing_model_exits_usage_code(monkeypatch: object, tmp_path: Path) -> 
     out = _run(monkeypatch, ["run", "任务", "--config", str(config)])
 
     assert out.code == 2
-    assert "model" in out.stderr
+    assert "default_model" in out.stderr
 
 
 def test_empty_task_exits_usage_code(monkeypatch: object, tmp_path: Path) -> None:
@@ -236,7 +247,8 @@ def test_empty_task_exits_usage_code(monkeypatch: object, tmp_path: Path) -> Non
 
 def test_invalid_plugin_config_exits_usage_code(monkeypatch: object, tmp_path: Path) -> None:
     config = _write_config(
-        tmp_path, "model: fake/model\nplugins:\n  storage:\n    config:\n      database_url: [1, 2]\n"
+        tmp_path,
+        _DEFAULT_CONFIG + "plugins:\n  storage:\n    config:\n      database_url: [1, 2]\n",
     )
 
     out = _run(monkeypatch, ["run", "任务", "--config", str(config)])
@@ -251,7 +263,7 @@ def test_invalid_plugin_config_exits_usage_code(monkeypatch: object, tmp_path: P
 
 
 def test_disabled_builtin_plugin_is_not_loaded(monkeypatch: object, tmp_path: Path) -> None:
-    config = _write_config(tmp_path, "model: fake/model\nplugins:\n  basic-tools:\n    enabled: false\n")
+    config = _write_config(tmp_path, _DEFAULT_CONFIG + "plugins:\n  basic-tools:\n    enabled: false\n")
     fake = FakeLLM()
     fake.enqueue(*text_events("ok"))
 
@@ -280,7 +292,7 @@ class TestReviewRegressions:
         from src.config.yaml_config import IntelliAgentConfig
         from src.runtime.plugin_assembly import build_host, warn_missing_permission_plugin
 
-        host = build_host(IntelliAgentConfig(model="m"))  # 默认内置 basic-tools
+        host = build_host(IntelliAgentConfig())  # 默认内置 basic-tools
         stderr = _io.StringIO()
         warn_missing_permission_plugin(host, stderr)
         assert "permission" in stderr.getvalue()

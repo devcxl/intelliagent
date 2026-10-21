@@ -38,11 +38,21 @@ def test_headless_smoke_completes_a_task(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """无头模式在工作区完成一个任务：读文件 → 上下文回填 → 总结，exit=0，事件流完整。"""
-    (tmp_path / "intelliagent.yaml").write_text('model: "smoke/fake"\nworkspace:\n  dir: "."\n', encoding="utf-8")
+    (tmp_path / "intelliagent.yaml").write_text(
+        'default_model: "smoke/model"\n'
+        "providers:\n"
+        "  smoke:\n"
+        "    type: openai-compatible\n"
+        "    api: http://127.0.0.1:9/v1\n"
+        "    models:\n"
+        "      model: {}\n"
+        'workspace:\n  dir: "."\n',
+        encoding="utf-8",
+    )
     (tmp_path / "README.md").write_text("# IntelliAgent\n冒烟仓库\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     # cli 模块是 from-import 直接绑定，须 patch cli 侧引用（patch plugin_assembly 不生效）
-    monkeypatch.setattr("src.headless.cli.create_llm_client", lambda: SmokeLLM())
+    monkeypatch.setattr("src.headless.cli.create_llm_client", lambda config: SmokeLLM())
 
     code = main(["run", "读 README 前 5 行告诉我项目名"], abort=threading.Event())
 

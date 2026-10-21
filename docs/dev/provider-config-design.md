@@ -156,7 +156,6 @@ class ProtocolAdapter(Protocol):
 
 - 适配器只做「请求投影 + 流事件翻译 + 错误分类」，不重试、不记账、不写事件出口。
 - abort 的置位由调用方/编排层决定；流内响应（尽快收束、释放连接、携带已消耗的 usage）由适配器执行——usage 与连接是传输事实，适配器是唯一知情者。编排层保留 pre-stream abort 与重试决策。
-- T0 过渡期实现不含 `target`：registry 尚未建立，适配器只接收 request、abort 与 timeout；T1 引入 ModelTarget 后扩展签名。
 - SDK 客户端：`OpenAI(max_retries=0, timeout=...)`、`Anthropic(max_retries=0, timeout=...)`；超时值由 `ProviderClient` 传入。
 - SDK 异常在适配器内映射为 `ProviderError(message, retryable=...)`。`ProviderClient` 只捕获 `ProviderError`；其他异常原样抛出（编程错误不得伪装成模型错误）。
 - 适配器必须关闭 SDK 流（上下文管理器 / `finally`），保证 abort 或错误后连接释放。
