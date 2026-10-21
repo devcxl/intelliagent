@@ -44,6 +44,24 @@ _Avoid_: Truncation, pruning, history deletion
 存储层的统一记录单元（message/compaction/run 等），append-only，以 parent 链接成树。仅用于存储语境；消息语境仍称 Message。
 _Avoid_: Row, record
 
+### 模型接入
+
+**Provider**:
+一套模型来源：线协议、API 端点与凭证的组合。
+_Avoid_: Vendor, backend, LLM service
+
+**Protocol**:
+Provider 的线协议：openai（Responses）、openai-compatible（Chat Completions）、anthropic（Messages）。
+_Avoid_: API type, adapter, SDK
+
+**Model**:
+Provider 下的一个可调用模型条目：线上模型名、能力与限额。
+_Avoid_: LLM, deployment, engine
+
+**Model Ref**:
+`provider/model-id` 形式的模型标识；引擎与请求层只传这个字符串。
+_Avoid_: Model name, model string
+
 ### 插件体系
 
 **Plugin**:
