@@ -55,15 +55,27 @@ providers:
           output: 393216
 ```
 
-- `type: openai-compatible` 走 Chat Completions（当前可用）；`openai`（Responses）与 `anthropic`（Messages）适配器随后续 ticket 落地。
+- `type` 决定线协议：`openai-compatible` 走 Chat Completions，`openai` 走 Responses（`/v1/responses`），`anthropic` 走 Messages（`/v1/messages`）。
 - `env` 按顺序取第一个非空环境变量；`openai` 缺省 `OPENAI_API_KEY`，`anthropic` 缺省 `ANTHROPIC_API_KEY`；`openai-compatible` 留空表示不带鉴权。
 - 密钥只从环境变量读取，不写进 YAML；`default_model` 的 provider/model 与密钥在启动时校验。
 - `models` 的键是 Model Ref 的第二段，`id` 缺省等于键并作为线上模型名。
 - `limit.output` 作为请求未指定时的默认输出上限；`tool_call: false` 时请求不下发工具。
 - `reasoning` / `cost` / `modalities` 等元数据可声明，当前不产生行为（示例文件中标注为「仅声明」）。
 
-端点需支持 `/chat/completions` 流式（`stream: true`）与 function calling（`tools`）；Agent 依赖工具调用，
-不支持 `tools` 的端点需在配置里把模型的 `tool_call` 设为 `false` 才能纯聊天。usage 建议回传（缺失时该响应记为 None）。
+```yaml
+providers:
+  openai:
+    type: openai              # Responses；api/env 可省略，使用官方缺省
+    models:
+      gpt-5: {}
+  anthropic:
+    type: anthropic           # Messages
+    models:
+      claude-sonnet-4-5: {}
+```
+
+端点需支持所选协议的流式响应与 function calling；Agent 依赖工具调用，
+不支持工具的模型需把 `tool_call` 设为 `false` 才能纯聊天。usage 建议回传（缺失时该响应记为 None）。
 
 ### 无头模式（脚本化）
 

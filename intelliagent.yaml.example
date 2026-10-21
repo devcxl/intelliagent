@@ -11,8 +11,7 @@ default_model: deepseek/deepseek-flash
 
 providers:
   deepseek:
-    # 当前可用：openai-compatible（Chat Completions）。
-    # openai（Responses）与 anthropic（Messages）适配器随后续 ticket 落地。
+    # openai-compatible（Chat Completions）
     type: openai-compatible
     # 原样作为 SDK 的 base URL，不自动补 /v1。
     api: https://api.deepseek.com
@@ -45,6 +44,16 @@ providers:
           output: 0.6
           reasoning: 0.6
           cache_read: 0.003
+
+  # 其他协议示例（取消注释后把 default_model 改成对应 provider/model）：
+  # openai:
+  #   type: openai              # Responses；api/env 可省略，使用官方缺省
+  #   models:
+  #     gpt-5: {}
+  # anthropic:
+  #   type: anthropic           # Messages；api/env 可省略，使用官方缺省
+  #   models:
+  #     claude-sonnet-4-5: {}
 
 # 工作区目录（TUI 状态栏显示）。
 # 注意：工具的文件路径边界目前由 INTELLIAGENT_WORKSPACE_ROOT 环境变量控制，不由该字段决定。
