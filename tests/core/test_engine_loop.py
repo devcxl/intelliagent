@@ -9,12 +9,14 @@ import threading
 
 import pytest
 
+from src.core.agent_events import AgentEnd, ToolExecutionEnd
 from src.core.tool_pipeline import AfterToolCallHook, Observation, ToolCall
 from src.core.turn_hooks import FinishDecision, FinishTurnHook, TurnResult
 from src.llm.stream import Done, Error, ToolCallDelta
 from src.plugins.basic_tools import tool_error, tool_success
 from tests.core.engine_support import (
     FakeLLM,
+    RecordingSink,
     assert_tool_calls_paired,
     build_engine,
     make_tool,
@@ -274,3 +276,51 @@ class TestObservationStatus:
         tool_message = llm.requests[1].messages[-1]
         assert tool_message["role"] == "tool"
         assert "disk full" in tool_message["content"]
+
+
+class TestReviewRegressions:
+    """PR #72 审查回归：runaway 总闸、事件收束、abort 边界、失败参数保留。"""
+
+    async def test_max_turns_guards_length_retry_runaway(self) -> None:
+        """length 重发循环受 max_turns 总闸约束，不再无限续轮。"""
+        llm = FakeLLM()
+        for _ in range(10):
+            llm.enqueue(*tool_call_events([("c1", "t", '{"partial')], stop="length"))
+        engine = build_engine(llm, max_turns=3)
+        result = await engine.run("task")
+        assert result.outcome == "error"
+        assert result.turns <= 3
+
+    async def test_exception_still_emits_agent_end(self) -> None:
+        """异常逃逸也发出 agent_end（事件协议收束），异常语义不变继续传播。"""
+
+        class ExplodingLLM:
+            def stream(self, request, *, abort=None):
+                raise ValueError("stream ended without Done")
+
+        sink = RecordingSink()
+        engine = build_engine(FakeLLM(), sink=sink)
+        engine._llm = ExplodingLLM()  # noqa: SLF001 — 注入异常源
+        with pytest.raises(ValueError, match="stream ended"):
+            await engine.run("task")
+        assert isinstance(sink.events[-1], AgentEnd)
+
+    async def test_abort_at_turn_boundary_stops_loop(self) -> None:
+        """abort 在 turn 边界生效（粗粒度取消）。"""
+        abort = threading.Event()
+        abort.set()
+        llm = FakeLLM()
+        llm.enqueue(*text_events("hi"))
+        engine = build_engine(llm)
+        result = await engine.run("task", abort=abort)
+        assert result.outcome == "aborted"
+
+    async def test_failed_tool_calls_keep_raw_arguments(self) -> None:
+        """判失败的 tool call 保留原始截断参数供诊断（finishTurn/UI 可见）。"""
+        sink = RecordingSink()
+        llm = FakeLLM()
+        llm.enqueue(*tool_call_events([("c1", "t", '{"partial')], stop="length"))
+        engine = build_engine(llm, sink=sink)
+        await engine.run("task")
+        ends = [e for e in sink.events if isinstance(e, ToolExecutionEnd)]
+        assert ends and ends[-1].observation.arguments.get("raw")

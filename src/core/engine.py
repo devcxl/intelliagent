@@ -118,6 +118,7 @@ class Engine:
         sink: EventSink | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        max_turns: int = 50,
         steering_mode: QueueMode = "all",
         follow_up_mode: QueueMode = "all",
     ) -> None:
@@ -127,6 +128,7 @@ class Engine:
         self._model = model
         self._temperature = temperature
         self._max_tokens = max_tokens
+        self._max_turns = max_turns
         self._sink = sink
         for hook in hooks:
             if not isinstance(hook, (PrepareRequestHook, PrepareNextTurnHook, FinishTurnHook)):
@@ -151,6 +153,7 @@ class Engine:
         sink: EventSink | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        max_turns: int = 50,
         steering_mode: QueueMode = "all",
         follow_up_mode: QueueMode = "all",
     ) -> Engine:
@@ -167,6 +170,7 @@ class Engine:
             sink=sink,
             temperature=temperature,
             max_tokens=max_tokens,
+            max_turns=max_turns,
             steering_mode=steering_mode,
             follow_up_mode=follow_up_mode,
         )
@@ -199,14 +203,23 @@ class Engine:
             else:
                 self._require_continuation_point()
             self._emit(AgentStart())
-            result = await self._run_loops(abort)
+            try:
+                result = await self._run_loops(abort)
+            except BaseException as exc:
+                # 事件协议收束：异常逃逸也发出 agent_end（前端不悬挂）；异常语义不变，继续传播。
+                self._emit(AgentEnd(outcome="error"))
+                raise exc
             self._emit(AgentEnd(outcome=result.outcome))
             return result
         finally:
             self._running = False
 
     async def _run_loops(self, abort: threading.Event | None) -> RunResult:
-        """外层循环：内层收束后接 follow-up 继续跑；硬退出（error/aborted/terminated）直接收束。"""
+        """外层循环：内层收束后接 follow-up 继续跑；硬退出（error/aborted/terminated）直接收束。
+
+        总闸：累计 turn 数超过 max_turns 即以 error 收束——length 重发循环、finishTurn
+        无限 continue、follow_up 无限接续三条 runaway 路径都受此约束。
+        """
         turns = 0
         outcome: RunOutcome = "settled"
         stop_reason: StopReason | None = None
@@ -216,6 +229,12 @@ class Engine:
             outcome, stop_reason = inner.outcome, inner.stop_reason
             if outcome != "settled":
                 break
+            if turns >= self._max_turns:
+                outcome, stop_reason = "error", "error"
+                break
+            if abort is not None and abort.is_set():
+                outcome, stop_reason = "aborted", "aborted"
+                break
             follow_ups = self._follow_ups.drain()
             if not follow_ups:
                 break
@@ -223,9 +242,17 @@ class Engine:
         return RunResult(outcome=outcome, turns=turns, stop_reason=stop_reason)
 
     async def _run_inner(self, abort: threading.Event | None) -> _InnerOutcome:
-        """内层循环：一个 assistant 响应 + 其工具结果算一个 turn，直到没有要执行的工具调用。"""
+        """内层循环：一个 assistant 响应 + 其工具结果算一个 turn，直到没有要执行的工具调用。
+
+        abort 检查粒度：turn 边界（工具执行中不中断——粗粒度取消，pi 同型）。
+        max_turns 同样约束内层续轮（length 重发循环的 runaway 在此被闸）。
+        """
         turns = 0
         while True:
+            if abort is not None and abort.is_set():
+                return _InnerOutcome("aborted", turns, "aborted")
+            if turns >= self._max_turns:
+                return _InnerOutcome("error", turns, "error")
             turns += 1
             self._turn_seq += 1
             self._emit(TurnStart(turn=self._turn_seq))
@@ -319,7 +346,10 @@ class Engine:
         return tuple(observations)
 
     def _fail_tool_calls(self, tool_calls: Sequence[Mapping[str, Any]], reason: str) -> tuple[Observation, ...]:
-        """把一批 tool call 判失败（不执行）：发出配对的 tool_execution 事件并产出 error 观察。"""
+        """把一批 tool call 判失败（不执行）：发出配对的 tool_execution 事件并产出 error 观察。
+
+        arguments 保留模型发出的原始（可能截断的）内容，供 finishTurn hook 与 UI 视图诊断。
+        """
         observations: list[Observation] = []
         for call in tool_calls:
             function = call.get("function") or {}
@@ -330,7 +360,7 @@ class Engine:
             observation = Observation(
                 tool_call_id=tool_call_id,
                 name=name,
-                arguments={},
+                arguments={"raw": arguments},
                 content=reason,
                 status="error",
                 error=reason,

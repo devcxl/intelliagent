@@ -28,15 +28,22 @@ class PendingMessageQueue:
         self._messages.append(message)
 
     def drain(self) -> list[str]:
-        """按消费模式取回待注入消息；队列为空返回空列表。"""
-        if not self._messages:
-            return []
+        """按消费模式取回待注入消息；队列为空返回空列表。
+
+        popleft 是原子操作但"判空再弹"不是——并发 drain 用 try/except 兜住竞争，
+        不丢并发 push 的消息（下一个 drain 会取到）。
+        """
         if self._mode == "one-at-a-time":
-            return [self._messages.popleft()]
+            try:
+                return [self._messages.popleft()]
+            except IndexError:
+                return []
         drained: list[str] = []
-        while self._messages:
-            drained.append(self._messages.popleft())
-        return drained
+        while True:
+            try:
+                drained.append(self._messages.popleft())
+            except IndexError:
+                return drained
 
     def __bool__(self) -> bool:
         return bool(self._messages)
