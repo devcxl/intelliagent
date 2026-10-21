@@ -4,6 +4,7 @@ from src.plugins.storage.errors import EntryNotFoundError, StorageError
 from src.plugins.storage.plugin import STORAGE_CAPABILITY_NAME, StorageConfig, StoragePlugin
 from src.plugins.storage.records import (
     ENTRY_TYPE_COMPACTION,
+    ENTRY_TYPE_CONVERSATION,
     ENTRY_TYPE_MESSAGE,
     ENTRY_TYPE_RUN,
     ENTRY_TYPE_RUN_STATUS,
@@ -17,6 +18,7 @@ from src.plugins.storage.store import StorageStore
 
 __all__ = [
     "ENTRY_TYPE_COMPACTION",
+    "ENTRY_TYPE_CONVERSATION",
     "ENTRY_TYPE_MESSAGE",
     "ENTRY_TYPE_RUN",
     "ENTRY_TYPE_RUN_STATUS",

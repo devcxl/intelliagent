@@ -75,6 +75,10 @@ class CompactionStore(Protocol):
 
     async def latest_leaf(self) -> str | None: ...
 
+    async def ensure_conversation(self, conversation_id: str) -> Any: ...
+
+    async def latest_leaf_in(self, conversation_id: str) -> str: ...
+
 
 @dataclass(frozen=True)
 class CutPoint:
@@ -156,7 +160,8 @@ class Compactor:
 
     依赖显式注入：摘要用 LLMClient（传原始客户端——摘要请求的 usage 不属于会话上下文计数）、
     StorageStore、TokenCounter（与包住引擎的 UsageRecordingClient 共享同一实例）。
-    resume_entry_id 续接既有分支（重启场景）：之后的 Message 从该 leaf 追加、投影从该 leaf 现算。
+    resume_entry_id 续接显式锚点；conversation_root_id 绑定同一数据库内的独立会话：
+    TUI 固定续接自己的会话根，headless 每次用新根，互不串上下文。
     """
 
     def __init__(
@@ -166,11 +171,13 @@ class Compactor:
         *,
         model: str,
         counter: TokenCounter,
-        context_window: int,
+        context_window: int | None,
         reserve_tokens: int = 16_384,
         keep_recent_tokens: int = 20_000,
         max_summary_attempts: int = 3,
         resume_entry_id: str | None = None,
+        conversation_root_id: str | None = None,
+        resume: bool = True,
         system_prompt: str = "",
         before_compact: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
@@ -185,6 +192,9 @@ class Compactor:
         self._tip: str | None = resume_entry_id
         self._persisted = 0
         self._before_compact = before_compact
+        self._conversation_root_id = conversation_root_id
+        self._resume = resume
+        self._started = False
         self._checkpoint: dict[str, Any] = {"system_prompt": system_prompt, "tools": [], "model": model}
 
     @classmethod
@@ -195,14 +205,23 @@ class Compactor:
         *,
         model: str,
         counter: TokenCounter,
-        context_window: int,
+        context_window: int | None,
+        conversation_root_id: str | None = None,
         **options: Any,
     ) -> Compactor:
-        """重启续接：定位 store 中最新分支的 leaf entry，从该锚点继续（AC2 的机制面）。"""
-        leaf = await store.latest_leaf()
-        return cls(
-            llm, store, model=model, counter=counter, context_window=context_window, resume_entry_id=leaf, **options
+        """重启续接：定位指定会话（或多会话库的全局最新 leaf）后返回已就绪的 Compactor。"""
+        compactor = cls(
+            llm,
+            store,
+            model=model,
+            counter=counter,
+            context_window=context_window,
+            conversation_root_id=conversation_root_id,
+            resume=True,
+            **options,
         )
+        await compactor._ensure_started()
+        return compactor
 
     @property
     def leaf_entry_id(self) -> str | None:
@@ -213,6 +232,32 @@ class Compactor:
     def prompt_checkpoint(self) -> dict[str, Any]:
         """最近一次压缩边界处的 prompt 快照（读出口——US37 保真要求读得到）。"""
         return dict(self._checkpoint)
+
+    async def _ensure_started(self) -> None:
+        """懒启动：解析会话根与 leaf，避免在事件循环外执行异步存储查询。
+
+        - conversation_root_id：同一数据库内的一段独立会话；resume=True 续接最新 leaf，
+          resume=False 要求该会话尚无 message/compaction（否则会分叉）。
+        - resume_entry_id：显式起点（测试/调用方已定位 leaf）。
+        - 两者都未给：保持旧的全局 latest_leaf 行为。
+        """
+        if self._started:
+            return
+        if self._conversation_root_id is not None:
+            await self._store.ensure_conversation(self._conversation_root_id)
+            leaf = await self._store.latest_leaf_in(self._conversation_root_id)
+            if self._resume:
+                self._tip = leaf
+            elif leaf != self._conversation_root_id:
+                raise CompactionError(
+                    f"conversation '{self._conversation_root_id}' already has entries; "
+                    "use resume=True or a new conversation id"
+                )
+            else:
+                self._tip = leaf
+        elif self._resume and self._tip is None:
+            self._tip = await self._store.latest_leaf()
+        self._started = True
 
     def hooks(self) -> tuple[PrepareRequestHook, PrepareNextTurnHook]:
         """turn 边界 hook 能力提供者：prepareRequest 现算投影、prepareNextTurn 阈值压缩。"""
@@ -227,6 +272,7 @@ class Compactor:
         messages 是引擎 Conversation 的全量记录（append-only）：与已落库序号对齐，只追加新尾部；
         hook 注入的临时视图不在记录中，因此不会落库。
         """
+        await self._ensure_started()
         for message in list(messages)[self._persisted :]:
             entry_id = await self._store.append_chat_message(message, parent_id=self._tip)
             self._tip = entry_id
@@ -237,6 +283,7 @@ class Compactor:
 
         只有 message entry 进入模型视图（pi：custom 类 entry 不进 LLM 上下文）。
         """
+        await self._ensure_started()
         if self._tip is None:
             return []
         summary, kept_pairs = await self._store.chat_projection(self._tip)
@@ -247,10 +294,16 @@ class Compactor:
 
     async def context_tokens(self) -> int:
         """当前投影的上下文 token 估算。"""
+        await self._ensure_started()
         return self._counter.estimate(await self.projection_messages())
 
     async def should_compact(self) -> bool:
-        """阈值判定（pi shouldCompact）：当前 token > contextWindow - reserveTokens。"""
+        """阈值判定（pi shouldCompact）：当前 token > contextWindow - reserveTokens。
+
+        context_window 未配置时只持久化、不自动压缩。
+        """
+        if self._context_window is None:
+            return False
         return await self.context_tokens() > self._context_window - self._reserve_tokens
 
     async def compact(self) -> CompactionOutcome | None:
@@ -258,6 +311,7 @@ class Compactor:
 
         被截断（stop=length）、调用工具或空的摘要拒绝并重试（有限次），耗尽抛 CompactionError。
         """
+        await self._ensure_started()
         if self._tip is None:
             return None
         previous, kept_pairs = await self._store.chat_projection(self._tip)
@@ -289,6 +343,7 @@ class Compactor:
         同时把本次请求的 system prompt 与工具清单快照为 prompt checkpoint 的取材。
         本 hook 必须先于注入类 hook 执行（注册顺序保证）：注入的临时消息不落库、不进投影。
         """
+        await self._ensure_started()
         await self.sync_messages(request.messages)
         self._checkpoint = self._snapshot_checkpoint(request, str(self._checkpoint.get("system_prompt") or ""))
         request.messages = await self.projection_messages()
@@ -299,6 +354,7 @@ class Compactor:
         before_compact 回调（pi session_before_compact 的等价挂载点）可取消本次压缩
         或提供自定义摘要；扩展接管压缩策略的入口（ADR 0007 hook 语义）。
         """
+        await self._ensure_started()
         await self.sync_messages(context.messages)
         if await self.should_compact():
             if self._before_compact is not None and not await self._before_compact():

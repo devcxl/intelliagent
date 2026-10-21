@@ -48,6 +48,7 @@ from src.core.agent_events import (
 from src.core.async_stream import iterate_in_thread
 from src.core.pending_messages import PendingMessageQueue, QueueMode
 from src.core.plugin_host import CapabilityKind, PluginHost
+from src.core.tool_calls import ToolCallBuilder
 from src.core.tool_pipeline import Observation, ToolPipeline, ToolProvider, ToolRequest
 from src.core.turn_hooks import (
     FinishDecision,
@@ -106,7 +107,7 @@ class Engine:
     """引擎（CONTEXT 术语：Engine）：消费 LLM 流、执行工具调用、驱动 Conversation 到收束。
 
     依赖全部显式注入：LLM 客户端、工具流水线、模型可见的工具 schema、turn 边界 hook、事件出口。
-    Conversation 记录在引擎内 append-only 累积；投影式压缩经 prepareNextTurn 换入（属后续票）。
+    Conversation 记录在引擎内 append-only 累积；投影式压缩由运行时注入的 prepareNextTurn hook 换入。
     """
 
     def __init__(
@@ -158,11 +159,19 @@ class Engine:
         max_turns: int = 50,
         steering_mode: QueueMode = "all",
         follow_up_mode: QueueMode = "all",
+        extra_hooks: Sequence[TurnHookProvider] = (),
     ) -> Engine:
-        """从 PluginHost 组装引擎：Tool 能力进工具流水线，Hook 能力按形态分流到工具链与 turn 边界。"""
+        """从 PluginHost 组装引擎：Tool 能力进工具流水线，Hook 能力按形态分流到工具链与 turn 边界。
+
+        extra_hooks 由组合根注入（如 Compactor 的 prepareRequest/prepareNextTurn），
+        先于宿主 Hook 执行——压缩投影必须先于注入类 hook 改写请求视图。
+        """
         pipeline = ToolPipeline.from_host(host, sink=sink)
         tools = tool_schemas(cast(Mapping[str, ToolProvider], host.capabilities(CapabilityKind.TOOL)))
-        hooks = [hook for hook in host.capabilities(CapabilityKind.HOOK).values() if isinstance(hook, TurnHookProvider)]
+        host_hooks = [
+            hook for hook in host.capabilities(CapabilityKind.HOOK).values() if isinstance(hook, TurnHookProvider)
+        ]
+        hooks = [*extra_hooks, *host_hooks]
         return cls(
             llm,
             pipeline,
@@ -307,7 +316,7 @@ class Engine:
         每个事件后让出一次，前端消息泵有机会把已到的增量落屏。
         """
         text_parts: list[str] = []
-        calls = _ToolCallBuilder()
+        calls = ToolCallBuilder()
         stop_reason: StopReason | None = None
         async for event in iterate_in_thread(message_events(message_id, stream)):
             self._emit(event)
@@ -464,30 +473,6 @@ class _InnerOutcome:
     outcome: RunOutcome
     turns: int
     stop_reason: StopReason | None
-
-
-class _ToolCallBuilder:
-    """把 ToolCallDelta 增量按 index 归并成完整 tool call（id/name 只在首个增量出现，参数逐段拼接）。"""
-
-    def __init__(self) -> None:
-        self._calls: dict[int, dict[str, str]] = {}
-
-    def add(self, delta: ToolCallDelta) -> None:
-        call = self._calls.setdefault(delta.index, {"id": "", "name": "", "arguments": ""})
-        call["id"] = call["id"] or (delta.id or "")
-        call["name"] = call["name"] or (delta.name or "")
-        call["arguments"] += delta.arguments_delta
-
-    def build(self) -> list[dict[str, Any]]:
-        """按 index 顺序产出模型侧 tool_calls 形态；缺失 id 时按 index 兜底生成。"""
-        return [
-            {
-                "id": call["id"] or f"call_{index}",
-                "type": "function",
-                "function": {"name": call["name"], "arguments": call["arguments"]},
-            }
-            for index, call in sorted(self._calls.items())
-        ]
 
 
 def _tool_result_message(observation: Observation) -> ChatMessage:

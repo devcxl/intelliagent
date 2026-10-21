@@ -33,13 +33,21 @@ class TokenCounter:
     def __init__(self, *, overhead_tokens: int = 0) -> None:
         self._baseline: tuple[int, tuple[ChatMessage, ...]] | None = None
         self._overhead_tokens = overhead_tokens
+        self._lock = threading.Lock()
 
     def record(self, usage: Usage | None, covered: Sequence[ChatMessage]) -> None:
-        """记录一次模型响应的真实 usage 与它覆盖的消息前缀；无有效 usage 时清除基线。"""
+        """记录一次模型响应的真实 usage 与它覆盖的消息前缀；无有效 usage 时清除基线。
+
+        usage 在生产线程记录（LLM 流在 daemon 线程迭代），estimate 在引擎事件循环读取：
+        用锁保护基线，避免压缩阈值读到半更新的状态。
+        """
         if usage is None or usage.prompt_tokens <= 0:
-            self._baseline = None
+            with self._lock:
+                self._baseline = None
             return
-        self._baseline = (usage.prompt_tokens, tuple(dict(message) for message in covered))
+        baseline = (usage.prompt_tokens, tuple(dict(message) for message in covered))
+        with self._lock:
+            self._baseline = baseline
 
     def estimate(self, messages: Sequence[ChatMessage]) -> int:
         """估算消息列表的上下文 token：基线 + 基线外消息估算；基线失配退回整体估算。
@@ -47,8 +55,10 @@ class TokenCounter:
         回退估算含 overhead（system prompt + 工具 schema 的 chars/4 近似）——真实 usage
         基线隐含这部分，纯消息估算会系统性低估触发阈值。
         """
-        if self._baseline is not None:
-            base, covered = self._baseline
+        with self._lock:
+            baseline = self._baseline
+        if baseline is not None:
+            base, covered = baseline
             if _is_prefix(covered, messages):
                 return base + sum(estimate_tokens(message) for message in messages[len(covered) :])
         return sum(estimate_tokens(message) for message in messages) + self._overhead_tokens

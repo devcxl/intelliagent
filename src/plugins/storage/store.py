@@ -22,6 +22,7 @@ from src.plugins.storage.messages import entry_message, message_entries, message
 from src.plugins.storage.models import APPEND_ONLY_TRIGGER_STATEMENTS, Base, EntryRow
 from src.plugins.storage.records import (
     ENTRY_TYPE_COMPACTION,
+    ENTRY_TYPE_CONVERSATION,
     ENTRY_TYPE_MESSAGE,
     ENTRY_TYPE_RUN,
     ENTRY_TYPE_RUN_STATUS,
@@ -105,6 +106,7 @@ class StorageStore:
         )
         self._lock = asyncio.Lock()
         self._initialized = False
+        self._closed = False
 
     async def initialize(self) -> None:
         """建表并挂上 append-only 触发器；幂等，各写入方法也会惰性调用。"""
@@ -112,7 +114,10 @@ class StorageStore:
             await self._initialize()
 
     async def close(self) -> None:
-        """释放底层连接。"""
+        """释放底层连接；重复调用幂等。"""
+        if self._closed:
+            return
+        self._closed = True
         await self._engine.dispose()
 
     @asynccontextmanager
@@ -250,11 +255,60 @@ class StorageStore:
     async def latest_leaf(self) -> str | None:
         """取最新追加的 entry id（重启续接的 leaf 锚点）；空库返回 None。
 
-        append-only 单写者下最新 entry 即活跃分支的 leaf。
+        append-only 单写者下最新 entry 即活跃分支的 leaf。多会话场景用
+        ensure_conversation + latest_leaf_in 定位指定会话。
         """
         async with self._session() as session:
             row = (await session.execute(select(EntryRow).order_by(EntryRow.created_at.desc()))).scalars().first()
             return row.id if row is not None else None
+
+    async def ensure_conversation(self, conversation_id: str) -> Entry:
+        """确保会话根 entry 存在并返回；已存在时校验类型后复用。
+
+        会话根是 conversation 类型的 entry，不进入 LLM 消息投影；message/compaction
+        以 parent_id 挂在它下面形成一段独立会话。
+        """
+        if not conversation_id:
+            raise StorageError("conversation id must not be empty")
+        async with self._session() as session:
+            row = await session.get(EntryRow, conversation_id)
+            if row is not None:
+                if row.type != ENTRY_TYPE_CONVERSATION:
+                    raise StorageError(f"entry '{conversation_id}' is not a conversation entry (type '{row.type}')")
+                return _to_entry(row)
+            row = await self._insert_entry(session, ENTRY_TYPE_CONVERSATION, {}, entry_id=conversation_id)
+            return _to_entry(row)
+
+    async def latest_leaf_in(self, conversation_id: str) -> str:
+        """沿指定会话的 message/compaction 子链找到最新 leaf；分叉时报错（不支持 fork）。"""
+        async with self._session() as session:
+            root = await session.get(EntryRow, conversation_id)
+            if root is None:
+                raise EntryNotFoundError(f"conversation '{conversation_id}' does not exist")
+            if root.type != ENTRY_TYPE_CONVERSATION:
+                raise StorageError(f"entry '{conversation_id}' is not a conversation entry (type '{root.type}')")
+            current = root
+            while True:
+                children = (
+                    (
+                        await session.execute(
+                            select(EntryRow).where(
+                                EntryRow.parent_id == current.id,
+                                EntryRow.type.in_((ENTRY_TYPE_MESSAGE, ENTRY_TYPE_COMPACTION)),
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                if not children:
+                    return current.id
+                if len(children) > 1:
+                    raise StorageError(
+                        f"conversation '{conversation_id}' branched at '{current.id}': "
+                        f"{len(children)} message/compaction children"
+                    )
+                current = children[0]
 
     async def branch_path(self, entry_id: str) -> tuple[Entry, ...]:
         """按 parent 链取分支路径：root → entry_id（含两端）。"""

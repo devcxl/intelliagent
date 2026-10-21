@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from src.plugins.storage.errors import StorageError
 
+ENTRY_TYPE_CONVERSATION = "conversation"
 ENTRY_TYPE_MESSAGE = "message"
 ENTRY_TYPE_COMPACTION = "compaction"
 ENTRY_TYPE_RUN = "run"
