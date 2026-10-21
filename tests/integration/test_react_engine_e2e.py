@@ -115,10 +115,6 @@ async def test_tool_call_shell(engine):
     assert result["num_turns"] >= 2
 
 
-@pytest.mark.skip(
-    reason="腐烂测试（Spec #49 / issue #50）：task_write 未注册进 create_default() 的工具注册表，"
-    "且 Spec #49 将整体删除 task tools；测试前提已失效"
-)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_task_write_and_plan(engine):
