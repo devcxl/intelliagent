@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from src.plugins.mcp import McpPlugin, McpPluginConfig, McpTool
-from src.plugins.mcp.errors import McpPluginError
 
 from src.core.plugin_host import CapabilityKind, PluginHost
 from src.core.tool_pipeline import ToolPipeline, ToolRequest
+from src.plugins.mcp import McpPlugin, McpPluginConfig, McpTool
+from src.plugins.mcp.errors import McpPluginError
 from tests.plugins.mcp.fakes import FakeConnection, FakeConnector, demo_config, tool_definition
 
 

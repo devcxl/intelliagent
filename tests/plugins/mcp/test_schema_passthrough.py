@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.plugins.mcp import McpPlugin, McpTool
-
 from src.core.plugin_host import CapabilityKind, PluginHost
 from src.core.tool_pipeline import Observation, ToolPipeline, ToolRequest
+from src.plugins.mcp import McpPlugin, McpTool
 from tests.plugins.mcp.fakes import NESTED_INPUT_SCHEMA, FakeConnection, FakeConnector, demo_config, tool_definition
 
 NESTED_ARGUMENTS: dict[str, Any] = {
