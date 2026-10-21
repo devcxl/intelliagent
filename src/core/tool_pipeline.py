@@ -115,7 +115,13 @@ HookProvider = BeforeToolCallHook | AfterToolCallHook
 
 
 class ToolProvider(Protocol):
-    """Tool 能力提供者的最小契约（ToolSpec 结构性满足）：能力名、参数 JSON Schema、异步执行。"""
+    """Tool 能力提供者的最小契约（ToolSpec 结构性满足）：能力名、参数 JSON Schema、异步执行。
+
+    结果信封约定（Observation 真实状态的判定依据，US21）：
+    - 返回统一信封 ``{"status": "ok", ...}`` / ``{"status": "error", "error": ...}``（basic_tools 同款）；
+    - 顶层 ``status: "error"`` 判 error 并提取 error 字段，其余判 success；
+    - 抛异常一律判 error。返回裸文本/数据而不守信封的工具，其失败状态不可判定——契约要求守信封。
+    """
 
     name: str
     parameters: Mapping[str, Any]
@@ -137,6 +143,10 @@ class ToolPipeline:
         sink: EventSink | None = None,
     ) -> None:
         self._tools = dict(tools)
+        for hook in hooks:
+            if not isinstance(hook, (BeforeToolCallHook, AfterToolCallHook)):
+                # 静默丢弃即 fail-open（被剔除的 permission 钩子不再拦截），必须显式拒绝
+                raise TypeError(f"unsupported hook provider type: {type(hook).__name__}")
         self._before_hooks = tuple(hook for hook in hooks if isinstance(hook, BeforeToolCallHook))
         self._after_hooks = tuple(hook for hook in hooks if isinstance(hook, AfterToolCallHook))
         self._sink = sink
@@ -156,7 +166,11 @@ class ToolPipeline:
         """
         started = time.perf_counter()
         self._emit(
-            ToolExecutionStart(tool_call_id=request.tool_call_id, name=request.name, arguments=request.arguments)
+            ToolExecutionStart(
+                tool_call_id=request.tool_call_id,
+                name=request.name,
+                arguments=_freeze_arguments(request.arguments),
+            )
         )
         observation = replace(await self._process(request), duration_ms=(time.perf_counter() - started) * 1000)
         self._emit(ToolExecutionEnd(tool_call_id=request.tool_call_id, observation=observation))
@@ -172,7 +186,7 @@ class ToolPipeline:
         validated, validate_error = _validate_arguments(tool.parameters, arguments)
         if validate_error is not None:
             return _error_observation(request.tool_call_id, request.name, validate_error, arguments)
-        call = ToolCall(tool_call_id=request.tool_call_id, name=request.name, arguments=validated)
+        call = ToolCall(tool_call_id=request.tool_call_id, name=request.name, arguments=_freeze_arguments(validated))
         blocked = await self._before(call)
         if blocked is not None:
             return blocked
@@ -181,7 +195,7 @@ class ToolPipeline:
     async def _before(self, call: ToolCall) -> Observation | None:
         """链式执行 beforeToolCall：返回 None 放行，返回 Observation 即终止结果（fail-closed）。
 
-        显式 block 产出 denied 观察，hook 异常产出 error 观察——两者都不执行工具。
+        显式 block 产出 denied 观察，hook 异常或返回非 HookDecision 产出 error 观察——两者都不执行工具。
         """
         for hook in self._before_hooks:
             try:
@@ -189,6 +203,13 @@ class ToolPipeline:
             except Exception as exc:
                 return _error_observation(
                     call.tool_call_id, call.name, f"before_tool_call hook failed: {exc}", call.arguments
+                )
+            if decision is not None and not isinstance(decision, HookDecision):
+                return _error_observation(
+                    call.tool_call_id,
+                    call.name,
+                    "before_tool_call hook returned a non-HookDecision result",
+                    call.arguments,
                 )
             if decision is not None and decision.block:
                 return _denied_observation(call, decision.reason or "tool call blocked by a before_tool_call hook")
@@ -235,6 +256,11 @@ class ToolPipeline:
             self._sink.emit(event)
 
 
+def _freeze_arguments(arguments: str | Mapping[str, Any]) -> str | Mapping[str, Any]:
+    """事件/观察持有的 arguments 必须是快照：外部事后 mutate 不得篡改已发事件（协议值语义）。"""
+    return dict(arguments) if isinstance(arguments, Mapping) else arguments
+
+
 def _prepare_arguments(raw: str | Mapping[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     """prepareArguments：修复模型畸形参数。返回 (参数对象, None) 或 (None, 诊断信息)。
 
@@ -242,6 +268,8 @@ def _prepare_arguments(raw: str | Mapping[str, Any]) -> tuple[dict[str, Any] | N
     """
     if isinstance(raw, Mapping):
         return dict(raw), None
+    if not isinstance(raw, str):
+        return None, f"tool arguments must be a mapping or JSON string, got {type(raw).__name__}"
     text = raw.strip()
     if not text:
         return {}, None

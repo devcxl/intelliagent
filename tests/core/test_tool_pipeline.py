@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+from src.core.agent_events import AgentEvent, ToolExecutionEnd, ToolExecutionStart
+from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, PluginHost
 from src.core.tool_pipeline import (
     AfterToolCallHook,
     BeforeToolCallHook,
@@ -19,9 +22,6 @@ from src.core.tool_pipeline import (
     ToolPipeline,
     ToolRequest,
 )
-
-from src.core.agent_events import AgentEvent, ToolExecutionEnd, ToolExecutionStart
-from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, PluginHost
 from src.plugins.basic_tools import BasicToolsPlugin, ToolSpec, tool_error, tool_success
 from src.utils.path_policy import PathPolicy
 from tests.core.plugin_host.fakes import FakePlugin, build_manifest
@@ -476,3 +476,49 @@ class TestBasicToolsIntegration:
 
         assert observation.status == "success"
         assert "hello" in observation.content
+
+
+class TestReviewRegressions:
+    """PR #71 审查回归：fail-closed 完整性、事件值语义、非法输入收敛。"""
+
+    async def test_before_hook_returning_junk_yields_error_observation(self) -> None:
+        """before hook 返回非 HookDecision：产出 error 观察 + 事件完整，不裸抛破缺协议。"""
+
+        class JunkHook:
+            async def __call__(self, call):
+                return "not a decision"
+
+        pipeline = ToolPipeline(
+            tools={"t": make_tool([])},
+            hooks=[BeforeToolCallHook(callback=JunkHook())],
+            sink=RecordingSink(),
+        )
+        observation = await pipeline.run(ToolRequest(tool_call_id="c1", name="t", arguments={"path": "a.txt"}))
+        assert observation.status == "error"
+        assert "non-HookDecision" in (observation.error or "")
+
+    def test_constructor_rejects_unknown_hook_provider(self) -> None:
+        """未知 hook 提供者必须显式拒绝——静默丢弃即 fail-open。"""
+
+        class Stranger:
+            pass
+
+        with pytest.raises(TypeError, match="unsupported hook provider"):
+            ToolPipeline(tools={}, hooks=[Stranger()])  # type: ignore[list-item]
+
+    async def test_events_hold_argument_snapshots(self) -> None:
+        """事件持有的 arguments 是快照：事后 mutate 不篡改已发事件（协议值语义）。"""
+        sink = RecordingSink()
+        arguments = {"path": "a.txt"}
+        pipeline = ToolPipeline(tools={"t": make_tool([])}, sink=sink)
+        await pipeline.run(ToolRequest(tool_call_id="c1", name="t", arguments=arguments))
+        arguments["path"] = "mutated.txt"
+        start = [e for e in sink.events if isinstance(e, ToolExecutionStart)][0]
+        assert start.arguments == {"path": "a.txt"}
+
+    async def test_non_mapping_arguments_yield_error_observation(self) -> None:
+        """非 str/Mapping 输入收敛为 error 观察，不裸抛。"""
+        pipeline = ToolPipeline(tools={"t": make_tool([])})
+        observation = await pipeline.run(ToolRequest(tool_call_id="c1", name="t", arguments=None))  # type: ignore[arg-type]
+        assert observation.status == "error"
+        assert "must be a mapping or JSON string" in (observation.error or "")
