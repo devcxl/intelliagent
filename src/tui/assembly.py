@@ -29,10 +29,11 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
     model = _require_default_model(config)
     cwd = Path(config.workspace.dir).resolve()
     host = build_host(config)
+    llm = create_llm_client(config)
     warn_missing_permission_plugin(host, sys.stderr)
 
     def runner_factory(sink: EventSink) -> TaskRunner:
-        return Engine.from_host(host, llm=create_llm_client(config), model=model, sink=sink)
+        return Engine.from_host(host, llm=llm, model=model, sink=sink)
 
     return IntelliAgentApp(runner_factory=runner_factory, model=model, cwd=cwd)
 

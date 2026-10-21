@@ -146,3 +146,32 @@ def test_seam_carries_tool_deltas_and_exactly_one_done() -> None:
         Done("stop", None),
     ]
     assert sum(isinstance(event, Done) for event in events) == 1
+
+
+def test_retries_exhausted_emits_error_and_done() -> None:
+    adapter = ScriptedAdapter(
+        ProviderError("TimeoutError: boom", retryable=True),
+        ProviderError("TimeoutError: boom", retryable=True),
+        ProviderError("TimeoutError: boom", retryable=True),
+    )
+    sleep = SleepRecorder()
+    client = _client(adapter, max_retries=2, sleep=sleep)
+
+    events = list(client.stream(_request()))
+
+    assert events == [Error("TimeoutError: boom"), Done("error", None)]
+    assert adapter.calls == 3
+    assert sleep.sleeps == [1.0, 2.0]
+
+
+def test_usage_ledger_records_each_response() -> None:
+    adapter = ScriptedAdapter(
+        [Done("stop", Usage(1, 1, 2))],
+        [Done("stop", Usage(3, 4, 7))],
+    )
+    client = _client(adapter)
+
+    list(client.stream(_request()))
+    list(client.stream(_request()))
+
+    assert client.usage_log == [Usage(1, 1, 2), Usage(3, 4, 7)]

@@ -132,7 +132,7 @@ src/
 └── headless/    无头执行入口
 ```
 
-**核心数据流**：`TUI/Headless → Engine → LLM(litellm) → PluginHost(Capability) → Storage`
+**核心数据流**：`TUI/Headless → Engine → LLM(ProviderClient/Adapter) → PluginHost(Capability) → Storage`
 
 ## 设计原则
 
@@ -143,6 +143,6 @@ src/
 
 ## 技术栈
 
-- Python 3.11+、litellm、pydantic、sqlalchemy、aiosqlite、textual、mcp、pytest
+- Python 3.11+、openai、anthropic、pydantic、sqlalchemy、aiosqlite、textual、mcp、pytest
 - 依赖管理：uv
 - 代码风格：ruff (line-length=120, double quotes)

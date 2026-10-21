@@ -81,7 +81,7 @@ plugins:
 |---|---|---|
 | `type` | 是 | `openai` / `openai-compatible` / `anthropic`，决定线协议。 |
 | `api` | 视类型 | 原样作为 SDK 的 `base_url`，不自动补 `/v1`。`openai` 缺省 `https://api.openai.com/v1`，`anthropic` 缺省 `https://api.anthropic.com`；`openai-compatible` 必填。 |
-| `env` | 否 | 有序环境变量名；取第一个非空值为 API Key。缺省：`openai` → `OPENAI_API_KEY`，`anthropic` → `ANTHROPIC_API_KEY`，`openai-compatible` 无缺省（留空表示不带鉴权，适配本地端点）。YAML 不接受明文 key。 |
+| `env` | 否 | 有序环境变量名；取第一个非空值为 API Key。缺省：`openai` → `OPENAI_API_KEY`，`anthropic` → `ANTHROPIC_API_KEY`，`openai-compatible` 无缺省（留空表示不要求密钥；适配器发送占位 Authorization，端点应忽略鉴权）。YAML 不接受明文 key。 |
 | `name` | 否 | 展示名，供 TUI/文档使用。 |
 | `models` | 是 | 模型条目表，键是 Model Ref 的第二段。 |
 

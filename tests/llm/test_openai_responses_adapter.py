@@ -191,8 +191,9 @@ def test_abort_mid_stream() -> None:
 
 
 def test_failed_event_is_provider_error() -> None:
-    stream = FakeStream([_event("response.failed", error=SimpleNamespace(message="bad response"))])
+    stream = FakeStream([_event("response.failed", error=SimpleNamespace(message="bad response", code="server_error"))])
     adapter = OpenAIResponsesAdapter(_factory(FakeClient(FakeResponses(stream)), []))
 
-    with pytest.raises(ProviderError, match="bad response"):
+    with pytest.raises(ProviderError, match="bad response") as excinfo:
         list(adapter.stream(TARGET, _request(), timeout=60))
+    assert excinfo.value.retryable is True

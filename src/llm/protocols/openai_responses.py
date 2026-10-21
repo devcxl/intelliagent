@@ -23,6 +23,10 @@ from src.llm.stream import (
     abort_requested,
 )
 
+_RETRYABLE_ERROR_CODES = frozenset(
+    {"server_error", "rate_limit_exceeded", "overloaded_error", "api_error", "internal_error"}
+)
+
 
 class OpenAIResponsesAdapter:
     """Responses 流式适配器；客户端工厂可注入，测试不触网。"""
@@ -80,7 +84,8 @@ class OpenAIResponsesAdapter:
                     if error is None:
                         error = getattr(getattr(event, "response", None), "error", None)
                     message = getattr(error, "message", None) or getattr(event, "message", None) or "provider error"
-                    raise ProviderError(str(message), retryable=False)
+                    code = str(getattr(error, "code", None) or getattr(error, "type", None) or "")
+                    raise ProviderError(message, retryable=code in _RETRYABLE_ERROR_CODES)
             done = Done(stop_reason=_map_stop_reason(finish_reason), usage=usage)
             done_yielded = True
             yield done

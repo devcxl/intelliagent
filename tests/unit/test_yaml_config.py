@@ -371,3 +371,18 @@ def test_unknown_model_field_is_diagnostic(tmp_path: Path) -> None:
     with pytest.raises(ConfigError) as excinfo:
         load_config(_write_config(tmp_path, content))
     assert "enabeld" in str(excinfo.value)
+
+
+def test_plaintext_api_key_is_rejected(tmp_path: Path) -> None:
+    content = (
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://x/v1\n"
+        "    api_key: sk-secret\n"
+        "    models:\n"
+        "      model: {}\n"
+    )
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(_write_config(tmp_path, content))
+    assert "api_key" in str(excinfo.value)

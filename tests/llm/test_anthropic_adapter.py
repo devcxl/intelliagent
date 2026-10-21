@@ -120,11 +120,13 @@ def _request(**overrides: Any) -> StreamRequest:
 
 def test_streams_text_and_usage() -> None:
     stream = FakeStream([_message_start(), _text_start(), _text_delta("Hello"), _message_delta("end_turn", 4)])
-    adapter = AnthropicMessagesAdapter(_factory(FakeClient(FakeMessages(stream)), []))
+    client = FakeClient(FakeMessages(stream))
+    adapter = AnthropicMessagesAdapter(_factory(client, []))
 
     events = list(adapter.stream(TARGET, _request(), timeout=60))
 
     assert events == [TextDelta("Hello"), Done("stop", Usage(10, 4, 14))]
+    assert client.closed is True
 
 
 def test_streams_tool_use_with_json_fragments() -> None:

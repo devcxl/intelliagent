@@ -21,6 +21,8 @@ CALL_EXCEPTIONS: tuple[type[BaseException], ...] = (OpenAIError, TimeoutError, C
 
 
 def build_client(target: ModelTarget, timeout: float) -> OpenAI:
+    # OpenAI SDK 必须拿到非空 api_key；openai-compatible 无密钥时用占位值，
+    # 端点应忽略 Authorization（本地 vLLM/Ollama 等）。
     return OpenAI(
         api_key=target.api_key or "not-needed",
         base_url=target.api_base,

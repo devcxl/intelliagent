@@ -56,7 +56,7 @@ providers:
 ```
 
 - `type` 决定线协议：`openai-compatible` 走 Chat Completions，`openai` 走 Responses（`/v1/responses`），`anthropic` 走 Messages（`/v1/messages`）。
-- `env` 按顺序取第一个非空环境变量；`openai` 缺省 `OPENAI_API_KEY`，`anthropic` 缺省 `ANTHROPIC_API_KEY`；`openai-compatible` 留空表示不带鉴权。
+- `env` 按顺序取第一个非空环境变量；`openai` 缺省 `OPENAI_API_KEY`，`anthropic` 缺省 `ANTHROPIC_API_KEY`；`openai-compatible` 留空表示不要求密钥（适配器仍发送占位 Authorization，端点应忽略鉴权）。
 - 密钥只从环境变量读取，不写进 YAML；`default_model` 的 provider/model 与密钥在启动时校验。
 - `models` 的键是 Model Ref 的第二段，`id` 缺省等于键并作为线上模型名。
 - `limit.output` 作为请求未指定时的默认输出上限；`tool_call: false` 时请求不下发工具。

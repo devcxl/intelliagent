@@ -209,6 +209,7 @@ def _usage(input_tokens: int, output_tokens: int) -> Usage | None:
 
 
 def _build_client(target: ModelTarget, timeout: float) -> Anthropic:
+    # Anthropic SDK 同样要求非空 api_key；占位值只在显式无密钥配置下使用。
     return Anthropic(
         api_key=target.api_key or "not-needed",
         base_url=target.api_base,

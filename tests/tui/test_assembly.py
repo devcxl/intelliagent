@@ -47,3 +47,13 @@ def test_build_app_requires_model(tmp_path: Path) -> None:
     config = _write_config(tmp_path, "workspace:\n  dir: .\n")
     with pytest.raises(ConfigError, match="default_model"):
         build_app(config)
+
+
+def test_build_app_validates_default_model_key_at_startup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    config = _write_config(
+        tmp_path,
+        "default_model: openai/gpt\nproviders:\n  openai:\n    type: openai\n    models:\n      gpt: {}\n",
+    )
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        build_app(config)
