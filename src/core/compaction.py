@@ -17,11 +17,9 @@ prepareRequest 必须先于注入类 hook 执行（注册顺序保证）：它�
 
 from __future__ import annotations
 
-import math
-import threading
-from collections.abc import Iterator, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from src.core.compaction_prompts import (
     SPLIT_TURN_MARKER,
@@ -30,6 +28,7 @@ from src.core.compaction_prompts import (
     TURN_PREFIX_SUMMARIZATION_PROMPT,
     UPDATE_SUMMARIZATION_PROMPT,
 )
+from src.core.token_counting import TokenCounter, estimate_tokens
 from src.core.turn_hooks import (
     NextTurnContext,
     NextTurnUpdate,
@@ -41,14 +40,11 @@ from src.llm.stream import (
     ChatMessage,
     Done,
     LLMClient,
-    LLMEvent,
     StopReason,
     StreamRequest,
     TextDelta,
     ToolCallDelta,
-    Usage,
 )
-from src.plugins.storage import ENTRY_TYPE_MESSAGE, Entry, MessagePayload, StorageStore
 
 NO_PRIOR_HISTORY = "No prior history."
 """split turn 且无可摘要历史时的占位历史文本（pi compact 同值）。"""
@@ -56,6 +52,28 @@ NO_PRIOR_HISTORY = "No prior history."
 
 class CompactionError(RuntimeError):
     """压缩失败：摘要在有限重试内拿不到可接受结果，或摘要流违约。"""
+
+
+class CompactionStore(Protocol):
+    """压缩持久化端口（core 不依赖 storage 实现——依赖倒置，PR #77 审查）。
+
+    结构子类型：StorageStore 满足本协议；测试可注入更小的 fake。
+    """
+
+    async def append_chat_message(self, message: ChatMessage, *, parent_id: str | None = None) -> str: ...
+
+    async def chat_projection(self, leaf_entry_id: str) -> tuple[str | None, list[tuple[str, ChatMessage]]]: ...
+
+    async def append_compaction(
+        self,
+        *,
+        summary: str,
+        first_kept_entry_id: str,
+        prompt_checkpoint: dict[str, Any],
+        parent_id: str | None = None,
+    ) -> Any: ...
+
+    async def latest_leaf(self) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -75,57 +93,6 @@ class CompactionOutcome:
     summary: str
     first_kept_entry_id: str
     is_split_turn: bool
-
-
-def estimate_tokens(message: ChatMessage) -> int:
-    """单条消息的 token 估算（pi estimateTokens）：正文与 tool_call 的 name/arguments 按 chars/4。"""
-    chars = len(str(message.get("content") or ""))
-    for call in message.get("tool_calls") or []:
-        function = call.get("function") or {}
-        chars += len(str(function.get("name") or "")) + len(str(function.get("arguments") or ""))
-    return math.ceil(chars / 4)
-
-
-class TokenCounter:
-    """上下文 token 计数：真实 usage 基线 + 基线外消息的 chars/4 估算（pi estimateContextTokens）。
-
-    基线是最近一次响应的 provider 真实 usage 与其覆盖的消息前缀；新响应重新定基线而不累计。
-    """
-
-    def __init__(self) -> None:
-        self._baseline: tuple[int, tuple[ChatMessage, ...]] | None = None
-
-    def record(self, usage: Usage | None, covered: Sequence[ChatMessage]) -> None:
-        """记录一次模型响应的真实 usage 与它覆盖的消息前缀；无有效 usage 时清除基线。"""
-        if usage is None or usage.prompt_tokens <= 0:
-            self._baseline = None
-            return
-        self._baseline = (usage.prompt_tokens, tuple(dict(message) for message in covered))
-
-    def estimate(self, messages: Sequence[ChatMessage]) -> int:
-        """估算消息列表的上下文 token：基线 + 基线外消息估算；基线失配退回整体 chars/4 估算。"""
-        if self._baseline is not None:
-            base, covered = self._baseline
-            if _is_prefix(covered, messages):
-                return base + sum(estimate_tokens(message) for message in messages[len(covered) :])
-        return sum(estimate_tokens(message) for message in messages)
-
-
-class UsageRecordingClient:
-    """LLMClient 装饰器：观察每条流的 Done.usage 喂给 TokenCounter，事件原样透传。
-
-    引擎（src/core/engine.py）不感知压缩；usage 消费靠这个装饰器与引擎之间的 seam。
-    """
-
-    def __init__(self, inner: LLMClient, counter: TokenCounter) -> None:
-        self._inner = inner
-        self._counter = counter
-
-    def stream(self, request: StreamRequest, *, abort: threading.Event | None = None) -> Iterator[LLMEvent]:
-        for event in self._inner.stream(request, abort=abort):
-            if isinstance(event, Done):
-                self._counter.record(event.usage, request.messages)
-            yield event
 
 
 def find_cut_point(messages: Sequence[ChatMessage], keep_recent_tokens: int) -> CutPoint | None:
@@ -166,31 +133,6 @@ def _find_turn_start(messages: Sequence[ChatMessage], entry_index: int) -> int |
     return None
 
 
-def message_payload(message: ChatMessage) -> MessagePayload:
-    """引擎 Message → message entry 的 payload（CONTEXT：Message 经 entry 抽象落库）。"""
-    tool_calls = [dict(call) for call in message.get("tool_calls") or []]
-    return MessagePayload(
-        role=str(message.get("role") or ""),
-        content=str(message.get("content") or ""),
-        tool_call_id=str(message["tool_call_id"]) if message.get("tool_call_id") else None,
-        tool_name=str(message["name"]) if message.get("name") else None,
-        tool_calls=tool_calls or None,
-    )
-
-
-def entry_message(entry: Entry) -> ChatMessage:
-    """message entry → 发给模型的消息（投影重建的最小映射）。"""
-    payload = MessagePayload.model_validate(entry.payload)
-    message: ChatMessage = {"role": payload.role, "content": payload.content}
-    if payload.tool_calls is not None:
-        message["tool_calls"] = payload.tool_calls
-    if payload.tool_call_id is not None:
-        message["tool_call_id"] = payload.tool_call_id
-    if payload.tool_name is not None:
-        message["name"] = payload.tool_name
-    return message
-
-
 def summary_message(summary: str) -> ChatMessage:
     """compaction 摘要 → 发给模型的消息（pi：compactionSummary 折叠为带 <summary> 包装的 user 消息）。"""
     return {"role": "user", "content": f"<summary>\n{summary}\n</summary>"}
@@ -220,7 +162,7 @@ class Compactor:
     def __init__(
         self,
         llm: LLMClient,
-        store: StorageStore,
+        store: CompactionStore,
         *,
         model: str,
         counter: TokenCounter,
@@ -229,6 +171,8 @@ class Compactor:
         keep_recent_tokens: int = 20_000,
         max_summary_attempts: int = 3,
         resume_entry_id: str | None = None,
+        system_prompt: str = "",
+        before_compact: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         self._llm = llm
         self._store = store
@@ -240,12 +184,35 @@ class Compactor:
         self._max_summary_attempts = max_summary_attempts
         self._tip: str | None = resume_entry_id
         self._persisted = 0
-        self._checkpoint: dict[str, Any] = {"system_prompt": "", "tools": [], "model": model}
+        self._before_compact = before_compact
+        self._checkpoint: dict[str, Any] = {"system_prompt": system_prompt, "tools": [], "model": model}
+
+    @classmethod
+    async def resume(
+        cls,
+        llm: LLMClient,
+        store: CompactionStore,
+        *,
+        model: str,
+        counter: TokenCounter,
+        context_window: int,
+        **options: Any,
+    ) -> Compactor:
+        """重启续接：定位 store 中最新分支的 leaf entry，从该锚点继续（AC2 的机制面）。"""
+        leaf = await store.latest_leaf()
+        return cls(
+            llm, store, model=model, counter=counter, context_window=context_window, resume_entry_id=leaf, **options
+        )
 
     @property
     def leaf_entry_id(self) -> str | None:
         """当前分支的 leaf entry（投影查询与重启续接的锚点）。"""
         return self._tip
+
+    @property
+    def prompt_checkpoint(self) -> dict[str, Any]:
+        """最近一次压缩边界处的 prompt 快照（读出口——US37 保真要求读得到）。"""
+        return dict(self._checkpoint)
 
     def hooks(self) -> tuple[PrepareRequestHook, PrepareNextTurnHook]:
         """turn 边界 hook 能力提供者：prepareRequest 现算投影、prepareNextTurn 阈值压缩。"""
@@ -261,8 +228,8 @@ class Compactor:
         hook 注入的临时视图不在记录中，因此不会落库。
         """
         for message in list(messages)[self._persisted :]:
-            entry = await self._store.append_message(message_payload(message), parent_id=self._tip)
-            self._tip = entry.id
+            entry_id = await self._store.append_chat_message(message, parent_id=self._tip)
+            self._tip = entry_id
             self._persisted += 1
 
     async def projection_messages(self) -> list[ChatMessage]:
@@ -272,11 +239,11 @@ class Compactor:
         """
         if self._tip is None:
             return []
-        projection = await self._store.projection(self._tip)
-        kept = [entry_message(entry) for entry in _message_entries(projection.entries)]
-        if projection.compaction is None:
+        summary, kept_pairs = await self._store.chat_projection(self._tip)
+        kept = [message for _entry_id, message in kept_pairs]
+        if summary is None:
             return kept
-        return [summary_message(projection.compaction.summary), *kept]
+        return [summary_message(summary), *kept]
 
     async def context_tokens(self) -> int:
         """当前投影的上下文 token 估算。"""
@@ -293,20 +260,18 @@ class Compactor:
         """
         if self._tip is None:
             return None
-        projection = await self._store.projection(self._tip)
-        kept_entries = _message_entries(projection.entries)
-        kept = [entry_message(entry) for entry in kept_entries]
+        previous, kept_pairs = await self._store.chat_projection(self._tip)
+        kept = [message for _entry_id, message in kept_pairs]
         cut = find_cut_point(kept, self._keep_recent_tokens)
         if cut is None:
             return None
         history, turn_prefix = self._split_at_cut(kept, cut)
         if not history and not turn_prefix:
             return None
-        previous = projection.compaction.summary if projection.compaction is not None else None
         summary = await self._generate_summary(history, turn_prefix, previous)
         record = await self._store.append_compaction(
             summary=summary,
-            first_kept_entry_id=kept_entries[cut.first_kept_index].id,
+            first_kept_entry_id=kept_pairs[cut.first_kept_index][0],
             prompt_checkpoint=dict(self._checkpoint),
             parent_id=self._tip,
         )
@@ -325,13 +290,19 @@ class Compactor:
         本 hook 必须先于注入类 hook 执行（注册顺序保证）：注入的临时消息不落库、不进投影。
         """
         await self.sync_messages(request.messages)
-        self._checkpoint = self._snapshot_checkpoint(request)
+        self._checkpoint = self._snapshot_checkpoint(request, str(self._checkpoint.get("system_prompt") or ""))
         request.messages = await self.projection_messages()
 
     async def prepare_next_turn(self, context: NextTurnContext) -> NextTurnUpdate | None:
-        """prepareNextTurn 挂载：turn 边界落库刚完成的 turn，超阈值即压缩（pi 自动压缩触发点）。"""
+        """prepareNextTurn 挂载：turn 边界落库刚完成的 turn，超阈值即压缩（pi 自动压缩触发点）。
+
+        before_compact 回调（pi session_before_compact 的等价挂载点）可取消本次压缩
+        或提供自定义摘要；扩展接管压缩策略的入口（ADR 0007 hook 语义）。
+        """
         await self.sync_messages(context.messages)
         if await self.should_compact():
+            if self._before_compact is not None and not await self._before_compact():
+                return None
             await self.compact()
         return None
 
@@ -345,10 +316,17 @@ class Compactor:
     async def _generate_summary(
         self, history: Sequence[ChatMessage], turn_prefix: Sequence[ChatMessage], previous: str | None
     ) -> str:
-        """生成合并摘要：历史段走增量摘要；split turn 前缀用独立 prompt 单独总结（pi compact）。"""
+        """生成合并摘要：历史段走增量摘要；split turn 前缀用独立 prompt 单独总结（pi compact）。
+
+        增量语义（AC3）：previous 摘要必须始终携带——history 为空时 previous 本身就是
+        累积摘要，直接前移为历史段文本，不得丢弃。
+        """
         if not turn_prefix:
             return await self._generate(history, previous, turn_prefix=False)
-        history_text = await self._generate(history, previous, turn_prefix=False) if history else NO_PRIOR_HISTORY
+        if history:
+            history_text = await self._generate(history, previous, turn_prefix=False)
+        else:
+            history_text = previous or NO_PRIOR_HISTORY
         prefix_text = await self._generate(turn_prefix, None, turn_prefix=True)
         return f"{history_text}\n\n---\n\n{SPLIT_TURN_MARKER}\n\n{prefix_text}"
 
@@ -401,19 +379,14 @@ class Compactor:
         )
 
     @staticmethod
-    def _snapshot_checkpoint(request: RequestContext) -> dict[str, Any]:
-        """压缩边界处的 prompt 快照：system prompt 全文 + 工具名清单 + 模型。"""
+    def _snapshot_checkpoint(request: RequestContext, seeded_system_prompt: str) -> dict[str, Any]:
+        """压缩边界处的 prompt 快照：system prompt 全文 + 工具名清单 + 模型。
+
+        request.messages 含 system 消息时以其为准；引擎路径的 Conversation 记录不含
+        system 消息时回退构造时注入的 system_prompt 种子（US37 保真：快照不能是空壳）。
+        """
         system_prompt = "\n".join(
             str(message.get("content") or "") for message in request.messages if message.get("role") == "system"
         )
         tools = [str((tool.get("function") or {}).get("name") or "") for tool in request.tools]
-        return {"system_prompt": system_prompt, "tools": tools, "model": request.model}
-
-
-def _is_prefix(covered: Sequence[ChatMessage], messages: Sequence[ChatMessage]) -> bool:
-    return len(covered) <= len(messages) and all(a == b for a, b in zip(covered, messages))
-
-
-def _message_entries(entries: Sequence[Entry]) -> list[Entry]:
-    """保留段中进入模型视图的 message entry（pi：custom 类 entry 不进 LLM 上下文）。"""
-    return [entry for entry in entries if entry.type == ENTRY_TYPE_MESSAGE]
+        return {"system_prompt": system_prompt or seeded_system_prompt, "tools": tools, "model": request.model}

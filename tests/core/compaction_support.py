@@ -69,6 +69,8 @@ def make_compactor(
     max_summary_attempts: int = 3,
     resume_entry_id: str | None = None,
     model: str = "fake/model",
+    before_compact: object | None = None,
+    system_prompt: str = "",
 ) -> Compactor:
     """按测试场景装配 Compactor（参数默认值适合 400 字符/100 token 的样例消息）。"""
     return Compactor(
@@ -79,6 +81,8 @@ def make_compactor(
         context_window=context_window,
         reserve_tokens=reserve_tokens,
         keep_recent_tokens=keep_recent_tokens,
+        before_compact=before_compact,
+        system_prompt=system_prompt,
         max_summary_attempts=max_summary_attempts,
         resume_entry_id=resume_entry_id,
     )

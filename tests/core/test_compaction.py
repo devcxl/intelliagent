@@ -12,7 +12,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from src.core.compaction import CompactionError, CutPoint, TokenCounter, find_cut_point, summary_message
+from src.core.compaction import CompactionError, Compactor, CutPoint, TokenCounter, find_cut_point, summary_message
 from src.core.compaction_prompts import (
     SPLIT_TURN_MARKER,
     SUMMARIZATION_SYSTEM_PROMPT,
@@ -331,3 +331,53 @@ class TestProjectionRegression:
         path = await store.branch_path(compactor.leaf_entry_id)
         assert len(path) == 4  # 2 条被压缩 message + 1 条保留 message + 1 条 compaction
         assert any(entry.payload.get("content") == padding("OLD-TASK") for entry in path)
+
+
+class TestReviewRegressions:
+    """PR #77 审查回归：增量摘要携带 previous、resume 续接、checkpoint 保真、before_compact 挂载点。"""
+
+    async def test_split_turn_summary_carries_previous(self) -> None:
+        """AC3：split turn 且 history 为空时 previous 摘要不得丢弃（累积摘要前移为历史段）。"""
+        llm = FakeLLM()
+        llm.enqueue(*summary_response("继承的累积摘要与前缀"))
+        compactor = make_compactor(llm, store=None)  # type: ignore[arg-type]
+        summary = await compactor._generate_summary([], [{"role": "user", "content": "late"}], "继承的累积摘要")  # noqa: SLF001
+        assert "继承的累积摘要" in summary or "继承的累积摘要与前缀" in summary
+
+    async def test_resume_locates_latest_leaf(self, store: StorageStore) -> None:
+        """重启续接：Compactor.resume 自动定位 store 最新 leaf，不需手工传锚点。"""
+        compactor = make_compactor(FakeLLM(), store)
+        await compactor.sync_messages([user("a"), user("b")])
+        resumed = await Compactor.resume(
+            FakeLLM(), store, model="fake/model", counter=TokenCounter(), context_window=1_000_000
+        )
+        assert resumed.leaf_entry_id == compactor.leaf_entry_id
+
+    async def test_checkpoint_snapshot_keeps_seeded_system_prompt(self, store: StorageStore) -> None:
+        """US37：engine 路径 request.messages 无 system 消息时 checkpoint 不得是空壳。"""
+        compactor = Compactor(
+            FakeLLM(),
+            store,
+            model="m",
+            counter=TokenCounter(),
+            context_window=1_000_000,
+            system_prompt="你是 IntelliAgent",
+        )
+        snapshot = compactor._snapshot_checkpoint(  # noqa: SLF001
+            RequestContext(turn=1, model="m", messages=[], tools=[]), "你是 IntelliAgent"
+        )
+        assert snapshot["system_prompt"] == "你是 IntelliAgent"
+        assert compactor.prompt_checkpoint["system_prompt"] == "你是 IntelliAgent"
+
+    async def test_before_compact_hook_can_cancel(self, store: StorageStore) -> None:
+        """pi session_before_compact 等价挂载点：回调返回 False 取消本次压缩。"""
+        cancelled: list[bool] = []
+
+        async def veto() -> bool:
+            cancelled.append(True)
+            return False
+
+        compactor = make_compactor(FakeLLM(), store, context_window=1, before_compact=veto)
+        await compactor.sync_messages([user(padding("X"))])
+        await compactor.prepare_next_turn(next_turn_context([]))
+        assert cancelled == [True]

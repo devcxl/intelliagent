@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from src.core.compaction import TokenCounter, UsageRecordingClient, estimate_tokens
+from src.core.token_counting import TokenCounter, UsageRecordingClient, estimate_tokens
 from src.llm.stream import StreamRequest, Usage
 from tests.core.compaction_support import assistant, tool_call, user
 from tests.core.engine_support import FakeLLM, text_events

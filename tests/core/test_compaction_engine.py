@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import json
 
-from src.core.compaction import TokenCounter, UsageRecordingClient, summary_message
+from src.core.compaction import summary_message
 from src.core.engine import Engine
+from src.core.token_counting import TokenCounter, UsageRecordingClient
 from src.llm.stream import LLMEvent, Usage
 from src.plugins.storage import StorageStore
 from tests.core.compaction_support import (
