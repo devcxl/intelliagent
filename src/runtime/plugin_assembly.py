@@ -48,14 +48,12 @@ def create_llm_client(config: IntelliAgentConfig) -> LLMClient:
     if config.default_model is None:
         raise ValueError("配置缺少 default_model（如 deepseek/deepseek-flash）")
     registry = _build_registry(config)
-    target = registry.resolve(config.default_model)
+    registry.resolve(config.default_model)
     adapters = {
         "openai-compatible": OpenAIChatAdapter(),
         "openai": OpenAIResponsesAdapter(),
         "anthropic": AnthropicMessagesAdapter(),
     }
-    if target.protocol not in adapters:
-        raise ValueError(f"协议 {target.protocol!r} 的适配器尚未实现（T2/T3）")
     return ProviderClient(registry, adapters)
 
 

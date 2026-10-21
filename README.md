@@ -144,7 +144,7 @@ uv run pytest --tb=short
 uv run ruff check . && uv run ruff format --check .
 ```
 
-测试策略：fake 注入（FakeLLM、fake 插件），不触网；真实 LLM 路径 opt-in（`pytest -m integration` + `OPENAI_API_KEY`）。
+测试策略：fake SDK / FakeLLM 注入，不触网；`tests/headless/test_provider_smoke.py` 用本地 mock 端点验证真实 HTTP 链路。真实 provider 需自行配置密钥后以集成方式验证。
 
 ## 模块职责
 

@@ -9,17 +9,7 @@ import threading
 from collections.abc import Callable, Iterator
 from typing import Any
 
-from openai import (
-    APIConnectionError,
-    APIStatusError,
-    APITimeoutError,
-    InternalServerError,
-    OpenAI,
-    OpenAIError,
-    RateLimitError,
-)
-
-from src.llm.errors import ProviderError
+from src.llm.protocols.openai_common import CALL_EXCEPTIONS, build_client, close_quietly, provider_error
 from src.llm.provider_registry import ModelTarget
 from src.llm.stream import (
     Done,
@@ -32,7 +22,6 @@ from src.llm.stream import (
     abort_requested,
 )
 
-_CALL_EXCEPTIONS: tuple[type[BaseException], ...] = (OpenAIError, TimeoutError, ConnectionError)
 _COMPLETE_FINISH_REASONS = frozenset({"stop", "tool_calls", "function_call"})
 
 
@@ -40,7 +29,7 @@ class OpenAIChatAdapter:
     """Chat Completions 流式适配器；客户端工厂可注入，测试不触网。"""
 
     def __init__(self, client_factory: Callable[[ModelTarget, float], Any] | None = None) -> None:
-        self._client_factory = client_factory if client_factory is not None else _build_client
+        self._client_factory = client_factory if client_factory is not None else build_client
 
     def stream(
         self, target: ModelTarget, request: StreamRequest, abort: threading.Event | None = None, *, timeout: float
@@ -50,9 +39,9 @@ class OpenAIChatAdapter:
         try:
             client = self._client_factory(target, timeout)
             stream = client.chat.completions.create(**self._request_kwargs(target, request))
-        except _CALL_EXCEPTIONS as exc:
-            _close(client)
-            raise _provider_error(exc) from exc
+        except CALL_EXCEPTIONS as exc:
+            close_quietly(client)
+            raise provider_error(exc) from exc
 
         done_yielded = False
         try:
@@ -80,21 +69,21 @@ class OpenAIChatAdapter:
             done = Done(stop_reason=_map_stop_reason(finish_reason), usage=usage)
             done_yielded = True
             yield done
-        except _CALL_EXCEPTIONS as exc:
-            raise _provider_error(exc) from exc
+        except CALL_EXCEPTIONS as exc:
+            raise provider_error(exc) from exc
         finally:
             try:
                 close = getattr(stream, "close", None)
                 if callable(close):
                     close()
-            except _CALL_EXCEPTIONS as exc:
+            except CALL_EXCEPTIONS as exc:
                 if not done_yielded:
-                    raise _provider_error(exc) from exc
+                    raise provider_error(exc) from exc
             except Exception:
                 if not done_yielded:
                     raise
             finally:
-                _close(client)
+                close_quietly(client)
 
     def _request_kwargs(self, target: ModelTarget, request: StreamRequest) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
@@ -111,38 +100,6 @@ class OpenAIChatAdapter:
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
         return kwargs
-
-
-def _build_client(target: ModelTarget, timeout: float) -> OpenAI:
-    return OpenAI(
-        api_key=target.api_key or "not-needed",
-        base_url=target.api_base,
-        timeout=timeout,
-        max_retries=0,
-    )
-
-
-def _close(client: Any) -> None:
-    close = getattr(client, "close", None)
-    if callable(close):
-        try:
-            close()
-        except Exception:
-            # 清理异常不得覆盖已分类的调用错误。
-            pass
-
-
-def _provider_error(exc: Exception) -> ProviderError:
-    return ProviderError(f"{type(exc).__name__}: {exc}", retryable=_is_retryable(exc))
-
-
-def _is_retryable(exc: BaseException) -> bool:
-    if isinstance(
-        exc,
-        (ConnectionError, TimeoutError, APIConnectionError, APITimeoutError, RateLimitError, InternalServerError),
-    ):
-        return True
-    return isinstance(exc, APIStatusError) and exc.status_code >= 500
 
 
 def _first_choice(chunk: Any) -> Any:

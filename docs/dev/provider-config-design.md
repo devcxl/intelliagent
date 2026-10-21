@@ -216,7 +216,7 @@ anthropic 的 `input_json_delta` 只携带 JSON 片段；适配器按 content bl
 - 适配器：每个协议一组录制事件 fixture，覆盖文本、工具调用分段、usage、正常结束、截断、错误、abort；请求投影断言（system 提升、tool_result 形状、max_tokens）。
 - 契约：retry（首事件前可重试、首事件后不重试）、usage 账本、恰好一个 `Done`、流关闭。
 - 集成：本地 OpenAI 兼容 mock 端点（`/v1/chat/completions` 流式）跑一次 headless；Responses / Anthropic 的真实网络测试保持显式 opt-in（`integration` marker + 对应密钥）。
-- 回归：删除 litellm 后，`tests/llm/recorded.py` 中依赖 litellm chunk 类型的录制流需重写为 SDK 事件形状。
+- 回归：原先依赖 litellm chunk 类型的录制流已随 litellm 删除；协议行为由 fake SDK 契约测试覆盖。
 
 ## 实施顺序
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 
@@ -54,8 +55,8 @@ REGISTRY = ModelRegistry(
 )
 
 
-def _client(adapter: ScriptedAdapter, **kwargs: object) -> ProviderClient:
-    return ProviderClient(REGISTRY, {"openai-compatible": adapter}, **kwargs)  # type: ignore[arg-type]
+def _client(adapter: ScriptedAdapter, **kwargs: Any) -> ProviderClient:
+    return ProviderClient(REGISTRY, {"openai-compatible": adapter}, **kwargs)
 
 
 def _request() -> StreamRequest:
