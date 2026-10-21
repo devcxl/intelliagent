@@ -5,7 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
-from litellm.exceptions import RateLimitError
+import pytest
+from litellm.exceptions import BadRequestError, RateLimitError
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from src.llm.litellm_client import LiteLLMClient
@@ -53,11 +54,12 @@ def test_retries_exhausted_emits_error_event(recorder: Recorder, client: LiteLLM
 
 
 def test_non_retryable_error_fails_fast(recorder: Recorder, client: LiteLLMClient) -> None:
-    recorder.record(ValueError("bad request"))
+    recorder.record(BadRequestError(message="bad request", model="m", llm_provider="p"))
 
     events = list(client.stream(_request()))
 
-    assert events == [Error("ValueError: bad request"), Done("error", None)]
+    assert isinstance(events[0], Error) and events[0].message.startswith("BadRequestError")
+    assert events[1] == Done("error", None)
     assert len(recorder.calls) == 1
     assert recorder.sleeps == []
 
@@ -94,3 +96,37 @@ def test_retry_budget_is_finite(recorder: Recorder) -> None:
     assert events == [Error("TimeoutError: boom"), Done("error", None)]
     assert len(recorder.calls) == 1
     assert recorder.sleeps == []
+
+
+@pytest.mark.integration
+class TestRealPathRetryContract:
+    """重试/超时的真实路径契约（PR #68 审查 Spec 轴 high）：确定性故障注入 + 真实 litellm 调用。
+
+    显式 opt-in（integration marker + OPENAI_API_KEY），默认测试集不触网。
+    """
+
+    def test_transient_error_then_real_call_recovers(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import os
+
+        if not os.environ.get("OPENAI_API_KEY"):
+            pytest.skip("需要 OPENAI_API_KEY 环境变量（真实 litellm 路径）")
+
+        import litellm
+
+        real_completion = litellm.completion
+        calls = {"n": 0}
+
+        def fail_once_then_real(**kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RateLimitError(message="injected", model=kwargs["model"], llm_provider="openai")
+            return real_completion(**kwargs)
+
+        monkeypatch.setattr(litellm, "completion", fail_once_then_real)
+        client = LiteLLMClient()
+        events = list(
+            client.stream(StreamRequest(model="openai/gpt-4o-mini", messages=[{"role": "user", "content": "hi"}]))
+        )
+        assert calls["n"] == 2  # 故障一次 + 真实重试一次
+        assert isinstance(events[-1], Done) and events[-1].stop_reason == "stop"
+        assert client.usage_log  # 真实 usage 落账

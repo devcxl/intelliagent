@@ -20,8 +20,14 @@ from litellm.exceptions import (
     ServiceUnavailableError,
     Timeout,
 )
+from openai import OpenAIError
 
 from src.llm.stream import Done, Error, LLMEvent, StopReason, StreamRequest, TextDelta, ToolCallDelta, Usage
+
+# 调用类异常：进入流（Error + Done("error")）而非同步抛出（pi 纪律）。
+# 基类用 openai.OpenAIError——litellm 的全部 API 异常（BadRequest/Timeout/RateLimit...）继承它。
+# 编程错误（AttributeError/TypeError 等）不属于此类，必须原样抛出。
+_CALL_EXCEPTIONS: tuple[type[BaseException], ...] = (OpenAIError, TimeoutError, ConnectionError)
 
 _RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
     TimeoutError,
@@ -34,7 +40,7 @@ _RETRYABLE_EXCEPTIONS: tuple[type[BaseException], ...] = (
     BadGatewayError,
 )
 
-_TRUNCATED_FINISH_REASONS = frozenset({"length", "max_tokens"})
+_COMPLETE_FINISH_REASONS = frozenset({"stop", "tool_calls", "function_call"})
 
 
 class LiteLLMClient:
@@ -83,6 +89,10 @@ class LiteLLMClient:
                     yield event
                 return
             except Exception as exc:
+                # 只处理调用类异常（litellm/OpenAIError、超时、网络）；编程错误
+                # （AttributeError/TypeError 等 bug）必须原样抛出，不伪装成模型错误进流。
+                if not isinstance(exc, _CALL_EXCEPTIONS):
+                    raise
                 # 已产出增量的流不重试：重放会把增量重复发给消费者；错误进流而非同步抛出。
                 if not emitted and failed_attempts < self._max_retries and isinstance(exc, _RETRYABLE_EXCEPTIONS):
                     self._sleep(self._backoff_base_seconds * (2**failed_attempts))
@@ -94,12 +104,17 @@ class LiteLLMClient:
 
     def _attempt(self, request: StreamRequest, abort: threading.Event | None) -> Iterator[LLMEvent]:
         stream = self._open_stream(request)
+        done_yielded = False
         try:
             finish_reason: str | None = None
             usage: Usage | None = None
             for chunk in stream:
                 if _is_aborted(abort):
-                    yield Done(stop_reason="aborted", usage=None)
+                    # abort 时已消耗的 token 仍要落账（pi 纪律：usage 逐响应落账）。
+                    if usage is not None:
+                        self.usage_log.append(usage)
+                    done_yielded = True
+                    yield Done(stop_reason="aborted", usage=usage)
                     return
                 usage = _extract_usage(chunk) or usage
                 choice = _first_choice(chunk)
@@ -118,11 +133,18 @@ class LiteLLMClient:
             done = Done(stop_reason=_map_stop_reason(finish_reason), usage=usage)
             if usage is not None:
                 self.usage_log.append(usage)
+            done_yielded = True
             yield done
         finally:
             close = getattr(stream, "close", None)
             if callable(close):
-                close()
+                try:
+                    close()
+                except Exception:
+                    # close 失败仅在 Done 尚未产出时才可行动（抛给重试/错误进流）；
+                    # Done 之后的清理异常不得二次产出事件破坏"恰好一个 Done"协议。
+                    if not done_yielded:
+                        raise
 
     def _open_stream(self, request: StreamRequest) -> Any:
         kwargs: dict[str, Any] = {
@@ -188,4 +210,12 @@ def _tool_call_delta(raw: Any) -> ToolCallDelta | None:
 
 
 def _map_stop_reason(finish_reason: str | None) -> StopReason:
-    return "length" if finish_reason in _TRUNCATED_FINISH_REASONS else "stop"
+    """映射 finish_reason 为统一流协议的 StopReason。
+
+    只有明确的完整结束（stop/tool_calls/function_call）归 "stop"；截断（length/max_tokens）
+    与未知/缺失 finish_reason（如 content_filter 过滤、连接异常收尾）一律归 "length"——
+    这类响应可能携带残缺 tool call，按 US22 必须判失败让模型重发，不得执行残缺参数。
+    """
+    if finish_reason in _COMPLETE_FINISH_REASONS:
+        return "stop"
+    return "length"
