@@ -89,9 +89,7 @@ def text_events(*texts: str, stop: StopReason = "stop") -> tuple[LLMEvent, ...]:
     return (*[TextDelta(text=text) for text in texts], Done(stop_reason=stop, usage=_usage()))
 
 
-def tool_call_events(
-    calls: Sequence[tuple[str, str, str]], *, stop: StopReason = "stop"
-) -> tuple[LLMEvent, ...]:
+def tool_call_events(calls: Sequence[tuple[str, str, str]], *, stop: StopReason = "stop") -> tuple[LLMEvent, ...]:
     """工具调用响应：calls 是 (id, name, arguments_json) 序列，参数拆成两段增量模拟流式拼接。"""
     events: list[LLMEvent] = []
     for index, (call_id, name, arguments) in enumerate(calls):

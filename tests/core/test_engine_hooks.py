@@ -57,12 +57,12 @@ class TestTurnBoundaryHooks:
         assert all(message.get("content") != "injected" for message in engine.messages)
 
     async def test_prepare_next_turn_receives_turn_result_and_replaces_model(self) -> None:
-        seen: list[tuple[int, str]] = []
+        """prepareNextTurn 在每个已完成 turn 的边界执行（pi：turn_end 后、循环判定前）。"""
+        seen: list[tuple[int, int, str]] = []
 
         async def prepare_next(context: NextTurnContext) -> NextTurnUpdate | None:
-            seen.append((context.result.turn, context.result.message["role"]))
-            assert context.result.observations[0].status == "success"
-            assert context.turn == 2
+            seen.append((context.result.turn, context.turn, context.result.message["role"]))
+            assert all(observation.status == "success" for observation in context.result.observations)
             return NextTurnUpdate(model="fake/model-2")
 
         llm = FakeLLM()
@@ -73,7 +73,7 @@ class TestTurnBoundaryHooks:
         result = await engine.run("task")
 
         assert result.turns == 2
-        assert seen == [(1, "assistant")]
+        assert seen == [(1, 2, "assistant"), (2, 3, "assistant")]
         assert llm.requests[0].model == "fake/model"
         assert llm.requests[1].model == "fake/model-2"
 
@@ -151,7 +151,10 @@ class TestSteeringQueue:
 
     async def test_steering_message_is_injected_before_next_request(self) -> None:
         llm = FakeLLM()
-        llm.enqueue(*tool_call_events([("c1", "rec", tool_arguments("a.txt"))]), on_start=lambda: engine.steer("改用 Python"))
+        llm.enqueue(
+            *tool_call_events([("c1", "rec", tool_arguments("a.txt"))]),
+            on_start=lambda: engine.steer("改用 Python"),
+        )
         llm.enqueue(*text_events("ok"))
         engine = build_engine(llm, tools=[make_tool([])])
 

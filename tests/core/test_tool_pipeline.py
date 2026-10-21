@@ -537,10 +537,20 @@ class TestTurnHookPassThrough:
         host = PluginHost()
         tool_capability = CapabilityDeclaration(kind=CapabilityKind.TOOL, name="echo")
         hook_capability = CapabilityDeclaration(kind=CapabilityKind.HOOK, name="engine.prepare_request")
-        host.load(FakePlugin(manifest=build_manifest(name="echo-tool", capabilities=(tool_capability,)),
-                             providers={(CapabilityKind.TOOL, "echo"): make_tool([])}))
-        host.load(FakePlugin(manifest=build_manifest(name="turn-hooks", capabilities=(hook_capability,)),
-                             providers={(CapabilityKind.HOOK, "engine.prepare_request"): PrepareRequestHook(callback=prepare)}))
+        host.load(
+            FakePlugin(
+                manifest=build_manifest(name="echo-tool", capabilities=(tool_capability,)),
+                providers={(CapabilityKind.TOOL, "echo"): make_tool([])},
+            )
+        )
+        host.load(
+            FakePlugin(
+                manifest=build_manifest(name="turn-hooks", capabilities=(hook_capability,)),
+                providers={
+                    (CapabilityKind.HOOK, "engine.prepare_request"): PrepareRequestHook(callback=prepare),
+                },
+            )
+        )
         pipeline = ToolPipeline.from_host(host)
 
         observation = await pipeline.run(make_request())
@@ -550,10 +560,10 @@ class TestTurnHookPassThrough:
 
     async def test_result_envelope_terminate_flag_lands_on_observation(self) -> None:
         """工具经结果信封 {"status": "ok", "terminate": true} 请求终止；默认 False。"""
-        pipeline = ToolPipeline(tools={"t": make_tool([], result=tool_success(terminate=True))})
+        pipeline = ToolPipeline(tools={"echo": make_tool([], result=tool_success(terminate=True))})
         observation = await pipeline.run(make_request())
         assert observation.terminate is True
 
-        pipeline = ToolPipeline(tools={"t": make_tool([])})
+        pipeline = ToolPipeline(tools={"echo": make_tool([])})
         observation = await pipeline.run(make_request())
         assert observation.terminate is False

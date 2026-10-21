@@ -125,7 +125,9 @@ class TestEventStreamSeam:
         llm.enqueue(*tool_call_events([("c1", "rec", '{"path": "a.txt"}')]))
         llm.enqueue(*text_events("done"))
         sink = RecordingSink()
-        engine = build_engine(llm, tools=[make_tool([], name="rec", result='{"status": "error", "error": "boom"}')], sink=sink)
+        engine = build_engine(
+            llm, tools=[make_tool([], name="rec", result='{"status": "error", "error": "boom"}')], sink=sink
+        )
 
         await engine.run("task")
 

@@ -9,7 +9,6 @@ import threading
 
 import pytest
 
-from src.core.engine import Engine
 from src.core.tool_pipeline import AfterToolCallHook, Observation, ToolCall
 from src.core.turn_hooks import FinishDecision, FinishTurnHook, TurnResult
 from src.llm.stream import Done, Error, ToolCallDelta
@@ -160,7 +159,9 @@ class TestTerminateSignal:
 
     async def test_all_terminate_stops_the_loop(self) -> None:
         llm = FakeLLM()
-        llm.enqueue(*tool_call_events([("c1", "term", tool_arguments("a.txt")), ("c2", "term", tool_arguments("b.txt"))]))
+        llm.enqueue(
+            *tool_call_events([("c1", "term", tool_arguments("a.txt")), ("c2", "term", tool_arguments("b.txt"))])
+        )
         engine = build_engine(
             llm,
             tools=[make_tool([], name="term", result=tool_success(terminate=True))],
@@ -175,7 +176,9 @@ class TestTerminateSignal:
 
     async def test_mixed_terminate_batch_continues_the_loop(self) -> None:
         llm = FakeLLM()
-        llm.enqueue(*tool_call_events([("c1", "term", tool_arguments("a.txt")), ("c2", "rec", tool_arguments("b.txt"))]))
+        llm.enqueue(
+            *tool_call_events([("c1", "term", tool_arguments("a.txt")), ("c2", "rec", tool_arguments("b.txt"))])
+        )
         llm.enqueue(*text_events("done"))
         engine = build_engine(
             llm,
