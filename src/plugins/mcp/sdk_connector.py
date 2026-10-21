@@ -13,11 +13,11 @@ from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontext
 from typing import Any
 
 import httpx
+from mcp import ClientSession, StdioServerParameters, stdio_client
 from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import ContentBlock
 
-from mcp import ClientSession, StdioServerParameters, stdio_client
 from src.plugins.mcp.config import McpServerConfig
 from src.plugins.mcp.connection import McpCallResult, McpConnection, McpSession, McpToolDefinition
 
