@@ -27,9 +27,9 @@ from typing import TextIO
 from src.config.yaml_config import ConfigError, load_config
 from src.core.agent_events import RunOutcome
 from src.core.engine import Engine
-from src.core.plugin_host import PluginError
+from src.core.plugin_host import PluginError, PluginHost
 from src.headless.events import JsonLineSink
-from src.headless.runtime import build_host, create_llm_client, warn_missing_permission_plugin
+from src.runtime.plugin_assembly import build_host, create_llm_client, redact_secrets, warn_missing_permission_plugin
 
 EXIT_OK = 0
 EXIT_FAILURE = 1
@@ -62,31 +62,18 @@ def main(
     """无头执行入口：解析任务 → 装配运行时 → 跑 Run → 事件流出 → 退出码。
 
     stdin/stdout/stderr/abort 均可注入（测试不碰进程全局状态）；abort 缺省时才装 SIGINT 处理。
+    长 LLM 流/长工具执行期间 Ctrl-C 不即时生效（abort 粒度是 turn 边界，见 engine 文档）；
+    双击 Ctrl-C 走 SIG_DFL 强杀。
     """
     stdin = sys.stdin if stdin is None else stdin
     stdout = sys.stdout if stdout is None else stdout
     stderr = sys.stderr if stderr is None else stderr
     args = build_parser().parse_args(argv)
-    try:
-        task = _resolve_task(args.task, stdin)
-    except ValueError as exc:
-        stderr.write(f"error: {exc}\n")
-        return EXIT_USAGE
-    try:
-        config = load_config(args.config)
-    except ConfigError as exc:
-        stderr.write(f"error: {exc}\n")
-        return EXIT_USAGE
-    if not config.model:
-        stderr.write("error: 配置缺少 model（intelliagent.yaml 的 model 段）\n")
-        return EXIT_USAGE
-    try:
-        host = build_host(config)
-    except PluginError as exc:
-        stderr.write(f"error: {exc}\n")
-        return EXIT_USAGE
+    assembled = _assemble(args, stdin, stdout, stderr)
+    if isinstance(assembled, int):
+        return assembled
+    host, engine, task = assembled
     warn_missing_permission_plugin(host, stderr)
-    engine = Engine.from_host(host, llm=create_llm_client(), model=config.model, sink=JsonLineSink(stdout))
     if abort is not None:
         return _run(engine, task, abort, stderr)
     own_abort = threading.Event()
@@ -94,12 +81,34 @@ def main(
         return _run(engine, task, own_abort, stderr)
 
 
+def _assemble(
+    args: argparse.Namespace, stdin: TextIO, stdout: TextIO, stderr: TextIO
+) -> tuple[PluginHost, Engine, str] | int:
+    """解析任务 → 加载配置 → 组装 PluginHost 与 Engine；启动失败统一走脱敏错误输出并返回退出码。"""
+    try:
+        task = _resolve_task(args.task, stdin)
+        config = load_config(args.config)
+        if not config.model:
+            raise ValueError("配置缺少 model（intelliagent.yaml 的 model 段）")
+        host = build_host(config)
+    except (ValueError, ConfigError, PluginError) as exc:
+        return _fail(stderr, exc)
+    engine = Engine.from_host(host, llm=create_llm_client(), model=config.model, sink=JsonLineSink(stdout))
+    return host, engine, task
+
+
+def _fail(stderr: TextIO, exc: Exception) -> int:
+    """统一启动失败输出：脱敏后写 stderr（密钥不得经异常文本泄出）。"""
+    stderr.write(f"error: {redact_secrets(str(exc))}\n")
+    return EXIT_USAGE
+
+
 def _run(engine: Engine, task: str, abort: threading.Event, stderr: TextIO) -> int:
     """跑一个 Run 并把收束结果映射为退出码；运行期异常收敛为失败退出。"""
     try:
         result = asyncio.run(engine.run(task, abort=abort))
     except Exception as exc:
-        stderr.write(f"error: {exc}\n")
+        stderr.write(f"error: {redact_secrets(str(exc))}\n")
         return EXIT_FAILURE
     return exit_code(result.outcome)
 

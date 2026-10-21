@@ -9,6 +9,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
 from pydantic import BaseModel
 
 from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, CapabilityRegistrar, Manifest
@@ -147,7 +148,7 @@ def test_warns_on_stderr_when_no_permission_plugin(monkeypatch: object, tmp_path
 
 
 def test_no_warning_when_permission_plugin_installed(monkeypatch: object, tmp_path: Path) -> None:
-    monkeypatch.setattr("src.headless.runtime.BUILT_IN_PLUGINS", (FakePermissionPlugin(),))  # type: ignore[attr-defined]
+    monkeypatch.setattr("src.runtime.plugin_assembly.BUILT_IN_PLUGINS", (FakePermissionPlugin(),))  # type: ignore[attr-defined]
     config = _write_config(tmp_path)
     fake = FakeLLM()
     fake.enqueue(*text_events("done"))
@@ -258,3 +259,37 @@ def test_disabled_builtin_plugin_is_not_loaded(monkeypatch: object, tmp_path: Pa
 
     assert out.code == 0
     assert fake.requests[0].tools is None  # basic-tools 是唯一的 Tool 能力来源，禁用即无工具
+
+
+class TestReviewRegressions:
+    """PR #75 审查回归：警告条件对齐 US45、诊断脱敏、零工具不警告。"""
+
+    def test_no_warning_when_run_has_no_tools(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """US45：run 不需要 permission 能力（零工具）时不警告。"""
+        from src.core.plugin_host import PluginHost
+        from src.runtime.plugin_assembly import warn_missing_permission_plugin
+
+        stderr = io.StringIO()
+        warn_missing_permission_plugin(PluginHost(), stderr)
+        assert stderr.getvalue() == ""
+
+    def test_warning_when_tools_present_without_permission(self) -> None:
+        """有工具（需裁决）且无 permission 能力时警告。"""
+        import io as _io
+
+        from src.config.yaml_config import IntelliAgentConfig
+        from src.runtime.plugin_assembly import build_host, warn_missing_permission_plugin
+
+        host = build_host(IntelliAgentConfig(model="m"))  # 默认内置 basic-tools
+        stderr = _io.StringIO()
+        warn_missing_permission_plugin(host, stderr)
+        assert "permission" in stderr.getvalue()
+
+    def test_error_output_redacts_secrets(self) -> None:
+        """启动失败诊断脱敏：密钥不得经异常文本泄出。"""
+        from src.runtime.plugin_assembly import redact_secrets
+
+        text = "connect failed: url=sqlite:///db?api_key=supersecret123 token sk-abc123456789xyz"
+        redacted = redact_secrets(text)
+        assert "supersecret123" not in redacted
+        assert "sk-abc123456789xyz" not in redacted
