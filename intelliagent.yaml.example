@@ -7,6 +7,8 @@
 # 任意字符串值支持环境变量插值："{env:VAR}" 或 "{env:VAR:默认值}"（引号必须保留）。
 
 # 必填：litellm 模型标识（provider/model）。缺失时 TUI / 无头模式启动即报错。
+# 自定义 OpenAI 兼容端点：export OPENAI_API_KEY=... OPENAI_BASE_URL=https://gateway.example.com/v1
+# 然后把这里写成 "openai/<端点模型名>"，例如 "openai/qwen-max"。
 model: "openai/gpt-4o"
 
 # 工作区目录（TUI 状态栏显示）。

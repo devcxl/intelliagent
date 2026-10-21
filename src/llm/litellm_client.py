@@ -160,6 +160,11 @@ class LiteLLMClient:
             kwargs["temperature"] = request.temperature
         if request.max_tokens is not None:
             kwargs["max_tokens"] = request.max_tokens
+        # litellm 1.106 只要 tools 非空就导入其 proxy MCP 模块，该模块要求 mcp>=2.2；
+        # 本项目锁定的 mcp 1.x 没有 CacheableResult，运行期 ImportError 会让所有工具调用不可用。
+        # 本项目不使用 litellm 的 MCP 网关（MCP 由内置插件自管），故跳过该分支。
+        # 解除条件：mcp 升到 2.x（或 litellm 改为按需导入）后删除此参数。
+        kwargs["_skip_mcp_handler"] = True
         return litellm.completion(**kwargs)
 
 

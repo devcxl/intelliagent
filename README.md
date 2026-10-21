@@ -35,6 +35,24 @@ cp intelliagent.yaml.example intelliagent.yaml
 
 环境变量插值：`"{env:OPENAI_API_KEY}"` / `"{env:VAR:default}"`（引号必须保留）。
 
+### 自定义 OpenAI 兼容端点
+
+vLLM、Ollama、DashScope、one-api 等 OpenAI 兼容服务沿用 litellm 的 `openai/` provider：
+端点和密钥走环境变量，`model` 写 `openai/<端点上的模型名>`。
+
+```bash
+export OPENAI_API_KEY=sk-...                            # 端点不校验时可填任意非空值
+export OPENAI_BASE_URL=https://gateway.example.com/v1   # 别名：OPENAI_API_BASE
+```
+
+```yaml
+model: "openai/qwen-max"
+```
+
+端点需支持 `/chat/completions` 流式（`stream: true`）与 function calling（`tools`）；Agent 依赖工具调用，
+不支持 `tools` 的端点需在配置里禁用 `basic-tools` 才能纯聊天。usage 建议回传（缺失时该响应记为 None）。
+同一进程内 `OPENAI_BASE_URL` 对所有 `openai/` 模型生效。
+
 ### 无头模式（脚本化）
 
 ```bash

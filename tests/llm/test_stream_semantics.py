@@ -113,6 +113,19 @@ def test_request_fields_pass_through_to_litellm(recorder: Recorder, client: Lite
     assert call["stream_options"] == {"include_usage": True}
 
 
+def test_tools_request_skips_litellm_mcp_gateway(recorder: Recorder, client: LiteLLMClient) -> None:
+    """tools 非空时跳过 litellm 的 MCP 网关导入：该分支要求 mcp>=2.2，本项目锁 mcp 1.x。
+
+    回归：缺该参数时 litellm 在发出请求前就 ImportError（CacheableResult），工具调用全不可用。
+    """
+    recorder.record([finish_chunk("stop")])
+    tools = [{"type": "function", "function": {"name": "read"}}]
+
+    list(client.stream(StreamRequest(model=FAKE_MODEL, messages=[{"role": "user", "content": "hi"}], tools=tools)))
+
+    assert recorder.calls[0]["_skip_mcp_handler"] is True
+
+
 def test_abort_before_stream_ends_with_aborted(recorder: Recorder, client: LiteLLMClient) -> None:
     abort = threading.Event()
     abort.set()
