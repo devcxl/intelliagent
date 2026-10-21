@@ -8,7 +8,7 @@ from src.core.agent_events import EventSink
 from src.core.engine import Engine
 from src.tui.app import IntelliAgentApp
 from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
-from tests.core.engine_support import FakeLLM, build_engine, make_tool, text_events, tool_call_events, tool_arguments
+from tests.core.engine_support import FakeLLM, build_engine, make_tool, text_events, tool_arguments, tool_call_events
 from tests.tui.conftest import submit
 
 

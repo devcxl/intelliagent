@@ -37,16 +37,17 @@ async def test_tool_panel_running_state_then_success() -> None:
         assert "a.txt" in panel.body_text
 
 
-async def test_tool_panel_toggles_with_enter() -> None:
+async def test_tool_panel_toggles_with_click_and_enter() -> None:
     app, _ = make_app()
     async with app.run_test() as pilot:
         app.event_sink.emit(ToolExecutionStart("call_1", "read", {"path": "a.txt"}))
         await pilot.pause()
         panel = app.query_one(ToolCallPanel)
-        panel.focus()
+        title = panel.query_one("CollapsibleTitle")
+        title.focus()
         await pilot.press("enter")
         assert panel.collapsed is False
-        await pilot.press("enter")
+        await pilot.click(title)
         assert panel.collapsed is True
 
 
