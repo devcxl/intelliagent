@@ -215,7 +215,7 @@ anthropic 的 `input_json_delta` 只携带 JSON 片段；适配器按 content bl
 - registry：ref 切分（模型 id 含 `/`）、未知 provider/model、懒解析。
 - 适配器：每个协议一组录制事件 fixture，覆盖文本、工具调用分段、usage、正常结束、截断、错误、abort；请求投影断言（system 提升、tool_result 形状、max_tokens）。
 - 契约：retry（首事件前可重试、首事件后不重试）、usage 账本、恰好一个 `Done`、流关闭。
-- 集成：本地 OpenAI 兼容 mock 端点（`/v1/chat/completions` 流式）跑一次 headless；Responses / Anthropic 的真实网络测试保持显式 opt-in（`integration` marker + 对应密钥）。
+- 集成：本地 OpenAI 兼容 mock 端点（文本 + 工具调用分段、多轮执行）作为默认套件的 headless 冒烟；Responses / Anthropic 的真实网络验证需配置对应密钥后手动执行，默认套件不触网。
 - 回归：原先依赖 litellm chunk 类型的录制流已随 litellm 删除；协议行为由 fake SDK 契约测试覆盖。
 
 ## 实施顺序
