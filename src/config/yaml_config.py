@@ -14,6 +14,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from src.config.providers import ProviderConfig
+
 DEFAULT_CONFIG_FILENAME = "intelliagent.yaml"
 
 _ENV_PATTERN = re.compile(r"\{env:([^:}]+)(?::([^}]*))?\}")
@@ -80,7 +82,8 @@ class IntelliAgentConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    model: str | None = None
+    default_model: str | None = None
+    providers: dict[str, ProviderConfig] = Field(default_factory=dict)
     max_steps: int | None = Field(default=None, ge=1)  # 预留：运行参数将由引擎消费
     workspace: WorkspaceConfig = Field(default_factory=WorkspaceConfig)
     plugins: dict[str, PluginConfig] = Field(default_factory=dict)
@@ -149,8 +152,31 @@ def _read_yaml_file(config_path: Path) -> dict[str, Any]:
 
 def _validate_config(data: Any, config_path: Path) -> IntelliAgentConfig:
     """pydantic 校验；每条错误格式化为「配置路径: 原因」以便定位插件与字段。"""
+    if isinstance(data, dict) and "model" in data:
+        raise ConfigError(
+            f"{config_path}: model: 字段已删除，请改为 default_model: provider/model-id，"
+            "并在 providers: 下声明该 provider"
+        )
     try:
-        return IntelliAgentConfig.model_validate(data)
+        config = IntelliAgentConfig.model_validate(data)
     except ValidationError as exc:
         details = "; ".join(f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}" for error in exc.errors())
         raise ConfigError(f"{config_path}: {details}") from exc
+    if config.default_model is not None:
+        _validate_model_ref(config, config_path)
+    return config
+
+
+def _validate_model_ref(config: IntelliAgentConfig, config_path: Path) -> None:
+    """校验 default_model 的 provider/model 引用；模型 id 内的 / 保留。"""
+    ref = config.default_model or ""
+    provider_name, separator, model_id = ref.partition("/")
+    if not separator or not provider_name or not model_id:
+        raise ConfigError(f"{config_path}: default_model: 需要 provider/model-id 形式，实际为 {ref!r}")
+    provider = config.providers.get(provider_name)
+    if provider is None:
+        raise ConfigError(f"{config_path}: default_model: 未知 provider {provider_name!r}（providers 段未声明）")
+    if model_id not in provider.models:
+        raise ConfigError(
+            f"{config_path}: default_model: provider {provider_name!r} 下没有模型 {model_id!r}（models 段未声明）"
+        )

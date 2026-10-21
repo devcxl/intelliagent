@@ -10,14 +10,14 @@
 src/
 ├── core/         Engine（双层循环状态机）+ 插件宿主（PluginHost）+ 工具流水线 + 投影式压缩
 ├── plugins/      内置插件：basic_tools（read/write/bash/edit/grep）、mcp、skill、storage
-├── llm/          litellm 统一模型接入（token 级流式、usage 落账、超时重试）
+├── llm/          流协议、LLM 编排层（重试/abort/usage）与协议适配器
 ├── config/       YAML 配置（intelliagent.yaml + {env:VAR} 插值）
 ├── runtime/      组合根（plugin_assembly：配置 → PluginHost → Engine）
 ├── tui/          Textual TUI（消息流 + 流式渲染 + 工具折叠）
 └── headless/     无头模式（CLI 任务进、JSON Lines 事件出）
 ```
 
-**核心数据流**：`TUI/Headless → Engine → LLM(litellm) → ToolPipeline → PluginHost(Capability) → Storage`
+**核心数据流**：`TUI/Headless → Engine → LLM ProviderClient/Adapter → ToolPipeline → PluginHost(Capability) → Storage`
 
 **插件契约**（ADR 0007）：Manifest + Plugin Protocol，Entry Points 是第三方插件的唯一发现入口，内置插件走同一契约。能力类型：tool / hook / permission / storage——一个插件可注册多种能力。memory、permission 等由外部插件承载。
 
@@ -35,23 +35,47 @@ cp intelliagent.yaml.example intelliagent.yaml
 
 环境变量插值：`"{env:OPENAI_API_KEY}"` / `"{env:VAR:default}"`（引号必须保留）。
 
-### 自定义 OpenAI 兼容端点
+### Provider 与自定义端点
 
-vLLM、Ollama、DashScope、one-api 等 OpenAI 兼容服务沿用 litellm 的 `openai/` provider：
-端点和密钥走环境变量，`model` 写 `openai/<端点上的模型名>`。
-
-```bash
-export OPENAI_API_KEY=sk-...                            # 端点不校验时可填任意非空值
-export OPENAI_BASE_URL=https://gateway.example.com/v1   # 别名：OPENAI_API_BASE
-```
+配置以 provider 为中心：`default_model` 选择模型，`providers` 声明线协议、端点、密钥来源与模型清单。
 
 ```yaml
-model: "openai/qwen-max"
+default_model: deepseek/deepseek-flash
+
+providers:
+  deepseek:
+    type: openai-compatible
+    api: https://api.deepseek.com
+    env: [DEEPSEEK_API_KEY]
+    models:
+      deepseek-flash:
+        id: deepseek-flash
+        limit:
+          context: 1048576
+          output: 393216
 ```
 
-端点需支持 `/chat/completions` 流式（`stream: true`）与 function calling（`tools`）；Agent 依赖工具调用，
-不支持 `tools` 的端点需在配置里禁用 `basic-tools` 才能纯聊天。usage 建议回传（缺失时该响应记为 None）。
-同一进程内 `OPENAI_BASE_URL` 对所有 `openai/` 模型生效。
+- `type` 决定线协议：`openai-compatible` 走 Chat Completions，`openai` 走 Responses（`/v1/responses`），`anthropic` 走 Messages（`/v1/messages`）。
+- `env` 按顺序取第一个非空环境变量；`openai` 缺省 `OPENAI_API_KEY`，`anthropic` 缺省 `ANTHROPIC_API_KEY`；`openai-compatible` 留空表示不要求密钥（适配器仍发送占位 Authorization，端点应忽略鉴权）。
+- 密钥只从环境变量读取，不写进 YAML；`default_model` 的 provider/model 与密钥在启动时校验。
+- `models` 的键是 Model Ref 的第二段，`id` 缺省等于键并作为线上模型名。
+- `limit.output` 作为请求未指定时的默认输出上限；`tool_call: false` 时请求不下发工具。
+- `reasoning` / `cost` / `modalities` 等元数据可声明，当前不产生行为（示例文件中标注为「仅声明」）。
+
+```yaml
+providers:
+  openai:
+    type: openai              # Responses；api/env 可省略，使用官方缺省
+    models:
+      gpt-5: {}
+  anthropic:
+    type: anthropic           # Messages
+    models:
+      claude-sonnet-4-5: {}
+```
+
+端点需支持所选协议的流式响应与 function calling；Agent 依赖工具调用，
+不支持工具的模型需把 `tool_call` 设为 `false` 才能纯聊天。usage 建议回传（缺失时该响应记为 None）。
 
 ### 无头模式（脚本化）
 
@@ -120,7 +144,7 @@ uv run pytest --tb=short
 uv run ruff check . && uv run ruff format --check .
 ```
 
-测试策略：fake 注入（FakeLLM、fake 插件），不触网；真实 LLM 路径 opt-in（`pytest -m integration` + `OPENAI_API_KEY`）。
+测试策略：fake SDK / FakeLLM 注入，不触网；`tests/headless/test_provider_smoke.py` 用本地 mock 端点验证真实 HTTP 链路。真实 provider 需自行配置密钥后以集成方式验证。
 
 ## 模块职责
 
@@ -128,7 +152,7 @@ uv run ruff check . && uv run ruff format --check .
 |------|------|
 | `src/core/` | 引擎循环、插件宿主、工具流水线、压缩。无 provider 细节，无持久化实现。 |
 | `src/plugins/` | 内置插件（能力实现）。与外部插件走同一契约。 |
-| `src/llm/` | litellm 统一接入。无 agent 循环策略。 |
+| `src/llm/` | 流协议、编排层（重试/abort/usage）与协议适配器。无 agent 循环策略。 |
 | `src/runtime/` | 组合根：配置 → PluginHost → Engine。 |
 | `src/config/` | YAML 配置读取。无业务逻辑。 |
 | `src/tui/` / `src/headless/` | 前端，仅消费引擎事件流。 |

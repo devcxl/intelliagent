@@ -1,15 +1,59 @@
-# IntelliAgent 配置示例（ADR 0009）
+# IntelliAgent 配置示例（ADR 0011）
 #
 # 用法：
 #   cp intelliagent.yaml.example intelliagent.yaml
 #
-# 模型密钥按 litellm 惯例从环境变量读取（如 OpenAI 用 OPENAI_API_KEY），不要写进本文件。
+# 密钥只从环境变量读取，不要写进本文件。
 # 任意字符串值支持环境变量插值："{env:VAR}" 或 "{env:VAR:默认值}"（引号必须保留）。
 
-# 必填：litellm 模型标识（provider/model）。缺失时 TUI / 无头模式启动即报错。
-# 自定义 OpenAI 兼容端点：export OPENAI_API_KEY=... OPENAI_BASE_URL=https://gateway.example.com/v1
-# 然后把这里写成 "openai/<端点模型名>"，例如 "openai/qwen-max"。
-model: "openai/gpt-4o"
+# 必填：Model Ref（provider/model-id），第二段是 providers.<id>.models 的键。
+default_model: deepseek/deepseek-flash
+
+providers:
+  deepseek:
+    # openai-compatible（Chat Completions）
+    type: openai-compatible
+    # 原样作为 SDK 的 base URL，不自动补 /v1。
+    api: https://api.deepseek.com
+    # 按顺序取第一个非空环境变量；openai/anthropic 有各自缺省值。
+    env: [DEEPSEEK_API_KEY]
+    name: DeepSeek
+    models:
+      deepseek-flash:
+        # 发给上游的模型名；缺省等于条目键。
+        id: deepseek-flash
+        name: DeepSeek V4.1 Flash
+        description: "October 17 update of DeepSeek V4.1 Flash"
+        tool_call: true
+        limit:
+          # context 当前仅声明；Compactor 接线后消费。
+          context: 1048576
+          # output 作为请求未显式指定时的默认输出上限。
+          output: 393216
+        # 以下元数据可声明，但当前不产生行为（仅声明）：
+        reasoning: true
+        reasoning_level: [low, high, max]
+        temperature: true
+        structured_output: true
+        attachment: true
+        modalities:
+          input: [text, image]
+          output: [text]
+        cost:
+          input: 0.15
+          output: 0.6
+          reasoning: 0.6
+          cache_read: 0.003
+
+  # 其他协议示例（取消注释后把 default_model 改成对应 provider/model）：
+  # openai:
+  #   type: openai              # Responses；api/env 可省略，使用官方缺省
+  #   models:
+  #     gpt-5: {}
+  # anthropic:
+  #   type: anthropic           # Messages；api/env 可省略，使用官方缺省
+  #   models:
+  #     claude-sonnet-4-5: {}
 
 # 工作区目录（TUI 状态栏显示）。
 # 注意：工具的文件路径边界目前由 INTELLIAGENT_WORKSPACE_ROOT 环境变量控制，不由该字段决定。

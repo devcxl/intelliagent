@@ -25,16 +25,31 @@ def _write_config(tmp_path: Path, content: str, name: str = "intelliagent.yaml")
 
 def test_empty_file_yields_defaults(tmp_path: Path) -> None:
     config = load_config(_write_config(tmp_path, ""))
-    assert config.model is None
+    assert config.default_model is None
+    assert config.providers == {}
     assert config.max_steps is None
     assert config.workspace.dir == "."
     assert config.plugins == {}
 
 
 def test_parses_top_level_fields(tmp_path: Path) -> None:
-    content = "model: openai/gpt-4o\nmax_steps: 20\nworkspace:\n  dir: /srv/ws\n"
+    content = (
+        "default_model: local/model\n"
+        "max_steps: 20\n"
+        "workspace:\n"
+        "  dir: /srv/ws\n"
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://127.0.0.1:8000/v1\n"
+        "    models:\n"
+        "      model:\n"
+        "        id: wire-model\n"
+    )
     config = load_config(_write_config(tmp_path, content))
-    assert config.model == "openai/gpt-4o"
+    assert config.default_model == "local/model"
+    assert config.providers["local"].type == "openai-compatible"
+    assert config.providers["local"].models["model"].id == "wire-model"
     assert config.max_steps == 20
     assert config.workspace.dir == "/srv/ws"
 
@@ -51,7 +66,7 @@ def test_non_mapping_root_raises_config_error(tmp_path: Path) -> None:
 
 def test_malformed_yaml_raises_config_error(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="YAML"):
-        load_config(_write_config(tmp_path, "model: [unclosed\n"))
+        load_config(_write_config(tmp_path, "default_model: [unclosed\n"))
 
 
 def test_unknown_top_level_field_is_diagnostic(tmp_path: Path) -> None:
@@ -61,9 +76,18 @@ def test_unknown_top_level_field_is_diagnostic(tmp_path: Path) -> None:
 
 
 def test_default_path_is_intelliagent_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _write_config(tmp_path, "model: openai/gpt-4o\n")
+    _write_config(
+        tmp_path,
+        "default_model: local/model\n"
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://127.0.0.1:8000/v1\n"
+        "    models:\n"
+        "      model: {}\n",
+    )
     monkeypatch.chdir(tmp_path)
-    assert load_config().model == "openai/gpt-4o"
+    assert load_config().default_model == "local/model"
 
 
 # ============================================================================
@@ -79,21 +103,47 @@ def test_interpolate_env_handles_mixed_text_and_colon_default(monkeypatch: pytes
 
 
 def test_interpolates_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("T52_MODEL", "openai/gpt-4o")
-    config = load_config(_write_config(tmp_path, 'model: "{env:T52_MODEL}"\n'))
-    assert config.model == "openai/gpt-4o"
+    monkeypatch.setenv("T52_HOST", "http://127.0.0.1:9000")
+    content = (
+        "default_model: local/model\n"
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        '    api: "{env:T52_HOST}"\n'
+        "    models:\n"
+        "      model: {}\n"
+    )
+    config = load_config(_write_config(tmp_path, content))
+    assert config.providers["local"].api == "http://127.0.0.1:9000"
 
 
 def test_interpolation_uses_default_when_var_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("T52_MISSING", raising=False)
-    config = load_config(_write_config(tmp_path, 'model: "{env:T52_MISSING:fallback/model}"\n'))
-    assert config.model == "fallback/model"
+    content = (
+        "default_model: local/model\n"
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        '    api: "{env:T52_MISSING:http://fallback/v1}"\n'
+        "    models:\n"
+        "      model: {}\n"
+    )
+    config = load_config(_write_config(tmp_path, content))
+    assert config.providers["local"].api == "http://fallback/v1"
 
 
 def test_missing_var_without_default_raises_config_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("T52_MISSING", raising=False)
+    content = (
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        '    api: "{env:T52_MISSING}"\n'
+        "    models:\n"
+        "      model: {}\n"
+    )
     with pytest.raises(ConfigError, match="T52_MISSING"):
-        load_config(_write_config(tmp_path, 'model: "{env:T52_MISSING}"\n'))
+        load_config(_write_config(tmp_path, content))
 
 
 def test_missing_var_error_names_plugin_and_field(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -192,9 +242,18 @@ def test_invalid_workspace_field_error_names_field(tmp_path: Path) -> None:
 
 
 def test_yaml_wins_when_old_json_also_present(tmp_path: Path) -> None:
-    _write_config(tmp_path, "model: from-yaml\n")
+    _write_config(
+        tmp_path,
+        "default_model: local/model\n"
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://x/v1\n"
+        "    models:\n"
+        "      model: {}\n",
+    )
     _write_config(tmp_path, '{"model": "from-json"}', name="intelliagent.json")
-    assert load_config(tmp_path / "intelliagent.yaml").model == "from-yaml"
+    assert load_config(tmp_path / "intelliagent.yaml").default_model == "local/model"
 
 
 def test_old_json_is_not_read_as_fallback(tmp_path: Path) -> None:
@@ -208,7 +267,7 @@ class TestStrictYamlLoader:
 
     def test_duplicate_key_rejected(self, tmp_path: Path) -> None:
         config_file = tmp_path / "intelliagent.yaml"
-        config_file.write_text("model: openai/gpt-4o\nmodel: deepseek/chat\n", encoding="utf-8")
+        config_file.write_text("default_model: a/one\ndefault_model: b/two\n", encoding="utf-8")
         with pytest.raises(ConfigError, match="重复的键"):
             load_config(config_file)
 
@@ -223,3 +282,107 @@ class TestStrictYamlLoader:
         config_file.write_text('plugins:\n  "on":\n    enabled: true\n', encoding="utf-8")
         config = load_config(config_file)
         assert "on" in config.plugins
+
+
+# ============================================================================
+# Provider 配置（ADR 0011）
+# ============================================================================
+
+
+def test_old_model_field_gets_migration_message(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(_write_config(tmp_path, "model: openai/gpt-4o\n"))
+    message = str(excinfo.value)
+    assert "default_model" in message
+    assert "providers" in message
+
+
+def test_unknown_default_model_provider_is_diagnostic(tmp_path: Path) -> None:
+    content = "default_model: nope/model\nproviders: {}\n"
+    with pytest.raises(ConfigError, match="未知 provider"):
+        load_config(_write_config(tmp_path, content))
+
+
+def test_unknown_default_model_model_is_diagnostic(tmp_path: Path) -> None:
+    content = (
+        "default_model: local/nope\n"
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://x/v1\n"
+        "    models:\n"
+        "      model: {}\n"
+    )
+    with pytest.raises(ConfigError, match="没有模型"):
+        load_config(_write_config(tmp_path, content))
+
+
+def test_openai_compatible_requires_api(tmp_path: Path) -> None:
+    content = "providers:\n  local:\n    type: openai-compatible\n    models:\n      model: {}\n"
+    with pytest.raises(ConfigError, match="requires api"):
+        load_config(_write_config(tmp_path, content))
+
+
+def test_model_metadata_is_declared_with_defaults(tmp_path: Path) -> None:
+    content = (
+        "default_model: local/model\n"
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://x/v1\n"
+        "    env: [LOCAL_KEY]\n"
+        "    models:\n"
+        "      model:\n"
+        "        reasoning: true\n"
+        "        reasoning_level: [low, high]\n"
+        "        tool_call: false\n"
+        "        modalities:\n"
+        "          input: [text, image]\n"
+        "          output: [text]\n"
+        "        limit:\n"
+        "          context: 1000\n"
+        "          output: 200\n"
+        "        cost:\n"
+        "          input: 0.1\n"
+        "          output: 0.2\n"
+    )
+    config = load_config(_write_config(tmp_path, content))
+    model = config.providers["local"].models["model"]
+    assert model.tool_call is False
+    assert model.reasoning is True
+    assert model.reasoning_level == ["low", "high"]
+    assert model.modalities.input == ["text", "image"]
+    assert model.limit.context == 1000
+    assert model.limit.output == 200
+    assert model.cost is not None and model.cost.output == 0.2
+    assert model.id is None
+
+
+def test_unknown_model_field_is_diagnostic(tmp_path: Path) -> None:
+    content = (
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://x/v1\n"
+        "    models:\n"
+        "      model:\n"
+        "        enabeld: true\n"
+    )
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(_write_config(tmp_path, content))
+    assert "enabeld" in str(excinfo.value)
+
+
+def test_plaintext_api_key_is_rejected(tmp_path: Path) -> None:
+    content = (
+        "providers:\n"
+        "  local:\n"
+        "    type: openai-compatible\n"
+        "    api: http://x/v1\n"
+        "    api_key: sk-secret\n"
+        "    models:\n"
+        "      model: {}\n"
+    )
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(_write_config(tmp_path, content))
+    assert "api_key" in str(excinfo.value)

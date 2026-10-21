@@ -88,12 +88,13 @@ def _assemble(
     try:
         task = _resolve_task(args.task, stdin)
         config = load_config(args.config)
-        if not config.model:
-            raise ValueError("配置缺少 model（intelliagent.yaml 的 model 段）")
+        if not config.default_model:
+            raise ValueError("配置缺少 default_model（如 deepseek/deepseek-flash）")
+        client = create_llm_client(config)
         host = build_host(config)
     except (ValueError, ConfigError, PluginError) as exc:
         return _fail(stderr, exc)
-    engine = Engine.from_host(host, llm=create_llm_client(), model=config.model, sink=JsonLineSink(stdout))
+    engine = Engine.from_host(host, llm=client, model=config.default_model, sink=JsonLineSink(stdout))
     return host, engine, task
 
 

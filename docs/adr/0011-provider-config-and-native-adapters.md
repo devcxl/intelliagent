@@ -2,7 +2,7 @@
 
 ## 状态
 
-已决策，待实施。取代 ADR 0007 中「LLM 例外：litellm 统一接入多 provider」与 ADR 0010 中「模型接入（litellm）」的决策。设计细节见 `docs/dev/provider-config-design.md`。
+已决策，已实施（T0-T4）。取代 ADR 0007 中「LLM 例外：litellm 统一接入多 provider」与 ADR 0010 中「模型接入（litellm）」的决策。设计细节见 `docs/dev/provider-config-design.md`。
 
 ## 背景
 

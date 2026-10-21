@@ -15,7 +15,7 @@
 - **契约**：Manifest（名称、版本、`api_version`、能力清单、配置 schema）+ Plugin Protocol。内核只加载 `api_version` 兼容的插件。
 - **发现**：Entry Points 是第三方插件的唯一发现入口；内置插件（read/write/bash/edit/grep、mcp、skill、storage）与外部插件走同一契约，区别仅在发现方式。
 - **能力分类**：插件是**能力包**——一个插件可同时注册多种能力（tool / hook / permission / storage）。
-- **LLM 例外**：litellm 统一接入多 provider，归内核，不设 LLM 插件能力（provider 适配已被 litellm 收敛，插件化无增量价值）。
+- **LLM 例外**（已被 ADR 0011 取代）：litellm 统一接入多 provider，归内核，不设 LLM 插件能力；ADR 0011 改为 provider 配置 + 原生协议适配器。
 - **memory 不设专用能力接口**：memory 外部插件通过 hooks（上下文注入）+ tools（读写）组合实现，避免为无实现的能预留接口。
 
 ## 被否决的方案

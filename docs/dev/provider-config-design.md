@@ -81,7 +81,7 @@ plugins:
 |---|---|---|
 | `type` | 是 | `openai` / `openai-compatible` / `anthropic`，决定线协议。 |
 | `api` | 视类型 | 原样作为 SDK 的 `base_url`，不自动补 `/v1`。`openai` 缺省 `https://api.openai.com/v1`，`anthropic` 缺省 `https://api.anthropic.com`；`openai-compatible` 必填。 |
-| `env` | 否 | 有序环境变量名；取第一个非空值为 API Key。缺省：`openai` → `OPENAI_API_KEY`，`anthropic` → `ANTHROPIC_API_KEY`，`openai-compatible` 无缺省（留空表示不带鉴权，适配本地端点）。YAML 不接受明文 key。 |
+| `env` | 否 | 有序环境变量名；取第一个非空值为 API Key。缺省：`openai` → `OPENAI_API_KEY`，`anthropic` → `ANTHROPIC_API_KEY`，`openai-compatible` 无缺省（留空表示不要求密钥；适配器发送占位 Authorization，端点应忽略鉴权）。YAML 不接受明文 key。 |
 | `name` | 否 | 展示名，供 TUI/文档使用。 |
 | `models` | 是 | 模型条目表，键是 Model Ref 的第二段。 |
 
@@ -156,7 +156,6 @@ class ProtocolAdapter(Protocol):
 
 - 适配器只做「请求投影 + 流事件翻译 + 错误分类」，不重试、不记账、不写事件出口。
 - abort 的置位由调用方/编排层决定；流内响应（尽快收束、释放连接、携带已消耗的 usage）由适配器执行——usage 与连接是传输事实，适配器是唯一知情者。编排层保留 pre-stream abort 与重试决策。
-- T0 过渡期实现不含 `target`：registry 尚未建立，适配器只接收 request、abort 与 timeout；T1 引入 ModelTarget 后扩展签名。
 - SDK 客户端：`OpenAI(max_retries=0, timeout=...)`、`Anthropic(max_retries=0, timeout=...)`；超时值由 `ProviderClient` 传入。
 - SDK 异常在适配器内映射为 `ProviderError(message, retryable=...)`。`ProviderClient` 只捕获 `ProviderError`；其他异常原样抛出（编程错误不得伪装成模型错误）。
 - 适配器必须关闭 SDK 流（上下文管理器 / `finally`），保证 abort 或错误后连接释放。
@@ -216,8 +215,8 @@ anthropic 的 `input_json_delta` 只携带 JSON 片段；适配器按 content bl
 - registry：ref 切分（模型 id 含 `/`）、未知 provider/model、懒解析。
 - 适配器：每个协议一组录制事件 fixture，覆盖文本、工具调用分段、usage、正常结束、截断、错误、abort；请求投影断言（system 提升、tool_result 形状、max_tokens）。
 - 契约：retry（首事件前可重试、首事件后不重试）、usage 账本、恰好一个 `Done`、流关闭。
-- 集成：本地 OpenAI 兼容 mock 端点（`/v1/chat/completions` 流式）跑一次 headless；Responses / Anthropic 的真实网络测试保持显式 opt-in（`integration` marker + 对应密钥）。
-- 回归：删除 litellm 后，`tests/llm/recorded.py` 中依赖 litellm chunk 类型的录制流需重写为 SDK 事件形状。
+- 集成：本地 OpenAI 兼容 mock 端点（文本 + 工具调用分段、多轮执行）作为默认套件的 headless 冒烟；Responses / Anthropic 的真实网络验证需配置对应密钥后手动执行，默认套件不触网。
+- 回归：原先依赖 litellm chunk 类型的录制流已随 litellm 删除；协议行为由 fake SDK 契约测试覆盖。
 
 ## 实施顺序
 

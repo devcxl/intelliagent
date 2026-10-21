@@ -12,7 +12,7 @@
 
 以 pi 引擎为蓝本**复刻核心机制**到重构后的 core：
 
-- 三层分层：纯循环 / 会话编排（hook 包装接入）/ 模型接入（litellm）。
+- 三层分层：纯循环 / 会话编排（hook 包装接入）/ 模型接入（litellm；后被 ADR 0011 的 ProviderClient + 协议适配器取代）。
 - 双层循环状态机：stopReason 分类处理（error/aborted 硬退出、length 截断则工具判失败）、steering/follow-up 消息队列、turn 边界 hook。
 - 事件模型细到 `message_update`（流式增量）与 `tool_execution_start`（执行前），事件流是协议而非日志；token 级流式输出从原 P2 提前到本轮。
 - **投影式压缩**：compaction 是追加摘要记录（含 first_kept_entry_id 与 system prompt checkpoint），原始记录永不删除，上下文每次请求现算投影；token 计数用 provider 真实 usage + 尾部估算。

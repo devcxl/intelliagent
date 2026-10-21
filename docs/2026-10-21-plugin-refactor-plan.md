@@ -2,6 +2,7 @@
 
 > 日期：2026-10-21
 > 状态：待审（v2，2026-10-21 修订：引擎改为复刻 pi 设计，见 `docs/adr/0010-replicate-pi-engine.md`）
+> 后续：LLM 接入已由 `docs/adr/0011-provider-config-and-native-adapters.md` 取代（provider 配置 + 原生协议适配器，废除 litellm）。
 > 依据：`docs/2026-10-21-project-analysis-and-roadmap.md`（现状分析）、`CONTEXT.md`（目标态术语）、`docs/adr/0007-plugin-architecture.md`、`docs/adr/0008-default-security-posture.md`、`docs/adr/0009-textual-tui-yaml-config.md`、`docs/adr/0010-replicate-pi-engine.md`、`docs/pi-engine-principles.md`（引擎蓝本）
 
 ## 1. 目标一句话
