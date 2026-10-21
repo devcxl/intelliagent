@@ -23,12 +23,13 @@ import threading
 from collections.abc import Iterator, Sequence
 from types import FrameType
 from typing import TextIO
+from uuid import uuid4
 
 from src.config.yaml_config import ConfigError, load_config
 from src.core.agent_events import RunOutcome
-from src.core.engine import Engine
 from src.core.plugin_host import PluginError, PluginHost
 from src.headless.events import JsonLineSink
+from src.runtime.engine_runtime import EngineRuntime, build_engine_runtime
 from src.runtime.plugin_assembly import build_host, create_llm_client, redact_secrets, warn_missing_permission_plugin
 
 EXIT_OK = 0
@@ -72,19 +73,19 @@ def main(
     assembled = _assemble(args, stdin, stdout, stderr)
     if isinstance(assembled, int):
         return assembled
-    host, engine, task = assembled
+    host, runtime, task = assembled
     warn_missing_permission_plugin(host, stderr)
     if abort is not None:
-        return _run(engine, task, abort, stderr)
+        return _run(runtime, task, abort, stderr)
     own_abort = threading.Event()
     with _abort_on_sigint(own_abort):
-        return _run(engine, task, own_abort, stderr)
+        return _run(runtime, task, own_abort, stderr)
 
 
 def _assemble(
     args: argparse.Namespace, stdin: TextIO, stdout: TextIO, stderr: TextIO
-) -> tuple[PluginHost, Engine, str] | int:
-    """解析任务 → 加载配置 → 组装 PluginHost 与 Engine；启动失败统一走脱敏错误输出并返回退出码。"""
+) -> tuple[PluginHost, EngineRuntime, str] | int:
+    """解析任务 → 加载配置 → 组装 PluginHost 与 EngineRuntime；启动失败统一走脱敏错误输出并返回退出码。"""
     try:
         task = _resolve_task(args.task, stdin)
         config = load_config(args.config)
@@ -92,10 +93,18 @@ def _assemble(
             raise ValueError("配置缺少 default_model（如 deepseek/deepseek-flash）")
         client = create_llm_client(config)
         host = build_host(config)
+        runtime = build_engine_runtime(
+            config,
+            host,
+            client,
+            config.default_model,
+            JsonLineSink(stdout),
+            conversation_id=f"headless-{uuid4().hex}",
+            resume=False,
+        )
     except (ValueError, ConfigError, PluginError) as exc:
         return _fail(stderr, exc)
-    engine = Engine.from_host(host, llm=client, model=config.default_model, sink=JsonLineSink(stdout))
-    return host, engine, task
+    return host, runtime, task
 
 
 def _fail(stderr: TextIO, exc: Exception) -> int:
@@ -104,14 +113,22 @@ def _fail(stderr: TextIO, exc: Exception) -> int:
     return EXIT_USAGE
 
 
-def _run(engine: Engine, task: str, abort: threading.Event, stderr: TextIO) -> int:
+def _run(runtime: EngineRuntime, task: str, abort: threading.Event, stderr: TextIO) -> int:
     """跑一个 Run 并把收束结果映射为退出码；运行期异常收敛为失败退出。"""
+
+    async def run() -> RunOutcome:
+        try:
+            result = await runtime.engine.run(task, abort=abort)
+        finally:
+            await runtime.close()
+        return result.outcome
+
     try:
-        result = asyncio.run(engine.run(task, abort=abort))
+        outcome = asyncio.run(run())
     except Exception as exc:
         stderr.write(f"error: {redact_secrets(str(exc))}\n")
         return EXIT_FAILURE
-    return exit_code(result.outcome)
+    return exit_code(outcome)
 
 
 def _resolve_task(argument: str | None, stdin: TextIO) -> str:

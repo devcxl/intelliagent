@@ -91,6 +91,7 @@ uv run python -m src.headless run "任务"
 ```
 
 退出码：`0` 成功收束（settled/terminated）、`1` 运行失败/中止、`2` 启动失败。
+每次运行创建独立会话，不续接数据库中的上次会话。
 
 ### TUI（交互式）
 
@@ -99,6 +100,8 @@ uv run python -m src.tui
 ```
 
 消息流 + 流式增量渲染 + 工具调用折叠 + 单行输入框（Enter 提交）+ 状态栏。
+TUI 会自动续接同一数据库中的 `tui` 会话；删除 `intelliagent.db` 可重置。
+自动压缩在配置了模型 `limit.context` 时生效；未配置时只持久化、不压缩。
 
 ## 插件开发
 

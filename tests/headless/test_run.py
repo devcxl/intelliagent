@@ -50,7 +50,7 @@ class RunOutput:
         return [json.loads(line) for line in self.stdout.splitlines()]
 
 
-_DEFAULT_CONFIG = (
+_BASE_CONFIG = (
     "default_model: fake/model\n"
     "providers:\n"
     "  fake:\n"
@@ -59,6 +59,8 @@ _DEFAULT_CONFIG = (
     "    models:\n"
     "      model: {}\n"
 )
+
+_DEFAULT_CONFIG = _BASE_CONFIG + ('plugins:\n  storage:\n    config:\n      database_url: ":memory:"\n')
 
 
 def _write_config(tmp_path: Path, body: str = _DEFAULT_CONFIG) -> Path:
@@ -248,7 +250,7 @@ def test_empty_task_exits_usage_code(monkeypatch: object, tmp_path: Path) -> Non
 def test_invalid_plugin_config_exits_usage_code(monkeypatch: object, tmp_path: Path) -> None:
     config = _write_config(
         tmp_path,
-        _DEFAULT_CONFIG + "plugins:\n  storage:\n    config:\n      database_url: [1, 2]\n",
+        _BASE_CONFIG + "plugins:\n  storage:\n    config:\n      database_url: [1, 2]\n",
     )
 
     out = _run(monkeypatch, ["run", "任务", "--config", str(config)])
@@ -263,7 +265,16 @@ def test_invalid_plugin_config_exits_usage_code(monkeypatch: object, tmp_path: P
 
 
 def test_disabled_builtin_plugin_is_not_loaded(monkeypatch: object, tmp_path: Path) -> None:
-    config = _write_config(tmp_path, _DEFAULT_CONFIG + "plugins:\n  basic-tools:\n    enabled: false\n")
+    config = _write_config(
+        tmp_path,
+        _BASE_CONFIG
+        + "plugins:\n"
+        + "  basic-tools:\n"
+        + "    enabled: false\n"
+        + "  storage:\n"
+        + "    config:\n"
+        + '      database_url: ":memory:"\n',
+    )
     fake = FakeLLM()
     fake.enqueue(*text_events("ok"))
 

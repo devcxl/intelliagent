@@ -8,8 +8,10 @@ import pytest
 
 from src.config.yaml_config import ConfigError
 from src.core.engine import Engine
+from src.tui.app import IntelliAgentApp
 from src.tui.assembly import build_app
 from src.tui.widgets import StatusBar
+from tests.tui.conftest import ScriptedRunner
 
 _DEFAULT_CONFIG = (
     "default_model: fake/model\n"
@@ -57,3 +59,21 @@ def test_build_app_validates_default_model_key_at_startup(tmp_path: Path, monkey
     )
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         build_app(config)
+
+
+async def test_app_invokes_close_callback_on_exit() -> None:
+    """应用退出时释放运行时资源（storage 连接）。"""
+    closed: list[bool] = []
+
+    async def close() -> None:
+        closed.append(True)
+
+    app = IntelliAgentApp(
+        runner_factory=ScriptedRunner,
+        model="fake/model",
+        cwd=Path("/work"),
+        on_close=close,
+    )
+    async with app.run_test():
+        pass
+    assert closed == [True]

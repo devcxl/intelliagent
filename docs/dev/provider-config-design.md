@@ -13,7 +13,6 @@
 
 - 不做模型自动发现、模型选择器或 `models.dev` 目录同步。
 - 不做 provider 级 `headers` / `body` 覆盖（后续按需加）。
-- 不接线 Compactor；`limit.context` 本次只声明。
 - 不实现 reasoning 流事件、成本账、多模态与结构化输出。
 - 不支持 Bedrock / Vertex 等非 OpenAI/Anthropic 原生协议。
 
@@ -92,7 +91,7 @@ plugins:
 | `id` | 否 | 发给上游的模型名；缺省等于条目键。 | 是 |
 | `name` | 否 | 展示名。 | 仅展示 |
 | `description` | 否 | 模型说明。 | 仅展示 |
-| `limit.context` | 否 | 上下文上限（token）。 | 声明；Compactor 接线后消费 |
+| `limit.context` | 否 | 上下文上限（token）。 | 是：自动压缩阈值；缺失时只持久化、不压缩 |
 | `limit.output` | 否 | 输出上限（token）。 | 是：`request.max_tokens` 为空时作为默认值 |
 | `tool_call` | 否 | 是否支持 function calling；缺省 `true`。 | 是：`false` 时不下发 tools |
 | `temperature` | 否 | 是否接受 temperature 参数；缺省 `true`。 | 声明；温度配置落地后消费 |
@@ -199,7 +198,7 @@ anthropic 的 `input_json_delta` 只携带 JSON 片段；适配器按 content bl
 | `limit.output` | 适配器 | `request.max_tokens` 为空时的默认上限 |
 | `tool_call` | 适配器 | `false` 时请求不带 tools |
 | `name` / `description` | TUI/文档 | 不参与请求 |
-| `limit.context` | 未来 Compactor | 本次仅声明 |
+| `limit.context` | Compactor（已接线） | 自动压缩阈值；缺失时只持久化 |
 | 其余 | 无 | 文档标注「仅声明」 |
 
 ## 失败、可观测与安全
@@ -238,7 +237,7 @@ anthropic 的 `input_json_delta` 只携带 JSON 片段；适配器按 content bl
 
 ## 未来工作
 
-- Compactor 接线后消费 `limit.context`，并在 TUI 展示上下文占用。
+- 在 TUI 展示上下文占用。
 - reasoning 流事件（`ReasoningDelta`）与 TUI 渲染，使 `reasoning` / `interleaved` 生效。
 - 成本账：消费 `cost` 与 usage，输出每次 Run 的费用。
 - provider 级 `headers` / `body` 覆盖（企业网关、OpenRouter 等）。

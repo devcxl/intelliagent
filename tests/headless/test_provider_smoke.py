@@ -62,7 +62,11 @@ def test_headless_run_against_local_openai_compatible_endpoint(tmp_path: Path, m
         "    type: openai-compatible\n"
         f"    api: {mock_endpoint}\n"
         "    models:\n"
-        "      mock-model: {}\n",
+        "      mock-model: {}\n"
+        "plugins:\n"
+        "  storage:\n"
+        "    config:\n"
+        '      database_url: ":memory:"\n',
         encoding="utf-8",
     )
     stdout, stderr = io.StringIO(), io.StringIO()
@@ -163,7 +167,11 @@ def test_headless_tool_call_streaming_against_local_endpoint(
         "    type: openai-compatible\n"
         f"    api: {mock_tool_endpoint}\n"
         "    models:\n"
-        "      mock-model: {}\n",
+        "      mock-model: {}\n"
+        "plugins:\n"
+        "  storage:\n"
+        "    config:\n"
+        '      database_url: ":memory:"\n',
         encoding="utf-8",
     )
     stdout, stderr = io.StringIO(), io.StringIO()

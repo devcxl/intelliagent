@@ -26,7 +26,8 @@ providers:
         description: "October 17 update of DeepSeek V4.1 Flash"
         tool_call: true
         limit:
-          # context 当前仅声明；Compactor 接线后消费。
+          # 自动压缩阈值（当前投影 token > context - reserve 时触发）；
+          # 缺失时仍持久化，但不自动压缩。
           context: 1048576
           # output 作为请求未显式指定时的默认输出上限。
           output: 393216
@@ -66,6 +67,7 @@ plugins:
     enabled: true
 
   # 内置存储插件：SQLite append-only 记录（相对路径按启动目录解析）。
+  # TUI 固定续接同一数据库中的 tui 会话；headless 每次运行创建新会话。
   storage:
     enabled: true
     config:

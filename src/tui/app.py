@@ -12,7 +12,7 @@ message_update 边收边渲染（issue #63，合并重绘见 MessageView），�
 from __future__ import annotations
 
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -62,7 +62,14 @@ class IntelliAgentApp(App[None]):
 
     BINDINGS = []
 
-    def __init__(self, *, runner_factory: RunnerFactory, model: str, cwd: Path) -> None:
+    def __init__(
+        self,
+        *,
+        runner_factory: RunnerFactory,
+        model: str,
+        cwd: Path,
+        on_close: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
         super().__init__()
         self._sink = TuiEventSink(self)
         self._runner = runner_factory(self._sink)
@@ -73,6 +80,7 @@ class IntelliAgentApp(App[None]):
         self._tool_panels: dict[str, ToolCallPanel] = {}
         self._run_worker: Worker[None] | None = None
         self._run_settled = False
+        self._on_close = on_close
 
     @property
     def event_sink(self) -> TuiEventSink:
@@ -91,6 +99,11 @@ class IntelliAgentApp(App[None]):
 
     def on_mount(self) -> None:
         self._prompt.focus()
+
+    async def on_unmount(self) -> None:
+        """应用退出时释放运行时资源（例如 storage 连接）。"""
+        if self._on_close is not None:
+            await self._on_close()
 
     def on_input_submitted(self, _event: Input.Submitted) -> None:
         """Enter 提交：Input 原生 Submitted 消息触发原有提交动作。"""

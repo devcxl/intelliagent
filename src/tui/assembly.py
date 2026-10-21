@@ -11,9 +11,12 @@ from pathlib import Path
 
 from src.config.yaml_config import ConfigError, IntelliAgentConfig, load_config
 from src.core.agent_events import EventSink
-from src.core.engine import Engine
+from src.runtime.engine_runtime import EngineRuntime, build_engine_runtime
 from src.runtime.plugin_assembly import build_host, create_llm_client, warn_missing_permission_plugin
 from src.tui.app import IntelliAgentApp, TaskRunner
+
+TUI_CONVERSATION_ID = "tui"
+"""TUI 固定续接的会话根 id：同一数据库只保留一段交互式会话。"""
 
 
 def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
@@ -31,11 +34,26 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
     host = build_host(config)
     llm = create_llm_client(config)
     warn_missing_permission_plugin(host, sys.stderr)
+    runtimes: list[EngineRuntime] = []
 
     def runner_factory(sink: EventSink) -> TaskRunner:
-        return Engine.from_host(host, llm=llm, model=model, sink=sink)
+        runtime = build_engine_runtime(
+            config,
+            host,
+            llm,
+            model,
+            sink,
+            conversation_id=TUI_CONVERSATION_ID,
+            resume=True,
+        )
+        runtimes.append(runtime)
+        return runtime.engine
 
-    return IntelliAgentApp(runner_factory=runner_factory, model=model, cwd=cwd)
+    async def close_runtime() -> None:
+        for runtime in runtimes:
+            await runtime.close()
+
+    return IntelliAgentApp(runner_factory=runner_factory, model=model, cwd=cwd, on_close=close_runtime)
 
 
 def _require_default_model(config: IntelliAgentConfig) -> str:
