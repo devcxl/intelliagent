@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -77,4 +78,18 @@ class PathPolicy:
         )
 
 
-__all__ = ["PathCheckResult", "PathPolicy"]
+def resolve_workspace_root(workspace: str | Path | None = None) -> Path | None:
+    """解析工作区根路径：优先取参数，其次取 INTELLIAGENT_WORKSPACE_ROOT 环境变量。
+
+    Returns:
+        解析后的 Path，均不可用时返回 None
+    """
+    if workspace:
+        return Path(workspace).resolve()
+    env_root = os.environ.get("INTELLIAGENT_WORKSPACE_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+    return None
+
+
+__all__ = ["PathCheckResult", "PathPolicy", "resolve_workspace_root"]

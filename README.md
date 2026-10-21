@@ -1,141 +1,135 @@
 # IntelliAgent
 
-基于 ReAct 循环的代码开发助手框架。受 Claude Code、Codex、OpenCode 启发，强调**可解释性**、**模块清晰**和**架构即产出**。
+基于投影式压缩引擎的插件化编码智能体框架。受 Claude Code、Codex、OpenCode 与 pi（badlogic/pi-mono）启发，强调**可解释性**、**插件化能力面**和**架构即产出**。
+
+> **安全提示（ADR 0008）**：发行版不捆绑 permission 插件——未安装 permission 插件时，所有工具调用（含 bash）**不经确认直接执行**。面向不可信任务使用前，请先安装 permission 插件。
 
 ## 架构
 
 ```
 src/
-├── cli/          CLI 界面（参数解析 + REPL + 输出格式化）
-├── config/       统一配置（intelliagent.json + {env:VAR} 插值）
-├── core/         ReAct 引擎核心循环
-├── db/           持久化（SQLAlchemy ORM + repositories）
-├── gui/          PyQt5 GUI 界面（qasync 桥接 asyncio）
-├── llm/          LLM 客户端适配器
-├── mcp/          MCP 服务器管理
-├── memory/       记忆管理（MemoryProtocol，实现待定）
-├── permission/   权限引擎（fnmatch + last-match-wins）
-├── runtime/      运行时组装（AgentRuntime）
-├── services/     领域服务（会话管理、Agent Team 协调）
-├── skills/       Skill 加载/注册/工具
-├── tools/        工具注册表 + 内置工具
-├── types/        类型定义（Protocol 接口）
-└── utils/        工具函数（路径策略、日志、密钥）
+├── core/         Engine（双层循环状态机）+ 插件宿主（PluginHost）+ 工具流水线 + 投影式压缩
+├── plugins/      内置插件：basic_tools（read/write/bash/edit/grep）、mcp、skill、storage
+├── llm/          litellm 统一模型接入（token 级流式、usage 落账、超时重试）
+├── config/       YAML 配置（intelliagent.yaml + {env:VAR} 插值）
+├── runtime/      组合根（plugin_assembly：配置 → PluginHost → Engine）
+├── tui/          Textual TUI（消息流 + 流式渲染 + 工具折叠）
+└── headless/     无头模式（CLI 任务进、JSON Lines 事件出）
 ```
 
-**核心数据流**：`CLI → ConversationOrchestrator → AgentRuntime → ReactEngine → LLMClient → ToolRegistry`
+**核心数据流**：`TUI/Headless → Engine → LLM(litellm) → ToolPipeline → PluginHost(Capability) → Storage`
+
+**插件契约**（ADR 0007）：Manifest + Plugin Protocol，Entry Points 是第三方插件的唯一发现入口，内置插件走同一契约。能力类型：tool / hook / permission / storage——一个插件可注册多种能力。memory、permission 等由外部插件承载。
+
+**引擎**（ADR 0010，复刻 pi）：双层循环状态机、stopReason 三分类、steering/follow-up 插话、turn 边界 hooks、投影式压缩（原始记录永不删除，上下文每次请求现算）。
 
 ## 快速开始
 
 ```bash
 # 安装依赖
-uv sync
+uv sync --extra dev
 
 # 配置
-cp intelliagent.json.example intelliagent.json
-# 编辑 intelliagent.json，设置 OPENAI_API_KEY
-
-# 启动交互式对话
-uv run python -m src.cli.main
-
-# 继续上一次对话
-uv run python -m src.cli.main --resume
-
-# 查看历史对话
-uv run python -m src.cli.main --history
+touch intelliagent.yaml   # 见下方配置示例
 ```
 
-## GUI 界面
+`intelliagent.yaml`：
 
-PyQt5 GUI 作为 CLI 的替代品，提供图形化聊天界面：
+```yaml
+model: "openai/gpt-4o"     # litellm 模型标识（provider/model）
+max_steps: 50
+workspace:
+  dir: "."
+plugins:
+  basic-tools:
+    enabled: true
+  skill:
+    enabled: true
+    config:
+      project_paths: [".agents/skills"]
+```
+
+环境变量插值：`"{env:OPENAI_API_KEY}"` / `"{env:VAR:default}"`（引号必须保留）。
+
+### 无头模式（脚本化）
 
 ```bash
-# 安装 GUI 依赖
-uv sync --extra gui
+# 任务参数进、JSON Lines 事件流出
+uv run intelliagent run "读取 README.md 并总结"
 
-# 启动 GUI
-uv run python -m src.gui.main
+# stdin 进
+echo "任务" | uv run intelliagent run
+
+# 免安装形态
+uv run python -m src.headless run "任务"
 ```
 
-GUI 特性：
-- 会话列表管理（新建/切换/删除）
-- Markdown 渲染聊天消息
-- 工具调用折叠展示
-- 权限确认弹窗
-- 主题切换
+退出码：`0` 成功收束（settled/terminated）、`1` 运行失败/中止、`2` 启动失败。
 
-## 配置
+### TUI（交互式）
 
-所有配置收敛到单一 `intelliagent.json`，支持 `{env:VAR_NAME}` 环境变量插值：
-
-```json
-{
-  "provider": {
-    "openai": {
-      "options": {
-        "apiKey": "{env:OPENAI_API_KEY}",
-        "baseURL": "{env:OPENAI_API_BASE}"
-      }
-    }
-  },
-  "permissions": {
-    "rules": [
-      { "pattern": "read *", "action": "allow" },
-      { "pattern": "bash *", "action": "ask" }
-    ]
-  },
-  "agent_team": {
-    "enabled": false
-  }
-}
+```bash
+uv run python -m src.tui
 ```
 
-配置优先级：**环境变量 > intelliagent.json > 代码默认值**
+消息流 + 流式增量渲染 + 工具调用折叠 + 多行编辑器（ctrl+j 提交）+ 状态栏。
 
-## 核心内置工具
+## 插件开发
+
+第三方插件经 Entry Points 发现（group `intelliagent.plugins`）：
+
+```python
+# my_plugin.py
+from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, Manifest
+
+class MyPlugin:
+    manifest = Manifest(
+        name="my-plugin", version="0.1.0", api_version=1,
+        capabilities=(CapabilityDeclaration(kind=CapabilityKind.TOOL, name="my.tool"),),
+        config_schema=MyConfig,  # 可选：pydantic 配置 schema
+    )
+
+    def register(self, registrar, config):
+        registrar.register(CapabilityKind.TOOL, "my.tool", my_tool_provider)
+```
+
+```toml
+# pyproject.toml
+[project.entry-points."intelliagent.plugins"]
+my-plugin = "my_plugin:MyPlugin"
+```
+
+Hook 能力（beforeToolCall/afterToolCall/turn 边界）可实现 permission、memory 等外部插件——内核不捆绑实现（ADR 0008）。
+
+## 内置工具
 
 | 工具 | 说明 |
 |------|------|
-| `read_file` / `write_file` / `edit_file` | 文件操作 |
-| `run_shell` | 命令执行 |
-| `task_write` / `task_add` / `task_update` / `task_finish` | 任务管理（持久化到 SQLite） |
-| `skill` | 按需加载 Skill 指令 |
+| `read` | 分页读取（offset/limit + 续读提示，输出限额） |
+| `write` | 写文件（只返回成功消息，不回灌内容） |
+| `bash` | 命令执行（进程组 kill、输出落盘 offload、超时封顶） |
+| `edit` | 精确匹配编辑（返回 diff，多匹配需显式策略） |
+| `grep` | ripgrep 检索（匹配数/行宽限额，缺依赖可诊断） |
 
-## 可选 Agent Team 工具
+## 测试
 
-Agent Team 默认关闭。需要多 Agent 通信与团队管理时，在 `intelliagent.json` 中设置：
-
-```json
-{
-  "agent_team": { "enabled": true }
-}
+```bash
+uv run pytest --tb=short
+uv run ruff check . && uv run ruff format --check .
 ```
 
-关闭时不会向模型注册 Agent Team 工具；相关数据库表仍随主 schema 创建。
-
-启用后注册以下工具：
-
-| 工具 | 说明 |
-|------|------|
-| `send_message` / `receive_message` / `get_contacts` / `get_contact_detail` / `create_agent` / `delete_agent` | Agent 间通信与团队管理 |
-
-## CLI 命令
-
-| 命令 | 说明 |
-|------|------|
-| `/exit` | 退出对话 |
-| `/help` | 显示帮助 |
+测试策略：fake 注入（FakeLLM、fake 插件），不触网；真实 LLM 路径 opt-in（`pytest -m integration` + `OPENAI_API_KEY`）。
 
 ## 模块职责
 
 | 模块 | 职责 |
 |------|------|
-| `src/core/` | ReAct 引擎、安全规则。不含 provider 逻辑和持久化。 |
-| `src/llm/` | LLM 客户端适配器。不含 agent 循环策略。 |
-| `src/tools/` | 工具实现 + 注册表。不含运行时组装。 |
-| `src/runtime/` | 组合根：连接配置、LLM、权限、引擎。 |
-| `src/db/` | 对话、消息、运行、追踪的持久化。 |
-| `src/config/` | 类型化配置模型。 |
+| `src/core/` | 引擎循环、插件宿主、工具流水线、压缩。无 provider 细节，无持久化实现。 |
+| `src/plugins/` | 内置插件（能力实现）。与外部插件走同一契约。 |
+| `src/llm/` | litellm 统一接入。无 agent 循环策略。 |
+| `src/runtime/` | 组合根：配置 → PluginHost → Engine。 |
+| `src/config/` | YAML 配置读取。无业务逻辑。 |
+| `src/tui/` / `src/headless/` | 前端，仅消费引擎事件流。 |
 
 ## License
 

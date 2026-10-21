@@ -5,8 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.plugins.basic_tools.result import tool_error
-from src.utils.path_policy import PathPolicy
-from src.utils.path_utils import resolve_workspace_root
+from src.utils.path_policy import PathPolicy, resolve_workspace_root
 
 
 def resolve_tool_path(path: object, path_policy: PathPolicy | None) -> tuple[Path | None, str | None]:
