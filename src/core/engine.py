@@ -25,6 +25,7 @@ steer() 的消息在下一次请求组装前注入（运行中插话）；follow
 
 from __future__ import annotations
 
+import asyncio
 import threading
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -44,6 +45,7 @@ from src.core.agent_events import (
     TurnStart,
     message_events,
 )
+from src.core.async_stream import iterate_in_thread
 from src.core.pending_messages import PendingMessageQueue, QueueMode
 from src.core.plugin_host import CapabilityKind, PluginHost
 from src.core.tool_pipeline import Observation, ToolPipeline, ToolProvider, ToolRequest
@@ -285,7 +287,7 @@ class Engine:
             ),
             abort=abort,
         )
-        assistant, stop_reason = self._consume(f"m{self._message_seq}", stream)
+        assistant, stop_reason = await self._consume(f"m{self._message_seq}", stream)
         tool_calls = tuple(assistant.get("tool_calls") or ())
         observations = await self._resolve_tool_calls(tool_calls, stop_reason)
         tool_results = self._commit(assistant, observations)
@@ -298,12 +300,16 @@ class Engine:
             tool_results=tool_results,
         )
 
-    def _consume(self, message_id: str, stream: Iterable[LLMEvent]) -> tuple[ChatMessage, StopReason]:
-        """消费一条 LLM 流：发出 message_* 事件并把增量归并成 assistant 消息与终止原因。"""
+    async def _consume(self, message_id: str, stream: Iterable[LLMEvent]) -> tuple[ChatMessage, StopReason]:
+        """消费一条 LLM 流：发出 message_* 事件并把增量归并成 assistant 消息与终止原因。
+
+        同步 SDK 流在 daemon 线程迭代（iterate_in_thread），事件循环保持可响应；
+        每个事件后让出一次，前端消息泵有机会把已到的增量落屏。
+        """
         text_parts: list[str] = []
         calls = _ToolCallBuilder()
         stop_reason: StopReason | None = None
-        for event in message_events(message_id, stream):
+        async for event in iterate_in_thread(message_events(message_id, stream)):
             self._emit(event)
             if isinstance(event, MessageUpdate):
                 if isinstance(event.delta, TextDelta):
@@ -312,6 +318,7 @@ class Engine:
                     calls.add(event.delta)
             elif isinstance(event, MessageEnd):
                 stop_reason = event.stop_reason
+            await asyncio.sleep(0)
         if stop_reason is None:
             raise ValueError(f"LLM stream for message '{message_id}' ended without Done")
         tool_calls = calls.build()

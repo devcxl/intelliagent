@@ -2,13 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+
+from textual.widgets import Input
 
 from src.core.agent_events import EventSink
 from src.core.engine import Engine
 from src.tui.app import IntelliAgentApp
 from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
-from tests.core.engine_support import FakeLLM, build_engine, make_tool, text_events, tool_arguments, tool_call_events
+from tests.core.engine_support import (
+    BlockingLLM,
+    FakeLLM,
+    build_engine,
+    make_tool,
+    text_events,
+    tool_arguments,
+    tool_call_events,
+)
 from tests.tui.conftest import submit
 
 
@@ -38,3 +49,34 @@ async def test_engine_run_renders_through_event_stream() -> None:
         assert "成功" in panel.title
         assert "已完成" in app.query_one(StatusBar).text
         assert log == ["execute:rec"]
+
+
+async def test_deltas_render_while_engine_stream_is_blocked() -> None:
+    """同步 LLM 流阻塞时界面仍能增量渲染：提交后先看到首个 delta，而不是等整段响应收束。"""
+    llm = BlockingLLM()
+
+    def factory(sink: EventSink) -> Engine:
+        return build_engine(llm, sink=sink)
+
+    app = IntelliAgentApp(runner_factory=factory, model="fake/model", cwd=Path("/work"))
+    async with app.run_test() as pilot:
+        prompt = app.query_one("#prompt", Input)
+        prompt.value = "stream it"
+        await pilot.press("enter")
+        try:
+            for _ in range(200):
+                if llm.first_chunk.is_set():
+                    break
+                await asyncio.sleep(0.005)
+            assert llm.first_chunk.is_set(), "LLM stream did not start"
+            assistant = list(app.query_one(MessageStream).query(MessageView))[-1]
+            for _ in range(100):
+                if assistant.rendered_text == "first":
+                    break
+                await pilot.pause()
+            assert assistant.rendered_text == "first", "first delta was not rendered while the stream was blocked"
+        finally:
+            llm.release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+        assert assistant.rendered_text == "firstsecond"

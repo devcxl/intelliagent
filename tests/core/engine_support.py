@@ -27,6 +27,9 @@ from src.llm.stream import (
 )
 from src.plugins.basic_tools import ToolSpec, tool_success
 
+BLOCK_TIMEOUT_SECONDS = 1.0
+"""BlockingLLM 的最长阻塞时间：回归时测试不会永久挂住。"""
+
 DEFAULT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {"path": {"type": "string"}},
@@ -64,6 +67,24 @@ class FakeLLM:
         if step.on_start is not None:
             step.on_start()
         yield from step.events
+
+
+class BlockingLLM(FakeLLM):
+    """首个增量后阻塞的 LLM：模拟同步 SDK 等待下一块网络数据，验证事件循环不被占住。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.first_chunk = threading.Event()
+        self.release = threading.Event()
+
+    def stream(self, request: StreamRequest, *, abort: threading.Event | None = None) -> Iterator[LLMEvent]:
+        self.requests.append(request)
+        self.aborts.append(abort)
+        yield TextDelta(text="first")
+        self.first_chunk.set()
+        self.release.wait(timeout=BLOCK_TIMEOUT_SECONDS)
+        yield TextDelta(text="second")
+        yield Done(stop_reason="stop", usage=None)
 
 
 class RecordingSink:
