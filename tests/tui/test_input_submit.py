@@ -1,36 +1,36 @@
-"""输入提交：多行编辑器提交触发 Engine.run（issue #61 验收）。"""
+"""输入提交：单行输入框 Enter 提交触发 Engine.run（issue #61 验收）。"""
 
 from __future__ import annotations
 
 import asyncio
 
-from textual.widgets import TextArea
+from textual.widgets import Input
 
 from src.tui.widgets import MessageStream, MessageView
 from tests.tui.conftest import make_app, submit
 
 
-async def test_editor_accepts_multi_line_typing_and_submits() -> None:
+async def test_input_accepts_text_and_submits_on_enter() -> None:
     app, runner = make_app()
     async with app.run_test() as pilot:
-        prompt = pilot.app.query_one("#prompt", TextArea)
+        prompt = pilot.app.query_one("#prompt", Input)
         prompt.focus()
-        await pilot.press("a", "ctrl+j", "b")
-        assert prompt.text == "a\nb"
+        await pilot.press("h", "i")
+        assert prompt.value == "hi"
         await pilot.press("enter")
         await pilot.app.workers.wait_for_complete()
         await pilot.pause()
-        assert runner.tasks == ["a\nb"]
+        assert runner.tasks == ["hi"]
 
 
 async def test_submit_renders_user_message_and_clears_editor() -> None:
     app, runner = make_app()
     async with app.run_test() as pilot:
-        await submit(pilot, "line1\nline2")
-        assert runner.tasks == ["line1\nline2"]
-        assert pilot.app.query_one("#prompt", TextArea).text == ""
+        await submit(pilot, "hello world")
+        assert runner.tasks == ["hello world"]
+        assert pilot.app.query_one("#prompt", Input).value == ""
         texts = [view.text for view in app.query_one(MessageStream).query(MessageView)]
-        assert texts == ["line1\nline2"]
+        assert texts == ["hello world"]
 
 
 async def test_blank_submit_is_ignored() -> None:
@@ -45,13 +45,13 @@ async def test_submit_while_running_is_steered() -> None:
     app, runner = make_app()
     runner.gate = asyncio.Event()
     async with app.run_test() as pilot:
-        prompt = pilot.app.query_one("#prompt", TextArea)
+        prompt = pilot.app.query_one("#prompt", Input)
         prompt.focus()
-        prompt.load_text("first task")
+        prompt.value = "first task"
         await pilot.press("enter")
         await pilot.pause()
         assert runner.tasks == ["first task"]
-        prompt.load_text("steering note")
+        prompt.value = "steering note"
         await pilot.press("enter")
         await pilot.pause()
         assert runner.tasks == ["first task"]
@@ -71,14 +71,14 @@ class TestReviewRegressions:
         app, runner = make_app()
         runner.gate = asyncio.Event()
         async with app.run_test() as pilot:
-            prompt = pilot.app.query_one("#prompt", TextArea)
+            prompt = pilot.app.query_one("#prompt", Input)
             prompt.focus()
-            prompt.load_text("first task")
+            prompt.value = "first task"
             await pilot.press("enter")
             await pilot.pause()
             runner.sink.emit(AgentEnd(outcome="settled"))  # 引擎收束，worker 仍挂起
             await pilot.pause()
-            prompt.load_text("late message")
+            prompt.value = "late message"
             await pilot.press("enter")
             await pilot.pause()
             assert runner.follow_ups == ["late message"]

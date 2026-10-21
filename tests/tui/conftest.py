@@ -1,6 +1,6 @@
 """TUI 测试的 fake 与装配辅助：脚本化 TaskRunner、pilot 提交助手。
 
-TUI 测试走声明的 seam：提交经多行编辑器（pilot），状态经引擎事件流（EventSink）进入，
+TUI 测试走声明的 seam：提交经单行输入框（pilot），状态经引擎事件流（EventSink）进入，
 不碰持久化、不直接调用组件内部的事件翻译。
 """
 
@@ -11,7 +11,7 @@ import threading
 from pathlib import Path
 
 from textual.pilot import Pilot
-from textual.widgets import TextArea
+from textual.widgets import Input
 
 from src.core.agent_events import AgentEvent, EventSink
 from src.core.engine import RunResult
@@ -76,13 +76,13 @@ def make_app(*, model: str = "fake/model", cwd: Path | None = None) -> tuple[Int
 
 
 async def submit(pilot: Pilot, text: str) -> None:
-    """把文本载入多行编辑器并提交，等待 run worker 收束。
+    """把文本写入输入框并提交，等待 run worker 收束。
 
-    内容经 load_text 载入：pilot 的键入合成只覆盖可打印 ASCII，文本内容与提交路径分开测。
+    内容直接写入 Input.value：pilot 的键入合成只覆盖可打印 ASCII，文本内容与提交路径分开测。
     """
-    prompt = pilot.app.query_one("#prompt", TextArea)
+    prompt = pilot.app.query_one("#prompt", Input)
     prompt.focus()
-    prompt.load_text(text)
+    prompt.value = text
     await pilot.press("enter")
     await pilot.app.workers.wait_for_complete()
     await pilot.pause()

@@ -1,4 +1,4 @@
-"""IntelliAgentApp：消息流 + 多行输入编辑器 + 状态栏的 pi 最简 TUI（ADR 0009、issue #61）。
+"""IntelliAgentApp：消息流 + 单行输入框 + 状态栏的 pi 最简 TUI（ADR 0009、issue #61）。
 
 事件驱动（pi-engine-principles §2）：TuiEventSink 把引擎事件翻译进 TuiTarget 落点（本类实现），
 message_update 边收边渲染（issue #63，合并重绘见 MessageView），其余组件按事件整步刷新；
@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from textual.app import App, ComposeResult
+from textual.widgets import Input
 from textual.worker import Worker
 
 from src.core.agent_events import EventSink, MessageDelta, RunOutcome
@@ -24,7 +25,7 @@ from src.core.engine import RunResult
 from src.core.tool_pipeline import Observation
 from src.runtime.plugin_assembly import redact_secrets
 from src.tui.event_sink import TuiEventSink
-from src.tui.widgets import MessageStream, MessageView, PromptTextArea, StatusBar, ToolCallPanel
+from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
 
 RUN_STATE_LABELS: dict[RunOutcome, str] = {
     "settled": "已完成",
@@ -49,11 +50,11 @@ RunnerFactory = Callable[[EventSink], TaskRunner]
 
 
 class IntelliAgentApp(App[None]):
-    """pi 最简形态：消息流 + 多行输入 + 状态栏 + 工具调用折叠；仅消费事件流（ADR 0009）。"""
+    """pi 最简形态：消息流 + 单行输入 + 状态栏 + 工具调用折叠；仅消费事件流（ADR 0009）。"""
 
     CSS = """
     MessageStream { height: 1fr; padding: 0 1; }
-    #prompt { height: 8; border-top: solid $accent; }
+    #prompt { height: 3; border-top: solid $accent; }
     StatusBar { height: 1; padding: 0 1; background: $surface; }
     .message { margin: 1 0; }
     ToolCallPanel { margin: 0 1; }
@@ -66,7 +67,7 @@ class IntelliAgentApp(App[None]):
         self._sink = TuiEventSink(self)
         self._runner = runner_factory(self._sink)
         self._stream = MessageStream(id="message-stream")
-        self._prompt = PromptTextArea(id="prompt", placeholder="输入任务…… Enter 提交，Ctrl+J 换行")
+        self._prompt = Input(id="prompt", placeholder="输入任务…… Enter 提交")
         self._status = StatusBar(cwd, model)
         self._messages: dict[str, MessageView] = {}
         self._tool_panels: dict[str, ToolCallPanel] = {}
@@ -91,8 +92,8 @@ class IntelliAgentApp(App[None]):
     def on_mount(self) -> None:
         self._prompt.focus()
 
-    def on_prompt_text_area_submitted(self, _event: PromptTextArea.Submitted) -> None:
-        """Enter 提交：由 PromptTextArea 发出的消息触发，与应用动作解耦。"""
+    def on_input_submitted(self, _event: Input.Submitted) -> None:
+        """Enter 提交：Input 原生 Submitted 消息触发原有提交动作。"""
         self.action_submit_prompt()
 
     def action_submit_prompt(self) -> None:
@@ -101,10 +102,10 @@ class IntelliAgentApp(App[None]):
         运行中提交转交 steer（引擎的插话 seam）；引擎已收束（agent_end 已发）而 worker
         尚未回收的窗口期转 follow_up——steering 队列此时已无消费点，直接 steer 会静默丢失。
         """
-        text = self._prompt.text.strip()
+        text = self._prompt.value.strip()
         if not text:
             return
-        self._prompt.load_text("")
+        self._prompt.value = ""
         self._stream.add_message(MessageView("user", text=text))
         if self._run_worker is not None and not self._run_worker.is_finished:
             if self._run_settled:

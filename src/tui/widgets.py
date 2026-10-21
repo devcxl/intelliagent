@@ -8,10 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from rich.text import Text
-from textual import events
 from textual.containers import VerticalScroll
-from textual.message import Message
-from textual.widgets import Collapsible, Static, TextArea
+from textual.widgets import Collapsible, Static
 
 from src.core.agent_events import MessageDelta
 from src.core.tool_pipeline import Observation
@@ -170,30 +168,6 @@ class MessageStream(VerticalScroll):
             view.settle()
 
 
-class PromptTextArea(TextArea):
-    """多行任务输入：Enter 提交，Ctrl+J 换行。
-
-    TextArea 在私有 _on_key 中直接处理 enter（插入换行），没有公开的提交 hook；
-    这里覆写它以拦截提交键，其余按键交回 TextArea。
-    """
-
-    class Submitted(Message):
-        """用户按 Enter 请求提交当前输入。"""
-
-    async def _on_key(self, event: events.Key) -> None:
-        if event.key == "enter":
-            event.stop()
-            event.prevent_default()
-            self.post_message(self.Submitted())
-            return
-        if event.key == "ctrl+j":
-            event.stop()
-            event.prevent_default()
-            self.insert("\n")
-            return
-        await super()._on_key(event)
-
-
 class StatusBar(Static):
     """底部状态栏：工作目录、模型、运行状态（issue #61 验收点）。"""
 
@@ -218,7 +192,7 @@ class StatusBar(Static):
         self.update(self._render_text())
 
     def _render_text(self) -> str:
-        return f"目录 {self._cwd}  模型 {self._model}  状态 {self._run_state}  (Enter 提交，Ctrl+J 换行)"
+        return f"目录 {self._cwd}  模型 {self._model}  状态 {self._run_state}  (Enter 提交)"
 
 
 def _format_arguments(arguments: str | Mapping[str, Any]) -> str:
