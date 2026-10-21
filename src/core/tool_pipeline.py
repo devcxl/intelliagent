@@ -28,6 +28,7 @@ from jsonschema import validate as jsonschema_validate
 
 from src.core.agent_events import AgentEvent, EventSink, ToolExecutionEnd, ToolExecutionStart
 from src.core.plugin_host import CapabilityKind, PluginHost
+from src.core.turn_hooks import TurnHookProvider
 
 ObservationStatus = Literal["success", "denied", "error"]
 """Observation 的真实状态：success 执行成功 / denied 被 hook 阻止 / error 校验、执行或 hook 故障。"""
@@ -56,6 +57,8 @@ class Observation:
     """一次工具执行的结果记录（CONTEXT 术语：Observation）。
 
     content 是给模型看的结果文本，error 是给 UI 与日志的诊断；status 见 ObservationStatus。
+    terminate 是工具的停止请求（结果信封 ``{"terminate": true}`` 或 afterToolCall 改写设置）：
+    一个批次全部 terminate 才停循环（pi 语义，引擎裁决）。
     """
 
     tool_call_id: str
@@ -65,6 +68,7 @@ class Observation:
     status: ObservationStatus
     error: str | None = None
     duration_ms: float = 0.0
+    terminate: bool = False
 
 
 @dataclass(frozen=True)
@@ -115,15 +119,17 @@ HookProvider = BeforeToolCallHook | AfterToolCallHook
 
 
 class ToolProvider(Protocol):
-    """Tool 能力提供者的最小契约（ToolSpec 结构性满足）：能力名、参数 JSON Schema、异步执行。
+    """Tool 能力提供者的最小契约（ToolSpec 结构性满足）：能力名、描述、参数 JSON Schema、异步执行。
 
     结果信封约定（Observation 真实状态的判定依据，US21）：
     - 返回统一信封 ``{"status": "ok", ...}`` / ``{"status": "error", "error": ...}``（basic_tools 同款）；
     - 顶层 ``status: "error"`` 判 error 并提取 error 字段，其余判 success；
+    - 顶层 ``terminate: true`` 记为 Observation.terminate（停止请求，引擎裁决）；
     - 抛异常一律判 error。返回裸文本/数据而不守信封的工具，其失败状态不可判定——契约要求守信封。
     """
 
     name: str
+    description: str
     parameters: Mapping[str, Any]
 
     async def run(self, **kwargs: Any) -> str: ...
@@ -221,7 +227,7 @@ class ToolPipeline:
             content = await tool.run(**dict(call.arguments))
         except Exception as exc:
             return _error_observation(call.tool_call_id, call.name, f"tool execution failed: {exc}", call.arguments)
-        status, error = _result_status(content)
+        status, error, terminate = _result_status(content)
         return Observation(
             tool_call_id=call.tool_call_id,
             name=call.name,
@@ -229,6 +235,7 @@ class ToolPipeline:
             content=content,
             status=status,
             error=error,
+            terminate=terminate,
         )
 
     async def _after(self, call: ToolCall, observation: Observation) -> Observation:
@@ -347,15 +354,18 @@ def _coerce_scalar(declared: Any, value: Any) -> Any:
     return value
 
 
-def _result_status(content: str) -> tuple[ObservationStatus, str | None]:
-    """从工具结果信封推导真实状态（basic_tools 统一信封 {"status": "ok"/"error"}）；非信封内容视为成功。"""
+def _result_status(content: str) -> tuple[ObservationStatus, str | None, bool]:
+    """从工具结果信封推导真实状态与停止请求（basic_tools 统一信封 {"status": "ok"/"error"}）；非信封内容视为成功。"""
     try:
         payload = json.loads(content)
     except json.JSONDecodeError:
-        return "success", None
-    if isinstance(payload, Mapping) and payload.get("status") == "error":
-        return "error", str(payload.get("error") or "tool reported an error without a message")
-    return "success", None
+        return "success", None, False
+    if not isinstance(payload, Mapping):
+        return "success", None, False
+    terminate = bool(payload.get("terminate"))
+    if payload.get("status") == "error":
+        return "error", str(payload.get("error") or "tool reported an error without a message"), terminate
+    return "success", None, terminate
 
 
 def _error_observation(
@@ -385,13 +395,19 @@ def _denied_observation(call: ToolCall, reason: str) -> Observation:
 
 
 def _hook_providers(host: PluginHost) -> tuple[HookProvider, ...]:
-    """收集宿主中全部 hook 能力提供者（CapabilityKind.HOOK），保持注册顺序。"""
+    """收集宿主中全部工具链 hook 能力提供者（CapabilityKind.HOOK），保持注册顺序。
+
+    turn 边界 hook（PrepareRequestHook / PrepareNextTurnHook / FinishTurnHook）由引擎收集，
+    流水线跳过；其余未知形态显式拒绝——静默丢弃即 fail-open。
+    """
     hooks: list[HookProvider] = []
     for name, provider in host.capabilities(CapabilityKind.HOOK).items():
+        if isinstance(provider, TurnHookProvider):
+            continue
         if not isinstance(provider, (BeforeToolCallHook, AfterToolCallHook)):
             raise TypeError(
-                f"hook capability '{name}' must provide BeforeToolCallHook or AfterToolCallHook, "
-                f"got {type(provider).__name__}"
+                f"hook capability '{name}' must provide BeforeToolCallHook, AfterToolCallHook "
+                f"or a turn hook provider, got {type(provider).__name__}"
             )
         hooks.append(provider)
     return tuple(hooks)
