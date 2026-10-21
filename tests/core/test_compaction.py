@@ -50,7 +50,13 @@ class TestCutPoint:
 
     def test_cut_point_keeps_recent_budget_at_message_boundary(self) -> None:
         """从尾部累计到 keepRecentTokens 即定切点，落在预算耗尽处的消息边界。"""
-        messages = [user(padding("m0")), user(padding("m1")), user(padding("m2"))]
+        messages = [
+            user(padding("m0")),
+            assistant(padding("m1")),
+            user(padding("m2")),
+            assistant(padding("m3")),
+            user(padding("m4")),
+        ]
 
         cut = find_cut_point(messages, keep_recent_tokens=250)
 
@@ -117,7 +123,7 @@ class TestCompactionTrigger:
         counter = TokenCounter()
         compactor = make_compactor(llm, store, counter=counter, context_window=110_000)
         messages = [user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))]
-        await compactor.persist_messages(messages)
+        await compactor.sync_messages(messages)
         counter.record(Usage(prompt_tokens=1_000, completion_tokens=10, total_tokens=1_010), messages)
 
         update = await compactor.prepare_next_turn(next_turn_context(messages))
@@ -134,9 +140,8 @@ class TestCompactionTrigger:
         compactor = make_compactor(llm, store, counter=counter, context_window=110_000, keep_recent_tokens=100)
         covered = [user(padding("OLD-TASK"))]
         rest = [assistant(padding("OLD-WORK")), user(padding("KEEP"))]
-        await compactor.persist_messages(covered)
+        await compactor.sync_messages([*covered, *rest])
         counter.record(Usage(prompt_tokens=100_000, completion_tokens=10, total_tokens=100_010), covered)
-        await compactor.persist_messages(rest)
         llm.enqueue(*summary_response("SUMMARY-1"))
 
         assert counter.estimate([*covered, *rest]) == 100_200  # 100_000 + 2×100 chars 估算
@@ -155,13 +160,11 @@ class TestCompactionTrigger:
         counter = TokenCounter()
         compactor = make_compactor(llm, store, counter=counter, context_window=110_000)
         first = [user(padding("OLD-TASK"))]
-        await compactor.persist_messages(first)
-        counter.record(Usage(prompt_tokens=100_000, completion_tokens=10, total_tokens=100_010), first)
         second = [assistant(padding("OLD-WORK"))]
-        await compactor.persist_messages(second)
-        counter.record(Usage(prompt_tokens=1_000, completion_tokens=10, total_tokens=1_010), [*first, *second])
         third = [user(padding("KEEP"))]
-        await compactor.persist_messages(third)
+        await compactor.sync_messages([*first, *second, *third])
+        counter.record(Usage(prompt_tokens=100_000, completion_tokens=10, total_tokens=100_010), first)
+        counter.record(Usage(prompt_tokens=1_000, completion_tokens=10, total_tokens=1_010), [*first, *second])
 
         update = await compactor.prepare_next_turn(next_turn_context([*first, *second, *third]))
 
@@ -196,7 +199,7 @@ class TestCompactionTrigger:
     async def test_compact_returns_none_when_nothing_to_summarize(self, store: StorageStore) -> None:
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=100)
-        await compactor.persist_messages([user(padding("KEEP"))])
+        await compactor.sync_messages([user(padding("KEEP"))])
 
         outcome = await compactor.compact()
 
@@ -212,12 +215,14 @@ class TestSummarization:
         """第二次压缩走增量 update prompt，携带上次摘要而不是重写全史。"""
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=100)
-        await compactor.persist_messages([user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))])
+        record = [user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))]
+        await compactor.sync_messages(record)
         llm.enqueue(*summary_response("SUMMARY-1"))
         outcome1 = await compactor.compact()
         assert outcome1 is not None and outcome1.summary == "SUMMARY-1"
 
-        await compactor.persist_messages([assistant(padding("MORE")), user(padding("MORE"))])
+        record += [assistant(padding("MORE")), user(padding("MORE"))]
+        await compactor.sync_messages(record)
         llm.enqueue(*summary_response("SUMMARY-2"))
         outcome2 = await compactor.compact()
         assert outcome2 is not None and outcome2.summary == "SUMMARY-2"
@@ -234,7 +239,7 @@ class TestSummarization:
         """被输出上限截断的摘要（stop=length）拒绝使用，重试得到完整摘要。"""
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=100)
-        await compactor.persist_messages([user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))])
+        await compactor.sync_messages([user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))])
         llm.enqueue(*summary_response("TRUNCATED", stop="length"))
         llm.enqueue(*summary_response("SUMMARY-1"))
 
@@ -247,7 +252,7 @@ class TestSummarization:
         """摘要请求不应调用工具：调工具的响应拒绝使用，重试得到纯文本摘要。"""
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=100)
-        await compactor.persist_messages([user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))])
+        await compactor.sync_messages([user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))])
         llm.enqueue(*tool_call_response("c1", "rec", '{"path": "a.txt"}'))
         llm.enqueue(*summary_response("SUMMARY-1"))
 
@@ -259,7 +264,7 @@ class TestSummarization:
     async def test_summary_retries_exhausted_raises_compaction_error(self, store: StorageStore) -> None:
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=100, max_summary_attempts=3)
-        await compactor.persist_messages([user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))])
+        await compactor.sync_messages([user(padding("OLD")), assistant(padding("OLD")), user(padding("KEEP"))])
         for _ in range(3):
             llm.enqueue(*summary_response("TRUNCATED", stop="length"))
 
@@ -273,7 +278,7 @@ class TestSummarization:
         """split turn：完整 turn 走历史摘要，被切 turn 的前缀用独立 prompt 单独总结后合并。"""
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=50)
-        await compactor.persist_messages(
+        await compactor.sync_messages(
             [user(padding("OLD")), assistant(padding("OLD")), user(padding("PREFIX")), assistant(padding("KEEP"))]
         )
         llm.enqueue(*summary_response("H1"))
@@ -295,7 +300,7 @@ class TestSummarization:
         """首段历史即被切 turn：历史为空不再发摘要请求，直接"No prior history."。"""
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=50)
-        await compactor.persist_messages([user(padding("PREFIX")), assistant(padding("KEEP"))])
+        await compactor.sync_messages([user(padding("PREFIX")), assistant(padding("KEEP"))])
         llm.enqueue(*summary_response("P1"))
 
         outcome = await compactor.compact()
@@ -311,7 +316,7 @@ class TestProjectionRegression:
     async def test_projection_excludes_compacted_entries_after_restart(self, store: StorageStore) -> None:
         llm = FakeLLM()
         compactor = make_compactor(llm, store, keep_recent_tokens=100)
-        await compactor.persist_messages(
+        await compactor.sync_messages(
             [user(padding("OLD-TASK")), assistant(padding("OLD-WORK")), user(padding("KEEP-RECENT"))]
         )
         llm.enqueue(*summary_response("SUMMARY-1"))

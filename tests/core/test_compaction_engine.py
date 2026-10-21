@@ -88,7 +88,8 @@ async def test_engine_compacts_at_turn_boundary_with_real_usage(store: StorageSt
     assert projection.compaction.prompt_checkpoint == {"system_prompt": "", "tools": ["rec"], "model": "fake/model"}
     assert [entry.payload["content"] for entry in projection.entries] == [more, "done", padding("NEXT"), "continued"]
     # 压缩后下一次请求 = 现算投影：摘要 + 保留段 + 新消息，被压缩 entry 不进视图
-    assert llm.requests[2].messages == [
+    # requests 顺序：turn1、turn2、压缩摘要、follow-up 轮
+    assert llm.requests[3].messages == [
         summary_message("S1"),
         user(more),
         assistant("done"),

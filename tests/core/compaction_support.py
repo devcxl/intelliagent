@@ -48,9 +48,7 @@ def text_response(text: str, *, usage: Usage | None = None) -> tuple[LLMEvent, .
     return (TextDelta(text=text), Done(stop_reason="stop", usage=usage))
 
 
-def tool_call_response(
-    call_id: str, name: str, arguments: str, *, usage: Usage | None = None
-) -> tuple[LLMEvent, ...]:
+def tool_call_response(call_id: str, name: str, arguments: str, *, usage: Usage | None = None) -> tuple[LLMEvent, ...]:
     """一段工具调用响应：参数拆两段增量模拟流式拼接。"""
     middle = len(arguments) // 2
     return (
