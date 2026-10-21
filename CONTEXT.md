@@ -100,7 +100,7 @@ _Avoid_: GUI, UI layer
 无交互界面的执行入口：一次性任务参数或 stdin 进入，事件流出，供脚本与测试使用。
 _Avoid_: CLI mode, batch mode
 
-## 架构分层（目标态）
+## 架构分层
 
 ```
 src/
@@ -108,6 +108,8 @@ src/
 ├── plugins/     内置插件：read/write/bash/edit/grep、mcp、skill、storage
 ├── llm/         litellm 统一接入
 ├── config/      YAML 配置读取
+├── runtime/     组合根（plugin_assembly：配置 → PluginHost → Engine）
+├── utils/       路径策略（PathPolicy）
 ├── tui/         Textual 界面
 └── headless/    无头执行入口
 ```
