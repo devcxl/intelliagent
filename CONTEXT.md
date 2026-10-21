@@ -40,6 +40,10 @@ _Avoid_: Context buffer, history window
 追加一条摘要记录（含保留切点）以缩小投影的机制，不修改也不删除原始记录。
 _Avoid_: Truncation, pruning, history deletion
 
+**Entry**:
+存储层的统一记录单元（message/compaction/run 等），append-only，以 parent 链接成树。仅用于存储语境；消息语境仍称 Message。
+_Avoid_: Row, record
+
 ### 插件体系
 
 **Plugin**:
