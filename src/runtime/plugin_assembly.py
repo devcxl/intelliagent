@@ -15,6 +15,7 @@ from typing import TextIO
 from src.config.yaml_config import IntelliAgentConfig
 from src.core.plugin_host import CapabilityKind, Plugin, PluginHost, discover_entry_points, resolve_plugin
 from src.llm.client import ProviderClient
+from src.llm.protocols.anthropic_messages import AnthropicMessagesAdapter
 from src.llm.protocols.openai_chat import OpenAIChatAdapter
 from src.llm.provider_registry import ModelRegistry, ModelSettings, ProviderSettings
 from src.llm.stream import LLMClient
@@ -44,14 +45,17 @@ def redact_secrets(text: str) -> str:
 def create_llm_client(config: IntelliAgentConfig) -> LLMClient:
     """按配置组装 LLM 客户端：解析默认模型并在启动期校验 provider/model/密钥。
 
-    目前只有 openai-compatible 适配器；openai / anthropic 的配置可解析，但运行期
-    会给出明确的“适配器尚未实现”错误，直到 T2/T3 落地。
+    目前可用 openai-compatible 与 anthropic；openai（Responses）的配置可解析，但运行期
+    会给出明确的“适配器尚未实现”错误，直到 T3 落地。
     """
     if config.default_model is None:
         raise ValueError("配置缺少 default_model（如 deepseek/deepseek-flash）")
     registry = _build_registry(config)
     target = registry.resolve(config.default_model)
-    adapters = {"openai-compatible": OpenAIChatAdapter()}
+    adapters = {
+        "openai-compatible": OpenAIChatAdapter(),
+        "anthropic": AnthropicMessagesAdapter(),
+    }
     if target.protocol not in adapters:
         raise ValueError(f"协议 {target.protocol!r} 的适配器尚未实现（T2/T3）")
     return ProviderClient(registry, adapters)
