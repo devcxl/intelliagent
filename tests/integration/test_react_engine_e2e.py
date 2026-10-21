@@ -5,7 +5,10 @@ ReactEngine 端到端测试 — 使用真实 LLM（需要 OPENAI_API_KEY）。
 运行方式：
     pytest tests/integration/test_react_engine_e2e.py -v -s
 
-跳过条件：未设置 OPENAI_API_KEY 环境变量时自动 skip。
+跳过条件：
+- 未设置 OPENAI_API_KEY 环境变量时，依赖真实 LLM 的测试自动 skip。
+- 引用已删除/不存在 API 的腐烂测试永久显式 skip（详见各测试的 skip reason），
+  登记见 Spec #49（插件化重构）与 issue #50（测试基线冻结）。
 """
 
 import os
@@ -112,6 +115,10 @@ async def test_tool_call_shell(engine):
     assert result["num_turns"] >= 2
 
 
+@pytest.mark.skip(
+    reason="腐烂测试（Spec #49 / issue #50）：task_write 未注册进 create_default() 的工具注册表，"
+    "且 Spec #49 将整体删除 task tools；测试前提已失效"
+)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_task_write_and_plan(engine):
@@ -126,6 +133,10 @@ async def test_task_write_and_plan(engine):
     assert result["num_turns"] >= 2
 
 
+@pytest.mark.skip(
+    reason="腐烂测试（Spec #49 / issue #50）：引用不存在的 ReactEngine.max_consecutive_repeats 与 "
+    "result['summary']（含'安全网触发'），实现中无连续重复检测安全网机制"
+)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_safety_net_repeat_detection(engine):
@@ -139,6 +150,10 @@ async def test_safety_net_repeat_detection(engine):
     assert "安全网触发" in result.get("summary", "")
 
 
+@pytest.mark.skip(
+    reason="腐烂测试（Spec #49 / issue #50）：iter_steps() 签名不含 max_tokens/max_consecutive_repeats "
+    "（调用即 TypeError），事件顺序断言基于旧事件模型"
+)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_iter_steps_streaming(engine):
