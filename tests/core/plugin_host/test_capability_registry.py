@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.plugins import CapabilityConflictError, CapabilityKind, CapabilityRegistry
+from src.core.plugin_host import CapabilityConflictError, CapabilityKind, CapabilityRegistry
 
 
 class TestCapabilityRegistry:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from src.plugins import CapabilityDeclaration, CapabilityKind, CapabilityRegistrar, Manifest
+from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, CapabilityRegistrar, Manifest
 
 
 class FakeExternalConfig(BaseModel):

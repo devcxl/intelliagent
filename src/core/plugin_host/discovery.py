@@ -5,9 +5,9 @@ from __future__ import annotations
 import importlib.metadata
 from importlib.metadata import EntryPoint
 
-from src.plugins.errors import PluginLoadError
-from src.plugins.manifest import Manifest
-from src.plugins.protocol import Plugin
+from src.core.plugin_host.errors import PluginLoadError
+from src.core.plugin_host.manifest import Manifest
+from src.core.plugin_host.protocol import Plugin
 
 ENTRY_POINT_GROUP = "intelliagent.plugins"
 

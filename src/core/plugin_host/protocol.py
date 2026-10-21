@@ -6,8 +6,8 @@ from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
-from src.plugins.manifest import Manifest
-from src.plugins.registry import CapabilityRegistrar
+from src.core.plugin_host.manifest import Manifest
+from src.core.plugin_host.registry import CapabilityRegistrar
 
 
 @runtime_checkable

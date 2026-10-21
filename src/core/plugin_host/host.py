@@ -8,11 +8,11 @@ from typing import Any, ClassVar, NamedTuple
 
 from pydantic import BaseModel, ValidationError
 
-from src.plugins.discovery import ENTRY_POINT_GROUP, discover_entry_points, resolve_plugin
-from src.plugins.errors import ApiVersionError, PluginConfigError, PluginLoadError
-from src.plugins.manifest import CapabilityKind, Manifest
-from src.plugins.protocol import Plugin
-from src.plugins.registry import CapabilityKey, CapabilityRegistrar, CapabilityRegistry
+from src.core.plugin_host.discovery import ENTRY_POINT_GROUP, discover_entry_points, resolve_plugin
+from src.core.plugin_host.errors import ApiVersionError, CapabilityConflictError, PluginConfigError, PluginLoadError
+from src.core.plugin_host.manifest import CapabilityKind, Manifest
+from src.core.plugin_host.protocol import Plugin
+from src.core.plugin_host.registry import CapabilityKey, CapabilityRegistrar, CapabilityRegistry
 
 
 class LoadedPlugin(NamedTuple):
@@ -42,14 +42,8 @@ class PluginHost:
 
         内置插件与外部插件走同一路径，区别仅在发现方式。
         """
-        manifest = self._require_manifest(plugin)
-        if manifest.name in self._plugins:
-            raise PluginLoadError(f"plugin '{manifest.name}' is already loaded")
-        self._require_compatible_api_version(manifest)
-        validated_config = self._validate_config(manifest, config)
-        registrar = CapabilityRegistrar(manifest.name, manifest)
-        plugin.register(registrar, validated_config)
-        self._commit(manifest, registrar)
+        manifest, validated_config, pending = self._prepare(plugin, config)
+        self._registry.commit(manifest.name, pending)
         loaded = LoadedPlugin(manifest=manifest, plugin=plugin, config=validated_config)
         self._plugins[manifest.name] = loaded
         return loaded
@@ -60,15 +54,26 @@ class PluginHost:
         *,
         group: str = ENTRY_POINT_GROUP,
     ) -> list[LoadedPlugin]:
-        """发现并加载 Entry Points group 下的全部外部插件；任一插件失败即整体失败。
+        """发现并加载 Entry Points group 下的全部外部插件（两阶段提交）。
+
+        先完成全部插件的门禁、配置校验与能力登记，并做跨批次冲突预检；
+        任一插件失败即整体拒绝且零副作用（无部分加载）。全部通过后统一落账。
 
         configs 按插件名索引各插件的配置段（来自 intelliagent.yaml 的 plugins: 段）。
         """
-        loaded: list[LoadedPlugin] = []
+        prepared: list[tuple[Plugin, Manifest, BaseModel | None, Mapping[CapabilityKey, object]]] = []
         for entry_point in discover_entry_points(group):
             plugin = resolve_plugin(entry_point)
             config = configs.get(plugin.manifest.name) if configs is not None else None
-            loaded.append(self.load(plugin, config))
+            manifest, validated_config, pending = self._prepare(plugin, config)
+            prepared.append((plugin, manifest, validated_config, pending))
+        self._require_no_batch_conflicts(prepared)
+        loaded: list[LoadedPlugin] = []
+        for plugin, manifest, validated_config, pending in prepared:
+            self._registry.commit(manifest.name, pending)
+            item = LoadedPlugin(manifest=manifest, plugin=plugin, config=validated_config)
+            self._plugins[manifest.name] = item
+            loaded.append(item)
         return loaded
 
     def get_capability(self, kind: CapabilityKind, name: str) -> object | None:
@@ -113,7 +118,42 @@ class PluginHost:
             )
             raise PluginConfigError(f"plugin '{manifest.name}' configuration is invalid: {details}") from exc
 
-    def _commit(self, manifest: Manifest, registrar: CapabilityRegistrar) -> None:
+    def _prepare(
+        self, plugin: Plugin, config: Mapping[str, Any] | None
+    ) -> tuple[Manifest, BaseModel | None, Mapping[CapabilityKey, object]]:
+        """门禁 + 配置校验 + 能力登记（不落账），供 load 与 load_entry_points 复用。"""
+        manifest = self._require_manifest(plugin)
+        if manifest.name in self._plugins:
+            raise PluginLoadError(f"plugin '{manifest.name}' is already loaded")
+        self._require_compatible_api_version(manifest)
+        validated_config = self._validate_config(manifest, config)
+        registrar = CapabilityRegistrar(manifest.name, manifest)
+        plugin.register(registrar, validated_config)
+        self._require_complete(manifest, registrar)
+        return manifest, validated_config, registrar.pending
+
+    def _require_no_batch_conflicts(
+        self, prepared: list[tuple[Plugin, Manifest, BaseModel | None, Mapping[CapabilityKey, object]]]
+    ) -> None:
+        """跨批次冲突预检：批次内互相冲突、或与已加载能力冲突时整体拒绝。"""
+        seen: dict[CapabilityKey, str] = {}
+        for _plugin, manifest, _config, pending in prepared:
+            for kind, name in pending:
+                key: CapabilityKey = (kind, name)
+                if key in seen:
+                    raise CapabilityConflictError(
+                        f"capability '{kind.value}:{name}' is already registered by plugin '{seen[key]}' "
+                        f"(requested by plugin '{manifest.name}')"
+                    )
+                owner = self._registry.owner(kind, name)
+                if owner is not None:
+                    raise CapabilityConflictError(
+                        f"capability '{kind.value}:{name}' is already registered by plugin '{owner}' "
+                        f"(requested by plugin '{manifest.name}')"
+                    )
+                seen[key] = manifest.name
+
+    def _require_complete(self, manifest: Manifest, registrar: CapabilityRegistrar) -> None:
         pending = registrar.pending
         for declaration in manifest.capabilities:
             key: CapabilityKey = (declaration.kind, declaration.name)
@@ -122,4 +162,3 @@ class PluginHost:
                     f"plugin '{manifest.name}' did not register declared capability "
                     f"'{declaration.kind.value}:{declaration.name}'"
                 )
-        self._registry.commit(manifest.name, pending)

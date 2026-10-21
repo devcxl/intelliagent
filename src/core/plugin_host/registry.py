@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from src.plugins.errors import CapabilityConflictError, PluginLoadError
-from src.plugins.manifest import CapabilityKind, Manifest
+from src.core.plugin_host.errors import CapabilityConflictError, PluginLoadError
+from src.core.plugin_host.manifest import CapabilityKind, Manifest
 
 CapabilityKey = tuple[CapabilityKind, str]
 
@@ -31,6 +31,11 @@ class CapabilityRegistry:
         """查询能力提供者；不存在返回 None。"""
         entry = self._entries[kind].get(name)
         return entry[1] if entry is not None else None
+
+    def owner(self, kind: CapabilityKind, name: str) -> str | None:
+        """查询能力的归属插件名；不存在返回 None。用于跨批次冲突诊断。"""
+        entry = self._entries[kind].get(name)
+        return entry[0] if entry is not None else None
 
     def get_all(self, kind: CapabilityKind) -> Mapping[str, object]:
         """查询某一能力类型的全部提供者。"""

@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
-from src.plugins import CapabilityDeclaration, CapabilityKind, CapabilityRegistrar, Manifest
+from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, CapabilityRegistrar, Manifest
 
 DEFAULT_CAPABILITIES: tuple[CapabilityDeclaration, ...] = (
     CapabilityDeclaration(kind=CapabilityKind.TOOL, name="fake.echo"),

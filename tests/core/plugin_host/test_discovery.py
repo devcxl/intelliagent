@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import importlib.metadata
 from importlib.metadata import EntryPoint
+from pathlib import Path
 
 import pytest
 
-from src.plugins import (
+from src.core.plugin_host import (
     ApiVersionError,
     CapabilityKind,
     PluginConfigError,
@@ -18,7 +19,9 @@ from src.plugins import (
 
 
 def fake_entry_point(name: str, attr: str) -> EntryPoint:
-    return EntryPoint(name=name, value=f"tests.plugins.fake_external_plugin:{attr}", group=discovery.ENTRY_POINT_GROUP)
+    return EntryPoint(
+        name=name, value=f"tests.core.plugin_host.fake_external_plugin:{attr}", group=discovery.ENTRY_POINT_GROUP
+    )
 
 
 def install_entry_points(monkeypatch: pytest.MonkeyPatch, entry_points: tuple[EntryPoint, ...]) -> list[str]:
@@ -123,3 +126,28 @@ class TestDiscovery:
         host = PluginHost()
 
         assert host.load_entry_points() == []
+
+
+class TestRealInstallPathDiscovery:
+    """真实安装路径回归（PR #67 审查 Spec 轴 medium）：不经 monkeypatch，验证 importlib.metadata
+    从已安装 dist 的 entry_points.txt 真实发现插件——覆盖 "pip 安装即被发现" 的用户故事（Spec #49 US3）。
+    """
+
+    def test_installed_dist_info_is_discovered_via_real_importlib_metadata(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        dist_info = tmp_path / "fake_ext_plugin-0.1.0.dist-info"
+        dist_info.mkdir()
+        (dist_info / "METADATA").write_text("Metadata-Version: 2.1\nName: fake-ext-plugin\nVersion: 0.1.0\n")
+        (dist_info / "entry_points.txt").write_text(
+            f"[{discovery.ENTRY_POINT_GROUP}]\n"
+            "installed-fake = tests.core.plugin_host.fake_external_plugin:FakeExternalPlugin\n"
+        )
+        monkeypatch.syspath_prepend(str(tmp_path))
+        importlib.invalidate_caches()
+
+        found = discovery.discover_entry_points(discovery.ENTRY_POINT_GROUP)
+        names = {ep.name: ep for ep in found}
+        assert "installed-fake" in names, f"real importlib.metadata missed installed dist: {sorted(names)}"
+        plugin = discovery.resolve_plugin(names["installed-fake"])
+        assert plugin.manifest.name == "fake-memory"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.plugins import (
+from src.core.plugin_host import (
     ApiVersionError,
     CapabilityConflictError,
     CapabilityDeclaration,
@@ -14,7 +14,8 @@ from src.plugins import (
     PluginHost,
     PluginLoadError,
 )
-from tests.plugins.fakes import FakePlugin, FakeToolConfig, build_manifest, single_provider
+from tests.core.plugin_host.fakes import FakePlugin, FakeToolConfig, build_manifest, single_provider
+from tests.core.plugin_host.test_discovery import fake_entry_point, install_entry_points
 
 
 class TestPluginLoading:
@@ -253,3 +254,32 @@ class TestManifestRejectedAtConstruction:
     def test_invalid_manifest_is_rejected_before_load(self) -> None:
         with pytest.raises(ValidationError):
             build_manifest(name="Invalid Name")
+
+
+class TestEntryPointBatchAtomicity:
+    """load_entry_points 两阶段提交：任一插件失败，批次零副作用（PR #67 审查 Spec 轴 medium）。"""
+
+    def test_batch_failure_leaves_no_plugins_and_no_capabilities(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        bad = FakePlugin(build_manifest("bad-plugin", api_version=99))
+        install_entry_points(monkeypatch, (fake_entry_point("bad-plugin", "FakeExternalPlugin"),))
+        monkeypatch.setattr("tests.core.plugin_host.fake_external_plugin.FakeExternalPlugin", lambda: bad)
+
+        host = PluginHost()
+        with pytest.raises(ApiVersionError):
+            host.load_entry_points()
+        assert dict(host.loaded_plugins) == {}
+        assert host.capabilities(CapabilityKind.TOOL) == {}
+
+    def test_batch_conflict_with_already_loaded_plugin_rejects_whole_batch(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        host = PluginHost()
+        host.load(FakePlugin(build_manifest("first-plugin")))
+        conflicting = FakePlugin(build_manifest("second-plugin"))  # 默认同名能力 fake.echo
+        install_entry_points(monkeypatch, (fake_entry_point("second-plugin", "FakeExternalPlugin"),))
+        monkeypatch.setattr("tests.core.plugin_host.fake_external_plugin.FakeExternalPlugin", lambda: conflicting)
+
+        with pytest.raises(CapabilityConflictError, match="first-plugin"):
+            host.load_entry_points()
+        assert dict(host.loaded_plugins).keys() == {"first-plugin"}
+        assert host.capabilities(CapabilityKind.TOOL).keys() == {"fake.echo"}

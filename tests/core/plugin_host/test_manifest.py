@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from src.plugins import CapabilityDeclaration, CapabilityKind, Manifest
+from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, Manifest
 
 
 def build_capability(kind: CapabilityKind, name: str) -> CapabilityDeclaration:
