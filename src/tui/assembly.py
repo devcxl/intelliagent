@@ -1,23 +1,23 @@
-"""最小组装：intelliagent.yaml → 引擎 + TUI（issue #60 无头模式组装未合并前的过渡实现）。
+"""TUI 组装：intelliagent.yaml → 引擎 + TUI。
 
-#60 的无头模式 runtime 组装落地后，本模块改为复用其组装，只保留 TUI 前端接线。
+装配复用 src/runtime/plugin_assembly（共用组合根：内置 + Entry Points 插件、
+plugins: 裁决、ADR 0008 permission 警告），本模块只保留 TUI 前端接线。
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from src.config.yaml_config import ConfigError, IntelliAgentConfig, load_config
 from src.core.agent_events import EventSink
 from src.core.engine import Engine
-from src.core.plugin_host import PluginHost
-from src.llm.litellm_client import LiteLLMClient
-from src.plugins.basic_tools import BasicToolsPlugin
+from src.runtime.plugin_assembly import build_host, create_llm_client, warn_missing_permission_plugin
 from src.tui.app import IntelliAgentApp, TaskRunner
 
 
 def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
-    """从 intelliagent.yaml 组装可运行的 TUI：配置 → 引擎（含内置工具）→ 事件流接线。
+    """从 intelliagent.yaml 组装可运行的 TUI：配置 → PluginHost → 引擎 → 事件流接线。
 
     Args:
         config_path: intelliagent.yaml 路径，缺省读取当前目录。
@@ -28,11 +28,11 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
     config = load_config(config_path)
     model = _require_model(config)
     cwd = Path(config.workspace.dir).resolve()
+    host = build_host(config)
+    warn_missing_permission_plugin(host, sys.stderr)
 
     def runner_factory(sink: EventSink) -> TaskRunner:
-        host = PluginHost()
-        host.load(BasicToolsPlugin())
-        return Engine.from_host(host, llm=LiteLLMClient(), model=model, sink=sink)
+        return Engine.from_host(host, llm=create_llm_client(), model=model, sink=sink)
 
     return IntelliAgentApp(runner_factory=runner_factory, model=model, cwd=cwd)
 

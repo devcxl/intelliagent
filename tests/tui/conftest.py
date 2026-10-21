@@ -30,6 +30,7 @@ class ScriptedRunner:
         self.sink = sink
         self.tasks: list[str | None] = []
         self.steered: list[str] = []
+        self.follow_ups: list[str] = []
         self.gate: asyncio.Event | None = None
         self._scripts: list[list[AgentEvent]] = []
 
@@ -39,6 +40,9 @@ class ScriptedRunner:
 
     def steer(self, message: str) -> None:
         self.steered.append(message)
+
+    def follow_up(self, message: str) -> None:
+        self.follow_ups.append(message)
 
     async def run(self, task: str | None = None, *, abort: threading.Event | None = None) -> RunResult:
         self.tasks.append(task)

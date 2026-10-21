@@ -59,3 +59,29 @@ async def test_submit_while_running_is_steered() -> None:
         runner.gate.set()
         await pilot.app.workers.wait_for_complete()
         await pilot.pause()
+
+
+class TestReviewRegressions:
+    """PR #76 审查回归：steering 收束窗口语义。"""
+
+    async def test_submit_in_settle_window_goes_to_follow_up(self) -> None:
+        """引擎已收束（agent_end 已发）而 worker 未回收的窗口期提交转 follow_up，不再静默丢失。"""
+        from src.core.agent_events import AgentEnd
+
+        app, runner = make_app()
+        runner.gate = asyncio.Event()
+        async with app.run_test() as pilot:
+            prompt = pilot.app.query_one("#prompt", TextArea)
+            prompt.focus()
+            prompt.load_text("first task")
+            await pilot.press("ctrl+j")
+            await pilot.pause()
+            runner.sink.emit(AgentEnd(outcome="settled"))  # 引擎收束，worker 仍挂起
+            await pilot.pause()
+            prompt.load_text("late message")
+            await pilot.press("ctrl+j")
+            await pilot.pause()
+            assert runner.follow_ups == ["late message"]
+            assert runner.steered == []
+            runner.gate.set()
+            await pilot.app.workers.wait_for_complete()

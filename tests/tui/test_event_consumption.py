@@ -19,20 +19,29 @@ FORBIDDEN_MODULES = ("src.db", "src.plugins.storage", "src.services", "src.gui",
 
 
 def _imported_modules(path: Path) -> set[str]:
+    """收集文件引用的模块全名：含 from X import Y 形成的 X.Y、from . import 展开、from src import db 形态。"""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     modules: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             modules.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            modules.add(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                modules.add(node.module)
+                modules.update(f"{node.module}.{alias.name}" for alias in node.names)
+            else:
+                modules.update(alias.name for alias in node.names)
     return modules
 
 
 def test_tui_does_not_touch_persistence() -> None:
-    """src/tui 的任何模块都不得引入持久化/旧前端模块——TUI 只消费引擎事件流。"""
+    """src/tui 的任何模块都不得引入持久化/旧前端模块——TUI 只消费引擎事件流。
+
+    递归扫描全部子包；静态 import 语法是约定的硬底线（动态 importlib 属 code review
+    把关范围，此测试保证无意的直接引用立即变红）。
+    """
     assert TUI_ROOT.is_dir()
-    for path in sorted(TUI_ROOT.glob("*.py")):
+    for path in sorted(TUI_ROOT.rglob("*.py")):
         for module in _imported_modules(path):
             for forbidden in FORBIDDEN_MODULES:
                 assert not (module == forbidden or module.startswith(forbidden + ".")), (

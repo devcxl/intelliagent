@@ -22,6 +22,7 @@ from textual.worker import Worker
 from src.core.agent_events import EventSink, MessageDelta, RunOutcome
 from src.core.engine import RunResult
 from src.core.tool_pipeline import Observation
+from src.runtime.plugin_assembly import redact_secrets
 from src.tui.event_sink import TuiEventSink
 from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
 
@@ -34,11 +35,13 @@ RUN_STATE_LABELS: dict[RunOutcome, str] = {
 
 
 class TaskRunner(Protocol):
-    """TUI 的执行入口（引擎结构上满足）：run 跑一个 Run，steer 运行中插话。"""
+    """TUI 的执行入口（引擎结构上满足）：run 跑一个 Run，steer/follow_up 运行中插话。"""
 
     async def run(self, task: str | None = None, *, abort: threading.Event | None = None) -> RunResult: ...
 
     def steer(self, message: str) -> None: ...
+
+    def follow_up(self, message: str) -> None: ...
 
 
 RunnerFactory = Callable[[EventSink], TaskRunner]
@@ -68,6 +71,7 @@ class IntelliAgentApp(App[None]):
         self._messages: dict[str, MessageView] = {}
         self._tool_panels: dict[str, ToolCallPanel] = {}
         self._run_worker: Worker[None] | None = None
+        self._run_settled = False
 
     @property
     def event_sink(self) -> TuiEventSink:
@@ -88,15 +92,23 @@ class IntelliAgentApp(App[None]):
         self._prompt.focus()
 
     def action_submit_prompt(self) -> None:
-        """提交：清空编辑器、本地渲染用户消息，触发 run（运行中则转交 steer）。"""
+        """提交：清空编辑器、本地渲染用户消息，触发 run。
+
+        运行中提交转交 steer（引擎的插话 seam）；引擎已收束（agent_end 已发）而 worker
+        尚未回收的窗口期转 follow_up——steering 队列此时已无消费点，直接 steer 会静默丢失。
+        """
         text = self._prompt.text.strip()
         if not text:
             return
         self._prompt.load_text("")
         self._stream.add_message(MessageView("user", text=text))
         if self._run_worker is not None and not self._run_worker.is_finished:
-            self._runner.steer(text)
+            if self._run_settled:
+                self._runner.follow_up(text)
+            else:
+                self._runner.steer(text)
             return
+        self._run_settled = False
         self._run_worker = self.run_worker(self._run(text), exclusive=True)
 
     async def _run(self, task: str) -> None:
@@ -104,8 +116,8 @@ class IntelliAgentApp(App[None]):
         try:
             await self._runner.run(task)
         except Exception as exc:
-            self._stream.add_message(MessageView("system", text=f"运行异常：{exc}"))
-            self._status.set_run_state("出错")
+            self._stream.add_message(MessageView("system", text=f"运行异常：{redact_secrets(str(exc))}"))
+            self._status.set_run_state(RUN_STATE_LABELS["error"])
 
     # --- TuiTarget 落点（TuiEventSink 按事件顺序调用；整步刷新，issue #63 负责流式增量渲染） ---
 
@@ -113,6 +125,7 @@ class IntelliAgentApp(App[None]):
         self._status.set_run_state("运行中")
 
     def show_run_finished(self, outcome: RunOutcome) -> None:
+        self._run_settled = True
         self._status.set_run_state(RUN_STATE_LABELS[outcome])
 
     def show_message_started(self, message_id: str, role: str) -> None:
