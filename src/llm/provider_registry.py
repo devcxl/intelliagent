@@ -77,7 +77,7 @@ class ModelRegistry:
             raise ValueError(f"provider {provider_name!r} 缺少 api（{provider.protocol} 协议必须显式声明）")
         env_names = provider.env or _DEFAULT_ENVS.get(provider.protocol, ())
         api_key = _first_env(env_names)
-        if api_key is None and provider.protocol in _DEFAULT_ENVS:
+        if api_key is None and env_names:
             raise ValueError(
                 f"provider {provider_name!r} 缺少 API Key：请设置环境变量 {' / '.join(env_names)}（或声明 env:）"
             )

@@ -85,3 +85,19 @@ def test_missing_key_for_openai_is_diagnostic(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         _registry().resolve("openai/gpt")
+
+
+def test_declared_env_that_is_unset_is_diagnostic(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MISSING_KEY", raising=False)
+    registry = ModelRegistry(
+        {
+            "gw": ProviderSettings(
+                protocol="openai-compatible",
+                api_base="http://gw/v1",
+                env=("MISSING_KEY",),
+                models={"m": ModelSettings(wire_model="m")},
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="MISSING_KEY"):
+        registry.resolve("gw/m")
