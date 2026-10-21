@@ -34,7 +34,7 @@ uv run pytest --tb=short
 
 ## 模块约定
 
-- 新增工具注册在 `src/tools/registry.py`
-- 新增配置项加在 `src/config/unified_config.py`
-- 新增类型定义加在 `src/types/` 对应文件
+- 新增工具以**内置插件**形式放 `src/plugins/`（Manifest + ToolSpec，走 PluginHost 契约）
+- 新增配置项加在 `src/config/yaml_config.py`（intelliagent.yaml）
+- Hook/permission/memory 等扩展以插件能力实现，不改内核
 - 重大决策记录到 `docs/adr/`

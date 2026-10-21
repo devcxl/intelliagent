@@ -9,7 +9,7 @@ agent / turn / message / tool_execution 四个事件族是引擎与前端、拦�
 - tool_execution_end 携带 Observation（真实状态 success/denied/error）。
 
 事件是冻结 dataclass；投递方式由调用方决定（EventSink 推送或迭代消费 message_events 适配器）。
-旧引擎的 dict 事件（src.core.events）随旧引擎在 Phase 7 删除，本模块是其替代协议。
+旧引擎的 dict 事件（src.core.events）已随旧引擎在 Phase 7 删除，本模块是其替代协议。
 """
 
 from __future__ import annotations

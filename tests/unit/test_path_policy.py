@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.utils.path_policy import PathPolicy
+from src.utils.path_policy import PathPolicy, resolve_workspace_root
 
 
 def test_workspace_relative_path(tmp_path):
@@ -73,3 +73,18 @@ def test_policy_immutable():
         assert False, "PathPolicy should be frozen"
     except FrozenInstanceError:
         pass
+
+
+def test_resolve_workspace_root_prefers_explicit_argument(tmp_path, monkeypatch):
+    monkeypatch.setenv("INTELLIAGENT_WORKSPACE_ROOT", str(tmp_path / "env"))
+    assert resolve_workspace_root(tmp_path) == tmp_path.resolve()
+
+
+def test_resolve_workspace_root_falls_back_to_env(tmp_path, monkeypatch):
+    monkeypatch.setenv("INTELLIAGENT_WORKSPACE_ROOT", str(tmp_path))
+    assert resolve_workspace_root() == tmp_path.resolve()
+
+
+def test_resolve_workspace_root_returns_none_without_config(monkeypatch):
+    monkeypatch.delenv("INTELLIAGENT_WORKSPACE_ROOT", raising=False)
+    assert resolve_workspace_root() is None
