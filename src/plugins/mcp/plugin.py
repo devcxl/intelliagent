@@ -85,8 +85,10 @@ class McpPlugin:
                 name=name,
                 server=server.name,
                 tool_name=tool.name,
+                description=tool.description,
                 parameters=tool.input_schema,
                 connection=connection,
+                call_timeout=server.timeout,
             )
             for name, server, connection, tool in discovered
         ]

@@ -193,4 +193,10 @@ class _ConnectionRunner:
         done, _pending = await asyncio.wait({task}, timeout=_CLOSE_WAIT_SECONDS)
         if not done:
             task.cancel()
-            await asyncio.wait({task}, timeout=_CLOSE_WAIT_SECONDS)
+            done, _pending = await asyncio.wait({task}, timeout=_CLOSE_WAIT_SECONDS)
+        # 显式取回 task 结果：吞掉 CancelledError（收尾本就是取消语义），其余异常
+        # 记录到 _exit_error 供 close() 传播——绝不静默丢失（"exception never retrieved"）。
+        for finished in done:
+            exc = finished.exception() if not finished.cancelled() else None
+            if exc is not None and self._exit_error is None:
+                self._exit_error = exc

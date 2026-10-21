@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -21,13 +22,27 @@ class McpTool:
     name: str
     server: str
     tool_name: str
+    description: str
     parameters: Mapping[str, Any]
     connection: McpConnection
+    call_timeout: float = 60.0
 
     async def run(self, **kwargs: Any) -> str:
-        """调用 MCP tools/call 并转统一信封：isError 与传输异常都收敛为 status="error"（可诊断）。"""
+        """调用 MCP tools/call 并转统一信封：isError、超时与传输异常都收敛为 status="error"（可诊断）。
+
+        调用超时封顶单次 tools/call（PR #73 审查：挂死的远端调用不得永久阻塞引擎循环）。
+        """
         try:
-            result = await self.connection.call_tool(self.tool_name, kwargs)
+            result = await asyncio.wait_for(
+                self.connection.call_tool(self.tool_name, kwargs), timeout=self.call_timeout
+            )
+        except TimeoutError:
+            return tool_error(
+                "MCP_CALL_TIMEOUT",
+                f"MCP server '{self.server}' tool '{self.tool_name}' timed out after {self.call_timeout}s",
+                server=self.server,
+                tool=self.tool_name,
+            )
         except Exception as exc:
             return tool_error(
                 "MCP_CALL_FAILED",
