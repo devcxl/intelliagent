@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from src.plugins import CapabilityDeclaration, CapabilityKind, Manifest
 
@@ -28,18 +28,25 @@ class TestManifestValidation:
 
     def test_empty_name_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            Manifest(name="", version="1.0.0", api_version=1, capabilities=(build_capability(CapabilityKind.HOOK, "h"),))
+            Manifest(
+                name="", version="1.0.0", api_version=1, capabilities=(build_capability(CapabilityKind.HOOK, "h"),)
+            )
 
     @pytest.mark.parametrize("bad_name", ["Memory", "mem ory", "-memory", "记忆"])
     def test_invalid_name_pattern_is_rejected(self, bad_name: str) -> None:
         with pytest.raises(ValidationError):
             Manifest(
-                name=bad_name, version="1.0.0", api_version=1, capabilities=(build_capability(CapabilityKind.HOOK, "h"),)
+                name=bad_name,
+                version="1.0.0",
+                api_version=1,
+                capabilities=(build_capability(CapabilityKind.HOOK, "h"),),
             )
 
     def test_empty_version_is_rejected(self) -> None:
         with pytest.raises(ValidationError):
-            Manifest(name="memory", version="", api_version=1, capabilities=(build_capability(CapabilityKind.HOOK, "h"),))
+            Manifest(
+                name="memory", version="", api_version=1, capabilities=(build_capability(CapabilityKind.HOOK, "h"),)
+            )
 
     @pytest.mark.parametrize("bad_api_version", [0, -1])
     def test_non_positive_api_version_is_rejected(self, bad_api_version: int) -> None:

@@ -40,7 +40,10 @@ def build_manifest(
 
 
 class FakePlugin:
-    """记录宿主传入内容的最小 Plugin 实现，按构造时给定的能力清单注册。"""
+    """记录宿主传入内容的最小 Plugin 实现。
+
+    providers 未给定时，为 Manifest 声明的每个能力注册占位提供者；给定空 dict 表示一个都不注册。
+    """
 
     def __init__(
         self,
@@ -48,11 +51,17 @@ class FakePlugin:
         providers: Mapping[tuple[CapabilityKind, str], object] | None = None,
     ) -> None:
         self.manifest = manifest if manifest is not None else build_manifest()
-        self.providers: dict[tuple[CapabilityKind, str], object] = dict(providers or {})
+        self.providers: dict[tuple[CapabilityKind, str], object] | None = (
+            dict(providers) if providers is not None else None
+        )
         self.received_config: BaseModel | None = None
 
     def register(self, registrar: CapabilityRegistrar, config: BaseModel | None) -> None:
         self.received_config = config
+        if self.providers is None:
+            for declaration in self.manifest.capabilities:
+                registrar.register(declaration.kind, declaration.name, object())
+            return
         for (kind, name), provider in self.providers.items():
             registrar.register(kind, name, provider)
 

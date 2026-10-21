@@ -56,7 +56,9 @@ class TestPluginLoading:
         host.load(FakePlugin())
 
         with pytest.raises(PluginLoadError) as exc_info:
-            host.load(FakePlugin(build_manifest(capabilities=(CapabilityDeclaration(kind=CapabilityKind.HOOK, name="h"),))))
+            host.load(
+                FakePlugin(build_manifest(capabilities=(CapabilityDeclaration(kind=CapabilityKind.HOOK, name="h"),)))
+            )
 
         message = str(exc_info.value)
         assert "fake-tool" in message

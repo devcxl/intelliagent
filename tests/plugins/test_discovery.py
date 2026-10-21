@@ -107,9 +107,7 @@ class TestDiscovery:
         assert "broken-plugin" in str(exc_info.value)
 
     @pytest.mark.parametrize("attr", ["NotAPlugin", "not_a_plugin", "UnrelatedFactory"])
-    def test_entry_point_resolving_to_non_plugin_is_rejected(
-        self, monkeypatch: pytest.MonkeyPatch, attr: str
-    ) -> None:
+    def test_entry_point_resolving_to_non_plugin_is_rejected(self, monkeypatch: pytest.MonkeyPatch, attr: str) -> None:
         install_entry_points(monkeypatch, (fake_entry_point("broken-plugin", attr),))
         host = PluginHost()
 
