@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from textual.app import App, ComposeResult
-from textual.widgets import TextArea
 from textual.worker import Worker
 
 from src.core.agent_events import EventSink, MessageDelta, RunOutcome
@@ -25,7 +24,7 @@ from src.core.engine import RunResult
 from src.core.tool_pipeline import Observation
 from src.runtime.plugin_assembly import redact_secrets
 from src.tui.event_sink import TuiEventSink
-from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
+from src.tui.widgets import MessageStream, MessageView, PromptTextArea, StatusBar, ToolCallPanel
 
 RUN_STATE_LABELS: dict[RunOutcome, str] = {
     "settled": "已完成",
@@ -60,14 +59,14 @@ class IntelliAgentApp(App[None]):
     ToolCallPanel { margin: 0 1; }
     """
 
-    BINDINGS = [("ctrl+j", "submit_prompt", "提交")]
+    BINDINGS = []
 
     def __init__(self, *, runner_factory: RunnerFactory, model: str, cwd: Path) -> None:
         super().__init__()
         self._sink = TuiEventSink(self)
         self._runner = runner_factory(self._sink)
         self._stream = MessageStream(id="message-stream")
-        self._prompt = TextArea(id="prompt", placeholder="输入任务…… ctrl+j 提交")
+        self._prompt = PromptTextArea(id="prompt", placeholder="输入任务…… Enter 提交，Ctrl+J 换行")
         self._status = StatusBar(cwd, model)
         self._messages: dict[str, MessageView] = {}
         self._tool_panels: dict[str, ToolCallPanel] = {}
@@ -91,6 +90,10 @@ class IntelliAgentApp(App[None]):
 
     def on_mount(self) -> None:
         self._prompt.focus()
+
+    def on_prompt_text_area_submitted(self, _event: PromptTextArea.Submitted) -> None:
+        """Enter 提交：由 PromptTextArea 发出的消息触发，与应用动作解耦。"""
+        self.action_submit_prompt()
 
     def action_submit_prompt(self) -> None:
         """提交：清空编辑器、本地渲染用户消息，触发 run。

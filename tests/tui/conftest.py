@@ -83,6 +83,6 @@ async def submit(pilot: Pilot, text: str) -> None:
     prompt = pilot.app.query_one("#prompt", TextArea)
     prompt.focus()
     prompt.load_text(text)
-    await pilot.press("ctrl+j")
+    await pilot.press("enter")
     await pilot.app.workers.wait_for_complete()
     await pilot.pause()

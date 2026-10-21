@@ -15,9 +15,9 @@ async def test_editor_accepts_multi_line_typing_and_submits() -> None:
     async with app.run_test() as pilot:
         prompt = pilot.app.query_one("#prompt", TextArea)
         prompt.focus()
-        await pilot.press("a", "enter", "b")
+        await pilot.press("a", "ctrl+j", "b")
         assert prompt.text == "a\nb"
-        await pilot.press("ctrl+j")
+        await pilot.press("enter")
         await pilot.app.workers.wait_for_complete()
         await pilot.pause()
         assert runner.tasks == ["a\nb"]
@@ -48,11 +48,11 @@ async def test_submit_while_running_is_steered() -> None:
         prompt = pilot.app.query_one("#prompt", TextArea)
         prompt.focus()
         prompt.load_text("first task")
-        await pilot.press("ctrl+j")
+        await pilot.press("enter")
         await pilot.pause()
         assert runner.tasks == ["first task"]
         prompt.load_text("steering note")
-        await pilot.press("ctrl+j")
+        await pilot.press("enter")
         await pilot.pause()
         assert runner.tasks == ["first task"]
         assert runner.steered == ["steering note"]
@@ -74,12 +74,12 @@ class TestReviewRegressions:
             prompt = pilot.app.query_one("#prompt", TextArea)
             prompt.focus()
             prompt.load_text("first task")
-            await pilot.press("ctrl+j")
+            await pilot.press("enter")
             await pilot.pause()
             runner.sink.emit(AgentEnd(outcome="settled"))  # 引擎收束，worker 仍挂起
             await pilot.pause()
             prompt.load_text("late message")
-            await pilot.press("ctrl+j")
+            await pilot.press("enter")
             await pilot.pause()
             assert runner.follow_ups == ["late message"]
             assert runner.steered == []

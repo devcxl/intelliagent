@@ -98,7 +98,7 @@ uv run python -m src.headless run "任务"
 uv run python -m src.tui
 ```
 
-消息流 + 流式增量渲染 + 工具调用折叠 + 多行编辑器（ctrl+j 提交）+ 状态栏。
+消息流 + 流式增量渲染 + 工具调用折叠 + 多行编辑器（Enter 提交，Ctrl+J 换行）+ 状态栏。
 
 ## 插件开发
 
