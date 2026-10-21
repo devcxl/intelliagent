@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.plugins.storage.errors import EntryNotFoundError, StorageError
+from src.plugins.storage.messages import entry_message, message_entries, message_payload
 from src.plugins.storage.models import APPEND_ONLY_TRIGGER_STATEMENTS, Base, EntryRow
 from src.plugins.storage.records import (
     ENTRY_TYPE_COMPACTION,
@@ -230,6 +231,30 @@ class StorageStore:
             run_row = await self._require_run_row(session, run_id)
             status_rows = await self._run_status_rows(session, run_row)
             return tuple(_to_entry(row) for row in [run_row, *status_rows])
+
+    async def append_chat_message(self, message: dict[str, Any], *, parent_id: str | None = None) -> str:
+        """追加一条 chat 消息 entry，返回 entry id（ChatMessage 映射在 storage 侧内部完成）。"""
+        entry = await self.append_message(message_payload(message), parent_id=parent_id)
+        return entry.id
+
+    async def chat_projection(self, leaf_entry_id: str) -> tuple[str | None, list[tuple[str, dict[str, Any]]]]:
+        """现算投影的高层视图：(摘要 | None, [(entry_id, ChatMessage), ...])。
+
+        compaction 记录的摘要 + 保留段 message entry 重建的消息序列；entry_id 供切点定位。
+        """
+        projection = await self.projection(leaf_entry_id)
+        kept = [(entry.id, entry_message(entry)) for entry in message_entries(list(projection.entries))]
+        summary = projection.compaction.summary if projection.compaction is not None else None
+        return summary, kept
+
+    async def latest_leaf(self) -> str | None:
+        """取最新追加的 entry id（重启续接的 leaf 锚点）；空库返回 None。
+
+        append-only 单写者下最新 entry 即活跃分支的 leaf。
+        """
+        async with self._session() as session:
+            row = (await session.execute(select(EntryRow).order_by(EntryRow.created_at.desc()))).scalars().first()
+            return row.id if row is not None else None
 
     async def branch_path(self, entry_id: str) -> tuple[Entry, ...]:
         """按 parent 链取分支路径：root → entry_id（含两端）。"""
