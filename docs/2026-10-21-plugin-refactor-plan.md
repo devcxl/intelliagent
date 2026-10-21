@@ -1,8 +1,8 @@
 # IntelliAgent 插件化重构实施计划
 
 > 日期：2026-10-21
-> 状态：待审
-> 依据：`docs/2026-10-21-project-analysis-and-roadmap.md`（现状分析）、`CONTEXT.md`（目标态术语）、`docs/adr/0007-plugin-architecture.md`、`docs/adr/0008-default-security-posture.md`、`docs/adr/0009-textual-tui-yaml-config.md`
+> 状态：待审（v2，2026-10-21 修订：引擎改为复刻 pi 设计，见 `docs/adr/0010-replicate-pi-engine.md`）
+> 依据：`docs/2026-10-21-project-analysis-and-roadmap.md`（现状分析）、`CONTEXT.md`（目标态术语）、`docs/adr/0007-plugin-architecture.md`、`docs/adr/0008-default-security-posture.md`、`docs/adr/0009-textual-tui-yaml-config.md`、`docs/adr/0010-replicate-pi-engine.md`、`docs/pi-engine-principles.md`（引擎蓝本）
 
 ## 1. 目标一句话
 
@@ -16,11 +16,12 @@
 |---|---|
 | PluginHost | Manifest 校验（`api_version`）、Entry Points 发现、能力注册与查询 |
 | 插件契约 | Plugin Protocol + 能力接口：Tool / Hook / Permission / Storage |
-| 内置插件 | `read`（offset/limit 分页）/ `write` / `bash`（进程组 kill、输出上限）/ `edit`（精确匹配）/ `grep`（ripgrep 子进程）/ mcp / skill / storage（SQLAlchemy/SQLite） |
-| 引擎 | ReAct 循环移植；修 P0 正确性项（observation 真实状态、上下文压缩的持久化契约、token 计数基于当前 prompt）；LLM 经 litellm |
-| 前端 | Textual TUI（消息流 + 工具调用折叠 + 编辑器 + 状态栏）；无头模式 |
+| 内置插件 | `read`（offset/limit 分页，输出限额 + 续读提示）/ `write`（不回灌文件）/ `bash`（进程组 kill、尾部保留 + 全量落盘 offload）/ `edit`（精确匹配，只返回 diff）/ `grep`（ripgrep 子进程，匹配数与行宽限额）/ mcp / skill / storage |
+| 引擎 | **复刻 pi 设计**（ADR 0010）：三层分层（纯循环/会话编排/LLM）、双层状态机（stopReason 分类、steering/follow-up 队列）、事件模型至 `message_update` 粒度、**投影式压缩**（追加摘要 + 请求时投影，原始记录不删）、system prompt 分 section 增量 patch、工具流水线（beforeToolCall fail-closed / afterToolCall 可改写）、工具输出限额 + 文件 offload |
+| LLM | litellm，**token 级流式**（从原 P2 提前到本轮），usage 逐响应落账 |
+| 前端 | Textual TUI（消息流 + **流式增量渲染** + 工具调用折叠 + 编辑器 + 状态栏）；无头模式 |
 | 配置 | `intelliagent.yaml` + `plugins:` 段 + env 插值 |
-| 持久化实体 | Conversation / Message / Run |
+| 持久化实体 | Conversation / Message / Run；**entry 表 + parentId 承载 append-only 语义**，compaction 记录含 first_kept_entry_id 与 prompt checkpoint |
 
 ### 删除（不移植）
 
@@ -28,7 +29,7 @@ GUI（`src/gui/`）、task_tools、agent_team（含 Agent/Relay/Task 表）、�
 
 ### 显式不做（本轮）
 
-memory 专用能力接口、permission 内置实现、多存储后端抽象、TUI 会话列表/设置面板/主题、插件市场/热加载、token 级流式、并行 tool calls。
+会话树导航 / fork / branch summary、虚拟模型路由、嵌套工具调用（`ctx.executeTool`）、JSONL 文件格式（语义由 SQLite 承载）、extension 的 UI 集成面、memory 专用能力接口、permission 内置实现、多存储后端抽象、TUI 会话列表/设置面板/主题、插件市场/热加载、并行 tool calls（保留串行执行，事件与流水线设计不排斥后续并行）。
 
 ## 3. 分阶段实施
 
@@ -47,15 +48,22 @@ memory 专用能力接口、permission 内置实现、多存储后端抽象、TU
 
 ### Phase 2 — 内置工具插件 + storage 插件
 
-- 五个基本工具按新契约实现（命名：`read` / `write` / `bash` / `edit` / `grep`）；修旧实现缺陷（edit 精确匹配、bash 进程组 kill、read 分页、grep 依赖缺失时可诊断报错）。
-- storage 插件：SQLAlchemy/SQLite，实体 Conversation / Message / Run。
-- verify: 工具行为测试 + 仓库层测试（含边界与错误路径）。
+- 五个基本工具按新契约实现（命名：`read` / `write` / `bash` / `edit` / `grep`），照 pi 的输出规格（见 `docs/pi-engine-principles.md` §5）：read 分页 + 续读提示、bash 尾部保留 + 全量落盘、edit/write 不回灌文件、grep 限额、bash 进程组 kill、edit 精确匹配。
+- storage 插件：SQLAlchemy/SQLite，承载 **append-only 语义**：entry 表（id/parent_id/type/timestamp/payload）+ compaction 记录（summary + first_kept_entry_id + prompt checkpoint）；原始 entry 永不删除。
+- verify: 工具行为测试（含输出限额与 offload）+ 存储层 append-only/投影查询测试。
 
-### Phase 3 — 引擎移植 + LLM
+### Phase 3 — 引擎（复刻 pi 设计，ADR 0010）+ LLM
 
-- ReactEngine 移植到插件宿主之上：hook 管线（PreToolUse/PostToolUse/SessionStart）、observation 真实状态、上下文压缩持久化契约修复。
-- litellm 接入（`src/llm/`），带超时与重试。
-- verify: 引擎单测（fake 插件 + fake LLM）；压缩后 DB 行为回归测试。
+按 `docs/pi-engine-principles.md` 逐机制实现：
+
+- 三层分层：纯循环（`src/core/`）/ 会话编排（runtime，hook 包装接入）/ LLM（litellm）。
+- 双层循环状态机：stopReason 分类（error/aborted 硬退出、length 截断→工具判失败）、steering/follow-up 消息队列、turn 边界 hook（prepareRequest/prepareNextTurn/finishTurn）。
+- 事件模型：`agent/turn/message/tool_execution` 事件族至 `message_update`（流式增量）与 `tool_execution_start`（执行前）粒度。
+- 工具流水线：prepareArguments → validate → beforeToolCall（fail-closed，permission 插件挂载点）→ execute → afterToolCall（可改写结果）。
+- 投影式压缩：阈值触发（contextWindow - reserve）、保留最近 turn 边界切点、LLM 增量摘要（固定结构，拒绝截断）、写 compaction entry + prompt checkpoint，请求时现算投影；token 计数用 provider 真实 usage + 尾部估算。
+- system prompt 分 section 增量 patch，前缀字节稳定。
+- litellm 接入：token 级流式、超时/重试、usage 逐响应落账。
+- verify: 引擎单测（fake 插件 + fake LLM 双路径）；投影压缩回归（压缩后重启投影不含旧 entry）；stopReason 三分类测试；before hook fail-closed 测试。
 
 ### Phase 4 — mcp + skill 内置插件
 
@@ -65,7 +73,7 @@ memory 专用能力接口、permission 内置实现、多存储后端抽象、TU
 
 ### Phase 5 — Textual TUI + 无头模式
 
-- TUI：消息流渲染、工具调用折叠、多行编辑器、状态栏；仅消费引擎事件流。
+- TUI：消息流 + **流式增量渲染**（message_update 驱动）、工具调用折叠、多行编辑器、状态栏；仅消费引擎事件流。
 - 无头模式：`intelliagent run "task"`，stdin 进、事件出。
 - verify: TUI 组件测试（Textual pilot）；无头模式端到端（fake LLM）。
 
@@ -83,8 +91,8 @@ memory 专用能力接口、permission 内置实现、多存储后端抽象、TU
 
 | 旧资产 | 去向 |
 |---|---|
-| ReAct 循环结构（`react_engine.py`） | Phase 3 移植骨架，修 P0 项 |
-| `ContextManager` 压缩设计（ADR 0001） | Phase 3 移植思路，摘要策略改为 LLM 摘要（后续增强，本轮先修持久化契约） |
+| `ContextManager` 压缩设计（ADR 0001） | **废弃**，由 pi 式投影压缩取代（Phase 3）；ADR 0001 标记 superseded |
+| 旧 ReAct 循环（`react_engine.py`） | **废弃**，按 pi 蓝本重写（Phase 3）；事件命名（thought/action/observation）保留为事件族别名 |
 | `PathPolicy` 路径边界 | Phase 2 工具插件内复用 |
 | 权限引擎的 last-match-wins 语义 | 不移植实现；语义写入 permission 插件开发文档，供社区插件参考 |
 | `MCPClientManager` | Phase 4 移植，修 schema 降级缺陷 |
@@ -97,6 +105,7 @@ memory 专用能力接口、permission 内置实现、多存储后端抽象、TU
 |---|---|
 | Entry Points 契约发布后难以变更 | `api_version` 从 1 起算；契约测试先行（Phase 1 先于一切业务代码） |
 | 默认无防护（ADR 0008） | README 显著提示；无头模式默认拒绝需要 permission 能力却无插件时给出警告 |
-| litellm 行为与旧 OpenAI 直连不一致 | Phase 3 用同一组引擎测试跑 fake 与真实 litellm 双路径 |
+| pi 复刻与 litellm 行为不一致（usage/流协议差异） | Phase 3 用同一组引擎测试跑 fake 与真实 litellm 双路径 |
+| 投影压缩实现复杂（切点选择/checkpoint/增量摘要） | 按 pi 分解为可独立测试的纯函数（cut point 计算、摘要合并、投影构建）；先做无 LLM 的投影正确性测试 |
 | 一次性重构面过大 | 严格按 Phase 切 PR，每阶段可独立回滚；删除动作集中在 Phase 7 |
 | Textual 学习成本 | TUI 只消费事件流，与引擎解耦，可独立替换 |

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by ADR 0010（2026-10-21）——投影式压缩取代本设计，摘要由 LLM 生成。
 
 ## Context
 

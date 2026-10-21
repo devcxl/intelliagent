@@ -32,6 +32,14 @@ _Avoid_: Tool output, result message
 驱动推理-行动循环（ReAct）的核心，消费模型响应并执行工具调用。
 _Avoid_: Loop, orchestrator, core loop
 
+**Projection**:
+发给模型的上下文视图，每次请求时从 append-only 记录现算；历史记录永不删除，只决定哪些进入视图。
+_Avoid_: Context buffer, history window
+
+**Compaction**:
+追加一条摘要记录（含保留切点）以缩小投影的机制，不修改也不删除原始记录。
+_Avoid_: Truncation, pruning, history deletion
+
 ### 插件体系
 
 **Plugin**:
