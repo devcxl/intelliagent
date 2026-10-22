@@ -8,7 +8,7 @@ from textual.containers import VerticalScroll
 from src.core.agent_events import ToolExecutionEnd, ToolExecutionStart
 from src.core.tool_pipeline import Observation, ObservationStatus
 from src.tui.message_stream import MessageStream
-from src.tui.widgets import ToolCallPanel
+from src.tui.tool_panel import ToolCallPanel
 from tests.tui.conftest import make_app
 
 

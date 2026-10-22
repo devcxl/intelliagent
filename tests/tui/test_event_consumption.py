@@ -13,7 +13,8 @@ from src.llm.stream import TextDelta
 from src.tui.app import IntelliAgentApp
 from src.tui.message_stream import MessageStream
 from src.tui.message_view import MessageView
-from src.tui.widgets import StatusBar, ToolCallPanel
+from src.tui.status_bar import StatusBar
+from src.tui.tool_panel import ToolCallPanel
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TUI_ROOT = REPO_ROOT / "src" / "tui"

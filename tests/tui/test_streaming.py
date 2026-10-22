@@ -26,7 +26,8 @@ from src.core.tool_pipeline import Observation, ObservationStatus
 from src.llm.stream import Error, TextDelta, ToolCallDelta
 from src.tui.message_stream import MessageStream
 from src.tui.message_view import MessageView
-from src.tui.widgets import StatusBar, ToolCallPanel
+from src.tui.status_bar import StatusBar
+from src.tui.tool_panel import ToolCallPanel
 from tests.tui.conftest import make_app, submit
 
 
