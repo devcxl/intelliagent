@@ -30,7 +30,9 @@ from src.llm.stream import Usage
 from src.runtime.plugin_assembly import redact_secrets
 from src.tui.editor import PromptEditor
 from src.tui.event_sink import TuiEventSink
-from src.tui.widgets import TOOL_BODY_MAX_LINES, MessageStream, MessageView, StatusBar, ToolCallPanel
+from src.tui.message_stream import MessageStream
+from src.tui.message_view import MessageView
+from src.tui.widgets import TOOL_BODY_MAX_LINES, StatusBar, ToolCallPanel
 
 RUN_STATE_LABELS: dict[RunOutcome, str] = {
     "settled": "已完成",
@@ -63,9 +65,13 @@ class IntelliAgentApp(App[None]):
     CSS = (
         """
     MessageStream { height: 1fr; padding: 0 1; }
+    MessageView { height: auto; width: 1fr; margin: 1 0; }
+    MessageView .message-text { height: auto; width: 1fr; }
+    MessageView .message-markdown { height: auto; width: 1fr; padding: 0; }
+    .role-user .message-text { color: $accent; }
+    .role-system .message-text { color: $warning; }
     #prompt { height: 3; border: none; border-top: solid $accent; padding: 0 1; }
     StatusBar { height: 1; padding: 0 1; background: $surface; }
-    .message { margin: 1 0; }
     ToolCallPanel { margin: 0 1; }
     """
         + f"ToolCallPanel .tool-body {{ height: auto; max-height: {TOOL_BODY_MAX_LINES}; overflow-y: auto; }}\n"
@@ -75,8 +81,12 @@ class IntelliAgentApp(App[None]):
     BINDINGS = [
         Binding("escape", "abort_run", "中止", show=False),
         Binding("ctrl+o", "toggle_tool_panels", "展开/折叠工具输出", show=False, priority=True),
+        Binding("pageup", "scroll_stream_up", "消息流上翻", show=False, priority=True),
+        Binding("pagedown", "scroll_stream_down", "消息流下翻", show=False, priority=True),
+        Binding("ctrl+home", "scroll_stream_top", "消息流顶部", show=False, priority=True),
+        Binding("ctrl+end", "scroll_stream_bottom", "消息流最新", show=False, priority=True),
     ]
-    """Esc 中止当前 run；Ctrl+O 整体切换工具输出；其余键位由编辑器与 Textual 默认绑定承载。"""
+    """Esc 中止；Ctrl+O 切换工具输出；翻页与跳转走 priority 绑定，避免被编辑器消费。"""
 
     ENABLE_COMMAND_PALETTE = False
     """Ctrl+P 让位给提示词历史（pi 最小集不引入命令面板）。"""
@@ -169,6 +179,22 @@ class IntelliAgentApp(App[None]):
         expand = any(panel.collapsed for panel in panels)
         for panel in panels:
             panel.collapsed = not expand
+
+    def action_scroll_stream_up(self) -> None:
+        """PgUp：上翻消息流（priority 绑定，编辑器聚焦时也生效）。"""
+        self._stream.page_up()
+
+    def action_scroll_stream_down(self) -> None:
+        """PgDn：下翻消息流；滚到底部恢复跟随。"""
+        self._stream.page_down()
+
+    def action_scroll_stream_top(self) -> None:
+        """Ctrl+Home：跳到消息流顶部并停止跟随。"""
+        self._stream.scroll_top()
+
+    def action_scroll_stream_bottom(self) -> None:
+        """Ctrl+End：回到最新输出并恢复跟随。"""
+        self._stream.follow_latest()
 
     def _submit(self, text: str, *, queue: bool = False) -> None:
         """提交：清空编辑器、记录历史、本地渲染用户消息，并按运行状态分派。

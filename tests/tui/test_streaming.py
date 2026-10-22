@@ -6,7 +6,11 @@ TDD 先行：本文件先于实现落地，红转绿即验收证据。测试走�
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
+from textual.widgets import Markdown
+from textual.widgets.markdown import MarkdownStream
 
 from src.core.agent_events import (
     AgentEnd,
@@ -20,7 +24,9 @@ from src.core.agent_events import (
 )
 from src.core.tool_pipeline import Observation, ObservationStatus
 from src.llm.stream import Error, TextDelta, ToolCallDelta
-from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
+from src.tui.message_stream import MessageStream
+from src.tui.message_view import MessageView
+from src.tui.widgets import StatusBar, ToolCallPanel
 from tests.tui.conftest import make_app, submit
 
 
@@ -35,17 +41,18 @@ def observation(status: ObservationStatus, content: str = "ok", error: str | Non
     )
 
 
-def count_redraws(view: MessageView, monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """记录该消息单元的重绘（update 调用）次数：验证合并重绘与不全量重绘。"""
-    redraws: list[str] = []
-    original = view.update
+def spy_markdown_appends(view: MessageView, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """记录该消息的 Markdown 实际 append 片段：验证合并渲染与只重绘本单元。"""
+    markdown = view.query_one(Markdown)
+    appends: list[str] = []
+    original = markdown.append
 
-    def counting_update(content: object = "", *, layout: bool = True) -> None:
-        redraws.append(str(content))
-        original(content, layout=layout)
+    def counting_append(fragment: str) -> object:
+        appends.append(fragment)
+        return original(fragment)
 
-    monkeypatch.setattr(view, "update", counting_update)
-    return redraws
+    monkeypatch.setattr(markdown, "append", counting_append)
+    return appends
 
 
 async def test_delta_renders_before_message_end() -> None:
@@ -58,16 +65,21 @@ async def test_delta_renders_before_message_end() -> None:
         await pilot.pause()
         view = app.query_one(MessageView)
         assert view.rendered_text == "你好"
+        assert view.query_one(Markdown).source == "你好"
         sink.emit(MessageUpdate("m1", TextDelta("，世界")))
         await pilot.pause()
         assert view.rendered_text == "你好，世界"
+        assert view.query_one(Markdown).source == "你好，世界"
         sink.emit(MessageEnd("m1"))
         await pilot.pause()
         assert view.rendered_text == "你好，世界"
 
 
 async def test_deltas_merge_into_single_redraw(monkeypatch: pytest.MonkeyPatch) -> None:
-    """渲染成本控制：一轮到达的多个 delta 合并为一次重绘，且只重绘该消息单元（requestRender 语义）。"""
+    """渲染成本控制：一轮到达的多个 delta 合并为一次 Markdown append，且只重绘本消息单元。
+
+    成本约束由 Textual MarkdownStream 的排队合并保证；本测试只断言外部可见结果。
+    """
     app, _ = make_app()
     async with app.run_test() as pilot:
         sink = app.event_sink
@@ -75,14 +87,29 @@ async def test_deltas_merge_into_single_redraw(monkeypatch: pytest.MonkeyPatch) 
         sink.emit(MessageStart("m2", role="assistant"))
         await pilot.pause()
         views = {view.message_id: view for view in app.query_one(MessageStream).query(MessageView)}
-        redraws_m1 = count_redraws(views["m1"], monkeypatch)
-        redraws_m2 = count_redraws(views["m2"], monkeypatch)
+        appends_m1 = spy_markdown_appends(views["m1"], monkeypatch)
+        appends_m2 = spy_markdown_appends(views["m2"], monkeypatch)
         for chunk in ("流", "式", "渲染"):
             sink.emit(MessageUpdate("m1", TextDelta(chunk)))
         await pilot.pause()
         assert views["m1"].rendered_text == "流式渲染"
-        assert len(redraws_m1) == 1
-        assert redraws_m2 == []
+        assert appends_m1 == ["流式渲染"]
+        assert appends_m2 == []
+        assert views["m1"].query_one(Markdown).source == "流式渲染"
+
+
+async def test_start_and_deltas_in_one_sync_burst_are_not_lost() -> None:
+    """MessageStart 与增量同一同步突发：挂载未完成时缓冲，流就绪后按序落屏。"""
+    app, _ = make_app()
+    async with app.run_test() as pilot:
+        sink = app.event_sink
+        sink.emit(MessageStart("m1", role="assistant"))
+        sink.emit(MessageUpdate("m1", TextDelta("第一段")))
+        sink.emit(MessageUpdate("m1", TextDelta("第二段")))
+        await pilot.pause()
+        view = app.query_one(MessageView)
+        assert view.rendered_text == "第一段第二段"
+        assert view.query_one(Markdown).source == "第一段第二段"
 
 
 async def test_error_delta_renders_error_state() -> None:
@@ -189,45 +216,52 @@ class TestReviewRegressions:
             view = app.query_one(MessageView)
             assert view.rendered_text == "（无内容）"
 
-    async def test_settle_flushes_buffered_text_without_natural_flush_window(self) -> None:
-        """钉死清算：无自然 flush 窗口（不 pause）时缓冲文本必须经 settle 落屏。
+    async def test_flush_pending_settles_message_started_in_same_burst(self) -> None:
+        """同一同步突发里 Start 与收束事件到达：挂载未完成也要落空态占位，不丢半程消息。"""
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            sink.emit(AgentEnd("error"))
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            assert view.rendered_text == "（无内容）"
 
-        变异敏感：settle/flush_pending 改回不落屏语义后本测试失败，
-        不依赖 call_later 的自然合并窗口（PR #78 审查 Spec medium）。
-        """
+    async def test_settle_keeps_queued_text_when_consumer_has_not_run(self) -> None:
+        """半程清算在消费者尚未运行时到达：已入队文本不丢，收束后正常落屏。"""
         app, _ = make_app()
         async with app.run_test() as pilot:
             sink = app.event_sink
             sink.emit(MessageStart("m1", role="assistant"))
             sink.emit(MessageUpdate("m1", TextDelta("half text")))
-            app._stream.flush_pending()  # 不 pause：合并窗口未到，清算必须兜住
+            app._stream.flush_pending()  # 不 pause：消费者尚未运行，清算必须保留已入队文本
             await pilot.pause()
             view = app.query_one(MessageView)
             assert view.rendered_text == "half text"
+            assert view.stream_error is None
 
-    async def test_sync_burst_schedules_single_redraw(self) -> None:
-        """合并机制钉死：同步突发的多个增量只安排一次 call_later（pi requestRender 合并语义）。"""
+    async def test_sync_burst_renders_once_with_combined_content(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """同步突发的多个增量只产生一次 append，且片段是完整拼接。
+
+        成本约束由队列消费者批量取走已入队片段 + MarkdownStream 自身的排队合并共同保证；
+        这里只断言外部可见结果，不断言内部合并窗口。
+        """
         app, _ = make_app()
         async with app.run_test() as pilot:
             sink = app.event_sink
             sink.emit(MessageStart("m1", role="assistant"))
+            await pilot.pause()
             view = app.query_one(MessageView)
-            scheduled: list[object] = []
-            original = view.call_later
-
-            def spy(callback):
-                scheduled.append(callback)
-                return original(callback)
-
-            view.call_later = spy  # type: ignore[method-assign]
+            appends = spy_markdown_appends(view, monkeypatch)
             sink.emit(MessageUpdate("m1", TextDelta("a")))
             sink.emit(MessageUpdate("m1", TextDelta("b")))
             sink.emit(MessageUpdate("m1", TextDelta("c")))
-            assert len(scheduled) == 1  # 合并标志生效：一次安排（变异敏感：去掉 _flush_scheduled 则为 3）
             await pilot.pause()
+            assert appends == ["abc"]
+            assert view.query_one(Markdown).source == "abc"
 
-    async def test_flush_resets_merge_flag(self) -> None:
-        """flush 复位合并标志：回调被丢弃后后续增量仍能安排重绘（不悬挂）。"""
+    async def test_delta_after_rendered_batch_still_renders(self) -> None:
+        """一批增量渲染完之后到达的新增量仍按队列顺序继续落屏。"""
         app, _ = make_app()
         async with app.run_test() as pilot:
             sink = app.event_sink
@@ -235,9 +269,60 @@ class TestReviewRegressions:
             sink.emit(MessageUpdate("m1", TextDelta("a")))
             await pilot.pause()
             view = app.query_one(MessageView)
-            view._flush_scheduled = True  # 模拟回调被丢弃的悬挂态  # noqa: SLF001
-            view.flush()  # 兜底路径复位标志
-            scheduled_after: list[object] = []
-            view.call_later = lambda cb: (scheduled_after.append(cb), True)[1]  # type: ignore[method-assign]
+            assert view.rendered_text == "a"
             sink.emit(MessageUpdate("m1", TextDelta("b")))
-            assert len(scheduled_after) == 1
+            await pilot.pause()
+            assert view.rendered_text == "ab"
+            assert view.query_one(Markdown).source == "ab"
+
+    async def test_late_delta_after_message_end_is_ignored(self) -> None:
+        """MessageEnd 之后的晚到增量被拒绝：正文、Markdown.source 都不变，且不写已停止的流。"""
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            sink.emit(MessageUpdate("m1", TextDelta("before")))
+            sink.emit(MessageEnd("m1"))
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            assert view.rendered_text == "before"
+
+            sink.emit(MessageUpdate("m1", TextDelta("after")))
+            await pilot.pause()
+            assert view.text == "before"
+            assert view.rendered_text == "before"
+            assert view.query_one(Markdown).source == "before"
+            assert view.stream_error is None
+
+    async def test_unfinished_message_writer_is_stopped_on_app_exit(self) -> None:
+        """未结束消息随应用退出收束：消费者任务不悬挂，Markdown 流停止且无未取回异常。"""
+        before = set(asyncio.all_tasks())
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            sink.emit(MessageUpdate("m1", TextDelta("partial")))
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            assert view.rendered_text == "partial"
+
+        pending = [task for task in asyncio.all_tasks() if task not in before and not task.done()]
+        assert pending == []
+        assert view.stream_error is None
+
+    async def test_markdown_write_failure_is_recorded_not_unretrieved(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """写入异常被消费者捕获并记录到 stream_error，不变成未取回的任务异常。"""
+
+        async def failing_write(self: MarkdownStream, fragment: str) -> None:
+            raise RuntimeError("markdown write failed")
+
+        monkeypatch.setattr(MarkdownStream, "write", failing_write)
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            sink.emit(MessageUpdate("m1", TextDelta("正文")))
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            assert isinstance(view.stream_error, RuntimeError)
+            assert "markdown write failed" in str(view.stream_error)

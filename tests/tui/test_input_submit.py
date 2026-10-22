@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 
 from src.tui.editor import PromptEditor
-from src.tui.widgets import MessageStream, MessageView
+from src.tui.message_stream import MessageStream
+from src.tui.message_view import MessageView
 from tests.tui.conftest import make_app, submit
 
 

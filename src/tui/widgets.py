@@ -1,4 +1,4 @@
-"""TUI 组件：消息流、消息单元、工具调用折叠面板、状态栏（ADR 0009 的 pi 最简形态）。"""
+"""TUI 组件：工具调用折叠面板与状态栏（ADR 0009 的 pi 最简形态）。"""
 
 from __future__ import annotations
 
@@ -13,102 +13,14 @@ from textual.containers import VerticalScroll
 from textual.timer import Timer
 from textual.widgets import Collapsible, Static
 
-from src.core.agent_events import MessageDelta
 from src.core.tool_pipeline import Observation
-from src.llm.stream import Error, TextDelta, Usage
+from src.llm.stream import Usage
 
-ROLE_LABELS = {"user": "你", "assistant": "助手", "system": "系统"}
 TOOL_STATE_LABELS = {"running": "执行中", "success": "成功", "denied": "已拒绝", "error": "失败"}
-EMPTY_MESSAGE_PLACEHOLDER = "（无内容）"
 TOOL_BODY_MAX_LINES = 20
 """工具面板展开正文的最高行数：超出后在面板内滚动，不挤占消息流。"""
 
 TOKEN_SEGMENT_PREFIX = "本轮 tok"
-
-
-class MessageView(Static):
-    """一条 Message 的渲染单元（CONTEXT 术语：Message）。
-
-    流式增量渲染（issue #63）：append_delta 收增量即安排重绘，同一轮到达的增量合并成一次
-    update（pi 的 requestRender 合并语义），且只重绘本单元、不触碰消息流其余部分。
-    flush 是强制收口点（finish 与半程清算共用）；收束时空消息落空态占位。
-    """
-
-    def __init__(self, role: str, *, text: str = "", message_id: str | None = None) -> None:
-        self.role = role
-        self.message_id = message_id
-        self._text_parts: list[str] = [text] if text else []
-        self._received_delta = bool(text)
-        self._finished = False
-        self._dirty = False
-        self._flush_scheduled = False
-        self._rendered_text = self._display_text()
-        super().__init__(self._renderable(), classes=f"message role-{role}")
-
-    @property
-    def text(self) -> str:
-        """消息正文（不含角色标签）：已收到的全部增量拼接，供测试与诊断读取。"""
-        return "".join(self._text_parts)
-
-    @property
-    def rendered_text(self) -> str:
-        """已落屏的展示正文（含空态占位）：随 flush 推进，供测试与诊断读取。"""
-        return self._rendered_text
-
-    def append_delta(self, delta: MessageDelta) -> None:
-        """收一个流式增量：进缓冲并安排合并重绘，不逐 delta 全量重绘（issue #63）。"""
-        self._received_delta = True
-        if isinstance(delta, TextDelta):
-            self._text_parts.append(delta.text)
-        elif isinstance(delta, Error):
-            self._text_parts.append(f"\n（流式错误：{delta.message}）")
-        # ToolCallDelta 不进消息正文：工具调用由 tool_execution_* 事件渲染成折叠面板
-        self._dirty = True
-        if not self._flush_scheduled:
-            self._flush_scheduled = True
-            if not self.call_later(self._flush_soon):
-                self._flush_soon()
-
-    def flush(self) -> None:
-        """把缓冲的增量立即落屏（幂等；无待落屏内容时不动，避免多余重绘）。
-
-        顺带复位合并标志：call_later 回调被丢弃（pump 关闭竞态）时不留悬挂，
-        后续增量仍能安排重绘。
-        """
-        self._flush_scheduled = False
-        if not self._dirty:
-            return
-        self._dirty = False
-        self._redraw()
-
-    def finish(self) -> None:
-        """消息收束：空态占位生效并落屏。"""
-        self._finished = True
-        self._dirty = True
-        self.flush()
-
-    def settle(self) -> None:
-        """收束清算（缺 MessageEnd 的兜底）：缓冲落屏，空消息落空态占位而非裸角色标签。"""
-        self.finish()
-
-    def _flush_soon(self) -> None:
-        """合并窗口收口（call_later 回调）：一轮事件的增量在此合成一次重绘。"""
-        self._flush_scheduled = False
-        self.flush()
-
-    def _redraw(self) -> None:
-        self._rendered_text = self._display_text()
-        self.update(self._renderable())
-
-    def _display_text(self) -> str:
-        text = self.text
-        if text or not self._finished or self._received_delta:
-            return text
-        return EMPTY_MESSAGE_PLACEHOLDER
-
-    def _renderable(self) -> Text:
-        label = ROLE_LABELS.get(self.role, self.role)
-        return Text.assemble((f"{label}  ", "bold"), self._rendered_text)
 
 
 class ToolCallPanel(Collapsible):
@@ -163,26 +75,6 @@ class ToolCallPanel(Collapsible):
 
     def _render_body(self) -> Text:
         return Text(self.body_text)
-
-
-class MessageStream(VerticalScroll):
-    """消息流区域：按事件到达顺序追加消息单元与工具调用面板（pi 的内联工具调用）。"""
-
-    def add_message(self, view: MessageView) -> None:
-        """追加一个消息单元到流末尾。"""
-        self.mount(view)
-        self.scroll_end(animate=False)
-
-    def add_tool_panel(self, panel: ToolCallPanel) -> None:
-        """追加一个工具调用折叠面板到流末尾。"""
-        self.mount(panel)
-        self.scroll_end(animate=False)
-
-    def flush_pending(self) -> None:
-        """半程清算：缺 MessageEnd 的消息按收束落屏——缓冲增量落屏，空消息落空态占位
-        （而非裸角色标签，PR #78 审查 Standards medium）。已 finish 的单元幂等跳过。"""
-        for view in self.query(MessageView):
-            view.settle()
 
 
 class StatusBar(Static):

@@ -95,11 +95,21 @@ class ScriptedRunnerFactory:
 
 
 def make_app(
-    *, model: str = "fake/model", cwd: Path | None = None, clock: FakeClock | None = None
+    *,
+    model: str = "fake/model",
+    cwd: Path | None = None,
+    clock: FakeClock | None = None,
+    startup_notices: list[str] | None = None,
 ) -> tuple[IntelliAgentApp, ScriptedRunner]:
     """装配一个带脚本 runner 的 TUI 应用；clock 用于注入可推进的计时时钟。"""
     factory = ScriptedRunnerFactory()
-    app = IntelliAgentApp(runner_factory=factory, model=model, cwd=cwd or DEFAULT_CWD, clock=clock)
+    app = IntelliAgentApp(
+        runner_factory=factory,
+        model=model,
+        cwd=cwd or DEFAULT_CWD,
+        clock=clock,
+        startup_notices=startup_notices,
+    )
     assert factory.runner is not None
     return app, factory.runner
 
