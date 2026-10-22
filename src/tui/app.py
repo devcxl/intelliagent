@@ -32,7 +32,8 @@ from src.tui.editor import PromptEditor
 from src.tui.event_sink import TuiEventSink
 from src.tui.message_stream import MessageStream
 from src.tui.message_view import MessageView
-from src.tui.widgets import TOOL_BODY_MAX_LINES, StatusBar, ToolCallPanel
+from src.tui.status_bar import StatusBar
+from src.tui.tool_panel import TOOL_BODY_MAX_LINES, ToolCallPanel
 
 RUN_STATE_LABELS: dict[RunOutcome, str] = {
     "settled": "已完成",

@@ -11,7 +11,8 @@ from src.tui.app import IntelliAgentApp
 from src.tui.editor import PromptEditor
 from src.tui.message_stream import MessageStream
 from src.tui.message_view import MessageView
-from src.tui.widgets import StatusBar, ToolCallPanel
+from src.tui.status_bar import StatusBar
+from src.tui.tool_panel import ToolCallPanel
 from tests.core.engine_support import (
     BlockingLLM,
     FakeLLM,

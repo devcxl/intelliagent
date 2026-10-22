@@ -10,7 +10,7 @@ from src.config.yaml_config import ConfigError
 from src.core.engine import Engine
 from src.tui.app import IntelliAgentApp
 from src.tui.assembly import build_app
-from src.tui.widgets import StatusBar
+from src.tui.status_bar import StatusBar
 from tests.tui.conftest import ScriptedRunner
 
 _DEFAULT_CONFIG = (

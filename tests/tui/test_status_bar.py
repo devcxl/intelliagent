@@ -11,7 +11,7 @@ import pytest
 
 from src.core.agent_events import AgentEnd, AgentStart, MessageEnd, MessageStart, RunOutcome
 from src.llm.stream import Usage
-from src.tui.widgets import StatusBar
+from src.tui.status_bar import StatusBar
 from tests.tui.conftest import FakeClock, make_app
 
 
