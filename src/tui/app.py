@@ -30,7 +30,7 @@ from src.llm.stream import Usage
 from src.runtime.plugin_assembly import redact_secrets
 from src.tui.editor import PromptEditor
 from src.tui.event_sink import TuiEventSink
-from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
+from src.tui.widgets import TOOL_BODY_MAX_LINES, MessageStream, MessageView, StatusBar, ToolCallPanel
 
 RUN_STATE_LABELS: dict[RunOutcome, str] = {
     "settled": "已完成",
@@ -60,15 +60,17 @@ RunnerFactory = Callable[[EventSink], TaskRunner | Awaitable[TaskRunner]]
 class IntelliAgentApp(App[None]):
     """pi 最简形态：消息流 + 多行编辑器 + 状态栏 + 工具调用折叠；仅消费事件流（ADR 0009）。"""
 
-    CSS = """
+    CSS = (
+        """
     MessageStream { height: 1fr; padding: 0 1; }
     #prompt { height: 3; border: none; border-top: solid $accent; padding: 0 1; }
     StatusBar { height: 1; padding: 0 1; background: $surface; }
     .message { margin: 1 0; }
     ToolCallPanel { margin: 0 1; }
-    ToolCallPanel .tool-body { height: auto; max-height: 20; overflow-y: auto; }
-    ToolCallPanel .tool-body-text { height: auto; }
     """
+        + f"ToolCallPanel .tool-body {{ height: auto; max-height: {TOOL_BODY_MAX_LINES}; overflow-y: auto; }}\n"
+        + "ToolCallPanel .tool-body-text { height: auto; }\n"
+    )
 
     BINDINGS = [
         Binding("escape", "abort_run", "中止", show=False),

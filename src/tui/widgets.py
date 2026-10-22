@@ -23,7 +23,7 @@ EMPTY_MESSAGE_PLACEHOLDER = "（无内容）"
 TOOL_BODY_MAX_LINES = 20
 """工具面板展开正文的最高行数：超出后在面板内滚动，不挤占消息流。"""
 
-TOKEN_SEGMENT_PREFIX = "tok"
+TOKEN_SEGMENT_PREFIX = "本轮 tok"
 
 
 class MessageView(Static):

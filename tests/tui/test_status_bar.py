@@ -15,14 +15,19 @@ from src.tui.widgets import StatusBar
 from tests.tui.conftest import FakeClock, make_app
 
 
+def rendered(bar: StatusBar) -> str:
+    """状态栏真实渲染内容：定时刷新与 set_run_state 都必须落到这里，而非仅现算文本。"""
+    return str(bar.render())
+
+
 async def test_status_bar_shows_cwd_model_and_state() -> None:
     app, _ = make_app(model="fake/model", cwd=Path("/work/project"))
     async with app.run_test() as pilot:
         bar = pilot.app.query_one(StatusBar)
-        assert "/work/project" in bar.text
-        assert "fake/model" in bar.text
-        assert "就绪" in bar.text
-        assert "tok" not in bar.text
+        assert "/work/project" in rendered(bar)
+        assert "fake/model" in rendered(bar)
+        assert "就绪" in rendered(bar)
+        assert "tok" not in rendered(bar)
 
 
 @pytest.mark.parametrize(
@@ -35,35 +40,37 @@ async def test_status_bar_follows_run_state(outcome: RunOutcome, label: str) -> 
         bar = pilot.app.query_one(StatusBar)
         app.event_sink.emit(AgentStart())
         await pilot.pause()
-        assert "运行中" in bar.text
+        assert "运行中" in rendered(bar)
         app.event_sink.emit(AgentEnd(outcome))
         await pilot.pause()
-        assert label in bar.text
+        assert label in rendered(bar)
 
 
 async def test_status_bar_counts_seconds_then_keeps_final_elapsed() -> None:
-    """运行中按秒推进；收束后冻结最终耗时；下一次 run 重新从 0 计时。"""
+    """定时器真实触发一次：渲染内容按秒推进，收束后冻结，下一次 run 从 0 重新计时。"""
     clock = FakeClock()
     app, _ = make_app(clock=clock)
     async with app.run_test() as pilot:
         bar = app.query_one(StatusBar)
         app.event_sink.emit(AgentStart())
         await pilot.pause()
-        assert "运行中 0s" in bar.text
+        assert "运行中 0s" in rendered(bar)
 
         clock.advance(3)
-        assert "运行中 3s" in bar.text
+        await pilot.pause(1.1)
+        assert "运行中 3s" in rendered(bar)
 
         app.event_sink.emit(AgentEnd("settled"))
         await pilot.pause()
-        assert "已完成 3s" in bar.text
+        assert "已完成 3s" in rendered(bar)
 
         clock.advance(10)
-        assert "已完成 3s" in bar.text
+        await pilot.pause(1.1)
+        assert "已完成 3s" in rendered(bar)
 
         app.event_sink.emit(AgentStart())
         await pilot.pause()
-        assert "运行中 0s" in bar.text
+        assert "运行中 0s" in rendered(bar)
 
 
 async def test_status_bar_shows_usage_tokens_and_resets_on_new_run() -> None:
@@ -75,15 +82,15 @@ async def test_status_bar_shows_usage_tokens_and_resets_on_new_run() -> None:
         app.event_sink.emit(MessageStart("m1"))
         app.event_sink.emit(MessageEnd("m1", usage=Usage(prompt_tokens=1200, completion_tokens=300, total_tokens=1500)))
         await pilot.pause()
-        assert "tok ↑1.2k ↓300" in bar.text
+        assert "本轮 tok ↑1.2k ↓300" in rendered(bar)
 
         app.event_sink.emit(AgentEnd("settled"))
         await pilot.pause()
-        assert "↑1.2k" in bar.text
+        assert "↑1.2k" in rendered(bar)
 
         app.event_sink.emit(AgentStart())
         await pilot.pause()
-        assert "tok" not in bar.text
+        assert "tok" not in rendered(bar)
 
 
 async def test_status_bar_without_usage_keeps_token_segment_hidden() -> None:
@@ -94,7 +101,7 @@ async def test_status_bar_without_usage_keeps_token_segment_hidden() -> None:
         app.event_sink.emit(MessageStart("m1"))
         app.event_sink.emit(MessageEnd("m1", usage=None))
         await pilot.pause()
-        assert "tok" not in bar.text
+        assert "tok" not in rendered(bar)
 
 
 async def test_status_bar_collapses_home_prefix_to_tilde() -> None:
@@ -102,5 +109,5 @@ async def test_status_bar_collapses_home_prefix_to_tilde() -> None:
     app, _ = make_app(cwd=cwd)
     async with app.run_test():
         bar = app.query_one(StatusBar)
-        assert "~/projects/demo" in bar.text
-        assert str(Path.home()) not in bar.text
+        assert "~/projects/demo" in rendered(bar)
+        assert str(Path.home()) not in rendered(bar)
