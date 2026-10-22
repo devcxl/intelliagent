@@ -99,7 +99,7 @@ uv run python -m src.headless run "任务"
 uv run python -m src.tui
 ```
 
-消息流 + 流式增量渲染 + 工具调用折叠 + 单行输入框（Enter 提交）+ 状态栏。
+消息流 + 流式增量渲染 + 工具调用折叠 + 多行编辑器（Enter 提交，Shift+Enter/Ctrl+J 换行）+ 状态栏。
 TUI 会自动续接同一数据库中的 `tui` 会话；删除 `intelliagent.db` 可重置。
 自动压缩在配置了模型 `limit.context` 时生效；未配置时只持久化、不压缩。
 
