@@ -1,12 +1,13 @@
-"""IntelliAgentApp：消息流 + 单行输入框 + 状态栏的 pi 最简 TUI（ADR 0009、issue #61）。
+"""IntelliAgentApp：消息流 + 多行编辑器 + 状态栏的 pi 最简 TUI（ADR 0009、issue #61、#89）。
 
 事件驱动（pi-engine-principles §2）：TuiEventSink 把引擎事件翻译进 TuiTarget 落点（本类实现），
 message_update 边收边渲染（issue #63，合并重绘见 MessageView），其余组件按事件整步刷新；
 用户消息在提交处本地渲染（引擎事件流不含用户输入，pi 同型）。
 
-执行入口是 TaskRunner（引擎结构上满足）：提交触发 run；运行中提交转交 steer（引擎的插话 seam），
-避免对运行中的引擎重复 run（Engine 拒绝并发 run）。runner 经 RunnerFactory 装配，
-把 TUI 的事件出口交给引擎——打破"引擎要 sink、应用要引擎"的构造循环。
+执行入口是 TaskRunner（引擎结构上满足）：提交触发 run；运行中提交按显式意图转交 steer
+（Enter）或 follow_up（Alt+Enter），避免对运行中的引擎重复 run（Engine 拒绝并发 run）。
+每次 run 创建一个线程事件作为 abort 信号，Esc 置位后由引擎在 turn 边界检查。
+runner 经 RunnerFactory 装配，把 TUI 的事件出口交给引擎——打破"引擎要 sink、应用要引擎"的构造循环。
 """
 
 from __future__ import annotations
@@ -19,13 +20,14 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input
+from textual.binding import Binding
 from textual.worker import Worker
 
 from src.core.agent_events import EventSink, MessageDelta, RunOutcome
 from src.core.engine import RunResult
 from src.core.tool_pipeline import Observation
 from src.runtime.plugin_assembly import redact_secrets
+from src.tui.editor import PromptEditor
 from src.tui.event_sink import TuiEventSink
 from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
 
@@ -35,6 +37,9 @@ RUN_STATE_LABELS: dict[RunOutcome, str] = {
     "error": "出错",
     "aborted": "已中止",
 }
+
+ABORTING_LABEL = "中止中"
+"""Esc 已置位 abort 信号、等待 turn 边界收束时的状态栏文案。"""
 
 
 class TaskRunner(Protocol):
@@ -52,17 +57,21 @@ RunnerFactory = Callable[[EventSink], TaskRunner | Awaitable[TaskRunner]]
 
 
 class IntelliAgentApp(App[None]):
-    """pi 最简形态：消息流 + 单行输入 + 状态栏 + 工具调用折叠；仅消费事件流（ADR 0009）。"""
+    """pi 最简形态：消息流 + 多行编辑器 + 状态栏 + 工具调用折叠；仅消费事件流（ADR 0009）。"""
 
     CSS = """
     MessageStream { height: 1fr; padding: 0 1; }
-    #prompt { height: 3; border-top: solid $accent; }
+    #prompt { height: 3; border: none; border-top: solid $accent; padding: 0 1; }
     StatusBar { height: 1; padding: 0 1; background: $surface; }
     .message { margin: 1 0; }
     ToolCallPanel { margin: 0 1; }
     """
 
-    BINDINGS = []
+    BINDINGS = [Binding("escape", "abort_run", "中止", show=False)]
+    """Esc 中止当前 run；其余键位由编辑器（PromptEditor）与 Textual 默认绑定承载。"""
+
+    ENABLE_COMMAND_PALETTE = False
+    """Ctrl+P 让位给提示词历史（pi 最小集不引入命令面板）。"""
 
     def __init__(
         self,
@@ -84,12 +93,13 @@ class IntelliAgentApp(App[None]):
         else:
             self._runner = built
         self._stream = MessageStream(id="message-stream")
-        self._prompt = Input(id="prompt", placeholder="输入任务…… Enter 提交")
+        self._prompt = PromptEditor(id="prompt")
         self._status = StatusBar(cwd, model)
         self._messages: dict[str, MessageView] = {}
         self._tool_panels: dict[str, ToolCallPanel] = {}
         self._run_worker: Worker[None] | None = None
         self._run_settled = False
+        self._abort_event: threading.Event | None = None
         self._on_close = on_close
         self._startup_notices = startup_notices if startup_notices is not None else []
 
@@ -129,33 +139,43 @@ class IntelliAgentApp(App[None]):
         if self._on_close is not None:
             await self._on_close()
 
-    def on_input_submitted(self, _event: Input.Submitted) -> None:
-        """Enter 提交：Input 原生 Submitted 消息触发原有提交动作。"""
-        self.action_submit_prompt()
+    def on_prompt_editor_submitted(self, event: PromptEditor.Submitted) -> None:
+        """编辑器提交：Enter 为提交/插话，Alt+Enter 为排队。"""
+        self._submit(event.text, queue=event.queue)
 
-    def action_submit_prompt(self) -> None:
-        """提交：清空编辑器、本地渲染用户消息，触发 run。
+    def action_abort_run(self) -> None:
+        """Esc：运行中置位 abort 信号并显示「中止中」；空闲或已收束时无副作用。"""
+        if self._run_worker is None or self._run_worker.is_finished or self._run_settled:
+            return
+        if self._abort_event is None or self._abort_event.is_set():
+            return
+        self._abort_event.set()
+        self._status.set_run_state(ABORTING_LABEL)
 
-        运行中提交转交 steer（引擎的插话 seam）；引擎已收束（agent_end 已发）而 worker
-        尚未回收的窗口期转 follow_up——steering 队列此时已无消费点，直接 steer 会静默丢失。
+    def _submit(self, text: str, *, queue: bool = False) -> None:
+        """提交：清空编辑器、记录历史、本地渲染用户消息，并按运行状态分派。
+
+        运行中 Enter 转交 steer（引擎的插话 seam），Alt+Enter 转交 follow_up；引擎已收束
+        （agent_end 已发）而 worker 尚未回收的窗口期统一走 follow_up——steering 队列此时
+        已无消费点，直接 steer 会静默丢失。空白提交忽略。
         """
-        text = self._prompt.value.strip()
-        if not text:
+        content = text.strip()
+        if not content or self._runner is None:
             return
-        if self._runner is None:
-            return
-        self._prompt.value = ""
-        self._stream.add_message(MessageView("user", text=text))
+        self._prompt.clear()
+        self._prompt.remember(content)
+        self._stream.add_message(MessageView("user", text=content))
         if self._run_worker is not None and not self._run_worker.is_finished:
-            if self._run_settled:
-                self._runner.follow_up(text)
+            if queue or self._run_settled:
+                self._runner.follow_up(content)
             else:
-                self._runner.steer(text)
+                self._runner.steer(content)
             return
         self._run_settled = False
-        self._run_worker = self.run_worker(self._run(text), exclusive=True)
+        self._abort_event = threading.Event()
+        self._run_worker = self.run_worker(self._run(content, self._abort_event), exclusive=True)
 
-    async def _run(self, task: str) -> None:
+    async def _run(self, task: str, abort: threading.Event) -> None:
         """跑一个 Run；异常不逃逸出 worker（引擎已发 agent_end 收束事件），错误落到消息流与状态栏。
 
         异常收束时缺 MessageEnd 的半程增量在此清算落屏（PR #76 审查遗留）。
@@ -163,7 +183,7 @@ class IntelliAgentApp(App[None]):
         if self._runner is None:
             return
         try:
-            await self._runner.run(task)
+            await self._runner.run(task, abort=abort)
         except Exception as exc:
             self._stream.flush_pending()
             self._stream.add_message(MessageView("system", text=f"运行异常：{redact_secrets(str(exc))}"))
@@ -172,7 +192,10 @@ class IntelliAgentApp(App[None]):
     # --- TuiTarget 落点（TuiEventSink 按事件顺序调用；增量渲染，issue #63：message_update 边收边渲染） ---
 
     def show_run_started(self) -> None:
-        self._status.set_run_state("运行中")
+        if self._abort_event is not None and self._abort_event.is_set():
+            self._status.set_run_state(ABORTING_LABEL)
+        else:
+            self._status.set_run_state("运行中")
 
     def show_run_finished(self, outcome: RunOutcome) -> None:
         self._run_settled = True

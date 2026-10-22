@@ -5,11 +5,10 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from textual.widgets import Input
-
 from src.core.agent_events import EventSink
 from src.core.engine import Engine
 from src.tui.app import IntelliAgentApp
+from src.tui.editor import PromptEditor
 from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
 from tests.core.engine_support import (
     BlockingLLM,
@@ -60,8 +59,8 @@ async def test_deltas_render_while_engine_stream_is_blocked() -> None:
 
     app = IntelliAgentApp(runner_factory=factory, model="fake/model", cwd=Path("/work"))
     async with app.run_test() as pilot:
-        prompt = app.query_one("#prompt", Input)
-        prompt.value = "stream it"
+        prompt = app.query_one("#prompt", PromptEditor)
+        prompt.text = "stream it"
         await pilot.press("enter")
         try:
             for _ in range(200):
