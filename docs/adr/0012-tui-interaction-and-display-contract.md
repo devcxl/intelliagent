@@ -21,7 +21,7 @@
 | `Enter` | 空闲时开始一次 run；运行中作为 steer 插入当前循环；run 已收束（`agent_end` 已发）但 worker 未回收时转走 follow_up，避免静默丢失 | 编辑器 |
 | `Alt+Enter` | 运行中作为 follow_up 排队，本轮收束后执行；空闲时与 `Enter` 等价（开始 run） | 编辑器 |
 | `Shift+Enter` / `Ctrl+J` | 插入换行 | 编辑器 |
-| `Esc` | 置位 abort 信号并显示「中止中」，引擎在 turn 边界检查；空闲或已收束时无副作用 | 应用 |
+| `Esc` | 置位 abort 信号并显示「中止中」；模型流在下一个流事件处尽快中止，正在执行的工具不会被打断，待工具结束后的 turn 边界收束；空闲或已收束时无副作用 | 应用 |
 | `Ctrl+C` | 有选中文本时复制；输入非空时清空；输入为空时退出 | 编辑器 |
 | `Ctrl+D` | 输入非空时删除光标右侧字符；输入为空时退出 | 编辑器 |
 | `Ctrl+Q` | 任何时刻立即退出（Textual 默认绑定） | 应用 |
@@ -38,7 +38,7 @@
 
 ### 运行编排
 
-每次 run 创建一个线程事件作为 abort 信号，`Esc` 置位。运行中提交按显式意图分派：`Enter` 走 steer，`Alt+Enter` 走 follow_up；引擎已收束但 worker 尚未回收的窗口期统一走 follow_up，避免对已无消费点的 steering 队列写入。
+每次 run 创建一个线程事件作为 abort 信号，`Esc` 置位。置位后模型流在下一个流事件处尽快中止（适配器检查 abort 并产生 `Done(stop_reason="aborted")`）；正在执行的工具不会被打断，引擎在工具结束后的 turn 边界收束。运行中提交按显式意图分派：`Enter` 走 steer，`Alt+Enter` 走 follow_up；引擎已收束但 worker 尚未回收的窗口期统一走 follow_up，避免对已无消费点的 steering 队列写入。
 
 ### 消息展示
 
@@ -67,7 +67,7 @@
 
 ### 对 ADR 0009 的修订
 
-ADR 0009 的「单行输入框（Enter 提交）」被本条取代：输入改为 3–8 行自适应的多行编辑器，`Enter` 仍提交，换行改由 `Shift+Enter`/`Ctrl+J` 承担。ADR 0009 的布局骨架（消息流 + 输入 + 底部状态栏、无侧栏/设置面板/主题系统）不变；ADR 0010 的 pi 复刻方向（steering/follow_up、turn 边界中止、事件流作协议）不变。
+ADR 0009 的「单行输入框（Enter 提交）」被本条取代：输入改为 3–8 行自适应的多行编辑器，`Enter` 仍提交，换行改由 `Shift+Enter`/`Ctrl+J` 承担。ADR 0009 的布局骨架（消息流 + 输入 + 底部状态栏、无侧栏/设置面板/主题系统）不变；ADR 0010 的 pi 复刻方向（steering/follow_up、abort 语义、事件流作协议）不变。
 
 ### 模块落点
 
@@ -88,8 +88,8 @@ ADR 0009 的「单行输入框（Enter 提交）」被本条取代：输入改�
 
 ## 已知限制
 
-- `Esc` 只在 turn 边界生效：长工具执行期间没有即时反馈，中止被接受后状态栏显示「中止中」直到当前步骤结束。
-- 运行中退出（`Ctrl+Q`/`Ctrl+C`/`Ctrl+D`）就是立即结束进程：不等待收尾，也不发 `agent_end`。
+- 工具执行期间无法即时打断：`Esc` 已接受后状态栏显示「中止中」直到当前工具结束并收束。
+- 运行中退出不等待 run 正常收束：Textual 关闭会取消 run worker 并执行资源清理；取消路径可能仍发出 `outcome=error` 的 `agent_end`。
 - `Ctrl+C` 是上下文相关键（复制/清空/退出），与部分终端或编辑器的肌肉记忆不同。
 - `PgUp`/`PgDn` 被应用级 priority 绑定抢占，编辑器内不能再整页移动。
 - `Shift+Enter` 依赖终端键盘协议（Textual 的 Linux 驱动默认开启 disambiguate 与 report all keys）；不支持的终端用 `Ctrl+J` 兜底，因为 `\r` 与 `\n` 在字节层就是两个键。

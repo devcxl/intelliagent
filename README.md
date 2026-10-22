@@ -108,7 +108,7 @@ uv run python -m src.tui
 | `Enter` | 空闲时开始一次 run；运行中作为 steer 插入当前循环；run 已收束但 worker 尚未回收时转走 follow_up |
 | `Alt+Enter` | 运行中作为 follow_up 排队，本轮收束后执行；空闲时与 `Enter` 等价 |
 | `Shift+Enter` / `Ctrl+J` | 插入换行 |
-| `Esc` | 中止正在运行的 run（turn 边界生效），状态栏显示「中止中」 |
+| `Esc` | 中止正在运行的 run：模型流尽快停下，执行中的工具不打断，工具结束后收束 |
 | `Ctrl+C` | 有选中文本时复制；输入非空时清空；输入为空时退出 |
 | `Ctrl+D` | 输入非空时删除光标右侧字符；输入为空时退出 |
 | `Ctrl+Q` | 任何时刻立即退出 |
