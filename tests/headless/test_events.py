@@ -20,7 +20,7 @@ from src.core.agent_events import (
 )
 from src.core.tool_pipeline import Observation
 from src.headless.events import JsonLineSink, delta_to_dict, event_to_dict, observation_to_dict
-from src.llm.stream import Error, TextDelta, ToolCallDelta
+from src.llm.stream import Error, TextDelta, ToolCallDelta, Usage
 
 
 def test_boundary_events_serialize_with_event_type() -> None:
@@ -42,6 +42,7 @@ def test_message_events_serialize_deltas() -> None:
         "type": "message_end",
         "message_id": "m1",
         "stop_reason": "length",
+        "usage": None,
     }
     assert delta_to_dict(ToolCallDelta(index=0, id="call_1", name="bash", arguments_delta="{")) == {
         "kind": "toolcall_delta",
@@ -51,6 +52,19 @@ def test_message_events_serialize_deltas() -> None:
         "arguments_delta": "{",
     }
     assert delta_to_dict(Error(message="boom")) == {"kind": "error", "message": "boom"}
+
+
+def test_message_end_serializes_provider_usage() -> None:
+    usage = Usage(prompt_tokens=11, completion_tokens=7, total_tokens=18)
+    end = MessageEnd(message_id="m1", stop_reason="stop", usage=usage)
+
+    assert event_to_dict(end) == {
+        "type": "message_end",
+        "message_id": "m1",
+        "stop_reason": "stop",
+        "usage": {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18},
+    }
+    assert event_to_dict(MessageEnd(message_id="m2", stop_reason="error"))["usage"] is None
 
 
 def test_tool_execution_events_serialize_arguments_and_observation() -> None:

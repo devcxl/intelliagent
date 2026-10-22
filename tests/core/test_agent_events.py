@@ -66,6 +66,19 @@ class TestMessageEvents:
 
         assert events[-1] == MessageEnd(message_id="m4", stop_reason="length")
 
+    def test_done_usage_reaches_message_end(self) -> None:
+        usage = Usage(prompt_tokens=11, completion_tokens=7, total_tokens=18)
+
+        events = list(message_events("m8", [TextDelta(text="hi"), Done(stop_reason="stop", usage=usage)]))
+
+        assert events[-1] == MessageEnd(message_id="m8", stop_reason="stop", usage=usage)
+
+    def test_missing_usage_stays_none_on_error_and_aborted(self) -> None:
+        for stop_reason in ("error", "aborted"):
+            events = list(message_events(f"m-{stop_reason}", [Done(stop_reason=stop_reason, usage=None)]))
+
+            assert events[-1].usage is None
+
     def test_stream_without_done_is_a_contract_violation(self) -> None:
         with pytest.raises(ValueError, match="without Done"):
             list(message_events("m5", [TextDelta(text="x")]))

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from src.core.plugin_host import CapabilityDeclaration, CapabilityKind, CapabilityRegistrar, Manifest
 from src.headless.cli import _abort_on_sigint, exit_code, main
-from src.llm.stream import Done, Error
+from src.llm.stream import Done, Error, TextDelta, Usage
 from tests.core.engine_support import FakeLLM, text_events, tool_call_events
 
 # ============================================================================
@@ -132,6 +132,35 @@ def test_argument_task_runs_to_completion_with_events(monkeypatch: object, tmp_p
     user_messages = [message for message in fake.requests[0].messages if message.get("role") == "user"]
     assert user_messages[0] == {"role": "user", "content": "echo一下再回答"}
     assert any(schema["function"]["name"] == "bash" for schema in fake.requests[0].tools or [])
+
+
+def test_message_end_carries_provider_usage(monkeypatch: object, tmp_path: Path) -> None:
+    """message_end 透传 provider 真实 usage；错误收束时 usage 明确为 null。"""
+    config = _write_config(tmp_path)
+    fake = FakeLLM()
+    fake.enqueue(
+        TextDelta(text="你好"),
+        Done(stop_reason="stop", usage=Usage(prompt_tokens=11, completion_tokens=7, total_tokens=18)),
+    )
+
+    out = _run(monkeypatch, ["run", "任务", "--config", str(config)], fake=fake)
+
+    message_end = next(event for event in out.events() if event["type"] == "message_end")
+    assert message_end == {
+        "type": "message_end",
+        "message_id": message_end["message_id"],
+        "stop_reason": "stop",
+        "usage": {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18},
+    }
+
+    failing = FakeLLM()
+    failing.enqueue(Error(message="boom"), Done(stop_reason="error", usage=None))
+    failed = _run(monkeypatch, ["run", "任务", "--config", str(config)], fake=failing)
+
+    assert failed.code == 1
+    failed_end = next(event for event in failed.events() if event["type"] == "message_end")
+    assert failed_end["stop_reason"] == "error"
+    assert failed_end["usage"] is None
 
 
 def test_stdin_task_drives_run_and_events_flow(monkeypatch: object, tmp_path: Path) -> None:

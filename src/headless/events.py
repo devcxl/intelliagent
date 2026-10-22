@@ -27,7 +27,7 @@ from src.core.agent_events import (
     TurnStart,
 )
 from src.core.tool_pipeline import Observation
-from src.llm.stream import Error, TextDelta, ToolCallDelta
+from src.llm.stream import Error, TextDelta, ToolCallDelta, Usage
 
 
 def event_to_dict(event: AgentEvent) -> dict[str, Any]:
@@ -45,7 +45,12 @@ def event_to_dict(event: AgentEvent) -> dict[str, Any]:
     if isinstance(event, MessageUpdate):
         return {"type": "message_update", "message_id": event.message_id, "delta": delta_to_dict(event.delta)}
     if isinstance(event, MessageEnd):
-        return {"type": "message_end", "message_id": event.message_id, "stop_reason": event.stop_reason}
+        return {
+            "type": "message_end",
+            "message_id": event.message_id,
+            "stop_reason": event.stop_reason,
+            "usage": _usage_to_dict(event.usage),
+        }
     if isinstance(event, ToolExecutionStart):
         return {
             "type": "tool_execution_start",
@@ -109,3 +114,14 @@ class JsonLineSink:
 def _plain(arguments: str | Mapping[str, Any]) -> str | dict[str, Any]:
     """arguments 持有的是快照 Mapping（含 mapping proxy），序列化前转普通 dict。"""
     return dict(arguments) if isinstance(arguments, Mapping) else arguments
+
+
+def _usage_to_dict(usage: Usage | None) -> dict[str, int] | None:
+    """usage 平铺为三项计数；无用量时输出 null，不用 0 伪造。"""
+    if usage is None:
+        return None
+    return {
+        "prompt_tokens": usage.prompt_tokens,
+        "completion_tokens": usage.completion_tokens,
+        "total_tokens": usage.total_tokens,
+    }

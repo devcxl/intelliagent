@@ -19,7 +19,7 @@ from src.core.agent_events import (
 )
 from src.core.engine import Engine
 from src.core.plugin_host import PluginHost
-from src.llm.stream import TextDelta, ToolCallDelta
+from src.llm.stream import TextDelta, ToolCallDelta, Usage
 from src.plugins.basic_tools import BasicToolsPlugin
 from src.utils.path_policy import PathPolicy
 from tests.core.engine_support import (
@@ -93,6 +93,7 @@ class TestEventStreamSeam:
         assert updates[3].text == " it"
         ends = [event for event in sink.events if isinstance(event, MessageEnd)]
         assert [end.stop_reason for end in ends] == ["stop", "stop"]
+        assert [end.usage for end in ends] == [Usage(prompt_tokens=1, completion_tokens=1, total_tokens=2)] * 2
         observations = [event.observation for event in sink.events if isinstance(event, ToolExecutionEnd)]
         assert [observation.status for observation in observations] == ["success"]
         assert observations[0].tool_call_id == "c1"
