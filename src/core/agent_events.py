@@ -18,7 +18,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
-from src.llm.stream import Done, Error, LLMEvent, StopReason, TextDelta, ToolCallDelta
+from src.llm.stream import Done, Error, LLMEvent, StopReason, TextDelta, ToolCallDelta, Usage
 
 if TYPE_CHECKING:
     from src.core.tool_pipeline import Observation
@@ -75,10 +75,15 @@ class MessageUpdate:
 
 @dataclass(frozen=True)
 class MessageEnd:
-    """一条消息结束。stop_reason 是流式响应的终止原因，非流式消息为 None。"""
+    """一条消息结束。stop_reason 是流式响应的终止原因，非流式消息为 None。
+
+    usage 是 provider 返回的真实 token 用量（来自 LLM 流的 Done.usage）；error/aborted 等
+    没有用量的收束为 None，不用 0 伪装。
+    """
 
     message_id: str
     stop_reason: StopReason | None = None
+    usage: Usage | None = None
 
 
 @dataclass(frozen=True)
@@ -135,7 +140,7 @@ class EventSink(Protocol):
 def message_events(message_id: str, stream: Iterable[LLMEvent], *, role: str = "assistant") -> Iterator[AgentEvent]:
     """把一条 LLM 流适配为 message_* 事件族。
 
-    适配规则：MessageStart → 逐个增量的 MessageUpdate → 携带 stop_reason 的 MessageEnd。
+    适配规则：MessageStart → 逐个增量的 MessageUpdate → 携带 stop_reason 与 Done.usage 的 MessageEnd。
     流必须以 Done 收尾（src.llm.stream 契约）；缺失 Done 属于适配器或 LLM 客户端违约，抛 ValueError。
 
     Args:
@@ -144,15 +149,17 @@ def message_events(message_id: str, stream: Iterable[LLMEvent], *, role: str = "
         role: 消息角色，默认 "assistant"。
 
     Yields:
-        MessageStart、逐个增量的 MessageUpdate、最后携带 stop_reason 的 MessageEnd。
+        MessageStart、逐个增量的 MessageUpdate、最后携带 stop_reason 与 usage 的 MessageEnd。
     """
     yield MessageStart(message_id=message_id, role=role)
     stop_reason: StopReason | None = None
+    usage: Usage | None = None
     for event in stream:
         if isinstance(event, Done):
             stop_reason = event.stop_reason
+            usage = event.usage
             break
         yield MessageUpdate(message_id=message_id, delta=event)
     if stop_reason is None:
         raise ValueError(f"LLM stream for message '{message_id}' ended without Done")
-    yield MessageEnd(message_id=message_id, stop_reason=stop_reason)
+    yield MessageEnd(message_id=message_id, stop_reason=stop_reason, usage=usage)
