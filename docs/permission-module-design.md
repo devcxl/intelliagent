@@ -1,5 +1,8 @@
 # 权限模块设计
 
+> 已废弃：本文描述旧 `src/permission/` 实现（已删除）。当前 permission 由插件能力提供，
+> 契约见 `docs/dev/permission-plugin.md`；保留本文仅作历史参考。
+
 ## 概述
 
 权限模块是一个自包含的独立包，提供 Agent 工具调用的权限检查、规则匹配和用户确认能力。支持 fnmatch 模式匹配的 last-match-wins 规则体系，以及工作区边界保护和外部目录白名单机制。

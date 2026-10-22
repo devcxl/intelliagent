@@ -197,7 +197,8 @@ anthropic 的 `input_json_delta` 只携带 JSON 片段；适配器按 content bl
 | `id` | 适配器 | 线上模型名 |
 | `limit.output` | 适配器 | `request.max_tokens` 为空时的默认上限 |
 | `tool_call` | 适配器 | `false` 时请求不带 tools |
-| `name` / `description` | TUI/文档 | 不参与请求 |
+| `name` | TUI | 状态栏展示名；缺失时回退 `provider/model-id` |
+| `description` | 文档 | 不参与请求 |
 | `limit.context` | Compactor（已接线） | 自动压缩阈值；缺失时只持久化 |
 | 其余 | 无 | 文档标注「仅声明」 |
 

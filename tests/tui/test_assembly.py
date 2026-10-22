@@ -46,6 +46,23 @@ async def test_status_bar_shows_configured_cwd_and_model(tmp_path: Path) -> None
         assert "fake/model" in bar.text
 
 
+async def test_status_bar_shows_model_display_name(tmp_path: Path) -> None:
+    config = _write_config(
+        tmp_path,
+        "default_model: fake/model\n"
+        "providers:\n"
+        "  fake:\n"
+        "    type: openai-compatible\n"
+        "    api: http://127.0.0.1:9/v1\n"
+        "    models:\n"
+        "      model:\n"
+        "        name: 显示名\n",
+    )
+    app = build_app(config)
+    async with app.run_test() as pilot:
+        assert "显示名" in pilot.app.query_one(StatusBar).text
+
+
 def test_build_app_requires_model(tmp_path: Path) -> None:
     config = _write_config(tmp_path, "workspace:\n  dir: .\n")
     with pytest.raises(ConfigError, match="default_model"):

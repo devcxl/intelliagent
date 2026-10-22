@@ -74,7 +74,7 @@ GUI（`src/gui/`）、task_tools、agent_team（含 Agent/Relay/Task 表）、�
 
 ### Phase 5 — Textual TUI + 无头模式
 
-- TUI：消息流 + **流式增量渲染**（message_update 驱动）、工具调用折叠、多行编辑器、状态栏；仅消费引擎事件流。
+- TUI：消息流 + **流式增量渲染**（message_update 驱动）、工具调用折叠、单行输入框（Enter 提交）、状态栏；仅消费引擎事件流。
 - 无头模式：`intelliagent run "task"`，stdin 进、事件出。
 - verify: TUI 组件测试（Textual pilot）；无头模式端到端（fake LLM）。
 

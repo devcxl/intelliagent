@@ -34,6 +34,7 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
     """
     config = load_config(config_path)
     model = _require_default_model(config)
+    model_label = _model_display_name(config, model)
     cwd = Path(config.workspace.dir).resolve()
     llm = create_llm_client(config)
     runtimes: list[EngineRuntime] = []
@@ -72,7 +73,7 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
 
     return IntelliAgentApp(
         runner_factory=runner_factory,
-        model=model,
+        model=model_label,
         cwd=cwd,
         on_close=close_runtime,
         startup_notices=notices,
@@ -83,3 +84,13 @@ def _require_default_model(config: IntelliAgentConfig) -> str:
     if config.default_model is None:
         raise ConfigError("default_model: 未配置模型（intelliagent.yaml 需要 default_model 与 providers 段）")
     return config.default_model
+
+
+def _model_display_name(config: IntelliAgentConfig, model_ref: str) -> str:
+    """状态栏展示名：优先模型条目 name，缺失时回退 provider/model-id。"""
+    provider_name, _, model_id = model_ref.partition("/")
+    provider = config.providers.get(provider_name)
+    model = provider.models.get(model_id) if provider is not None else None
+    if model is not None and model.name:
+        return model.name
+    return model_ref
