@@ -26,10 +26,11 @@ from textual.worker import Worker
 from src.core.agent_events import EventSink, MessageDelta, RunOutcome
 from src.core.engine import RunResult
 from src.core.tool_pipeline import Observation
+from src.llm.stream import Usage
 from src.runtime.plugin_assembly import redact_secrets
 from src.tui.editor import PromptEditor
 from src.tui.event_sink import TuiEventSink
-from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
+from src.tui.widgets import TOOL_BODY_MAX_LINES, MessageStream, MessageView, StatusBar, ToolCallPanel
 
 RUN_STATE_LABELS: dict[RunOutcome, str] = {
     "settled": "已完成",
@@ -59,16 +60,23 @@ RunnerFactory = Callable[[EventSink], TaskRunner | Awaitable[TaskRunner]]
 class IntelliAgentApp(App[None]):
     """pi 最简形态：消息流 + 多行编辑器 + 状态栏 + 工具调用折叠；仅消费事件流（ADR 0009）。"""
 
-    CSS = """
+    CSS = (
+        """
     MessageStream { height: 1fr; padding: 0 1; }
     #prompt { height: 3; border: none; border-top: solid $accent; padding: 0 1; }
     StatusBar { height: 1; padding: 0 1; background: $surface; }
     .message { margin: 1 0; }
     ToolCallPanel { margin: 0 1; }
     """
+        + f"ToolCallPanel .tool-body {{ height: auto; max-height: {TOOL_BODY_MAX_LINES}; overflow-y: auto; }}\n"
+        + "ToolCallPanel .tool-body-text { height: auto; }\n"
+    )
 
-    BINDINGS = [Binding("escape", "abort_run", "中止", show=False)]
-    """Esc 中止当前 run；其余键位由编辑器（PromptEditor）与 Textual 默认绑定承载。"""
+    BINDINGS = [
+        Binding("escape", "abort_run", "中止", show=False),
+        Binding("ctrl+o", "toggle_tool_panels", "展开/折叠工具输出", show=False, priority=True),
+    ]
+    """Esc 中止当前 run；Ctrl+O 整体切换工具输出；其余键位由编辑器与 Textual 默认绑定承载。"""
 
     ENABLE_COMMAND_PALETTE = False
     """Ctrl+P 让位给提示词历史（pi 最小集不引入命令面板）。"""
@@ -81,6 +89,7 @@ class IntelliAgentApp(App[None]):
         cwd: Path,
         on_close: Callable[[], Awaitable[None]] | None = None,
         startup_notices: list[str] | None = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         super().__init__()
         self._sink = TuiEventSink(self)
@@ -94,7 +103,7 @@ class IntelliAgentApp(App[None]):
             self._runner = built
         self._stream = MessageStream(id="message-stream")
         self._prompt = PromptEditor(id="prompt")
-        self._status = StatusBar(cwd, model)
+        self._status = StatusBar(cwd, model, clock=clock)
         self._messages: dict[str, MessageView] = {}
         self._tool_panels: dict[str, ToolCallPanel] = {}
         self._run_worker: Worker[None] | None = None
@@ -152,6 +161,15 @@ class IntelliAgentApp(App[None]):
         self._abort_event.set()
         self._status.set_run_state(ABORTING_LABEL)
 
+    def action_toggle_tool_panels(self) -> None:
+        """Ctrl+O：整体切换工具输出；存在折叠面板时全部展开，否则全部折叠。"""
+        panels = list(self._stream.query(ToolCallPanel))
+        if not panels:
+            return
+        expand = any(panel.collapsed for panel in panels)
+        for panel in panels:
+            panel.collapsed = not expand
+
     def _submit(self, text: str, *, queue: bool = False) -> None:
         """提交：清空编辑器、记录历史、本地渲染用户消息，并按运行状态分派。
 
@@ -187,20 +205,19 @@ class IntelliAgentApp(App[None]):
         except Exception as exc:
             self._stream.flush_pending()
             self._stream.add_message(MessageView("system", text=f"运行异常：{redact_secrets(str(exc))}"))
-            self._status.set_run_state(RUN_STATE_LABELS["error"])
+            self._status.finish_run(RUN_STATE_LABELS["error"])
 
     # --- TuiTarget 落点（TuiEventSink 按事件顺序调用；增量渲染，issue #63：message_update 边收边渲染） ---
 
     def show_run_started(self) -> None:
+        self._status.start_run()
         if self._abort_event is not None and self._abort_event.is_set():
             self._status.set_run_state(ABORTING_LABEL)
-        else:
-            self._status.set_run_state("运行中")
 
     def show_run_finished(self, outcome: RunOutcome) -> None:
         self._run_settled = True
         self._stream.flush_pending()
-        self._status.set_run_state(RUN_STATE_LABELS[outcome])
+        self._status.finish_run(RUN_STATE_LABELS[outcome])
 
     def show_message_started(self, message_id: str, role: str) -> None:
         view = MessageView(role, message_id=message_id)
@@ -210,8 +227,10 @@ class IntelliAgentApp(App[None]):
     def show_message_delta(self, message_id: str, delta: MessageDelta) -> None:
         self._messages[message_id].append_delta(delta)
 
-    def show_message_finished(self, message_id: str) -> None:
+    def show_message_finished(self, message_id: str, usage: Usage | None = None) -> None:
         self._messages[message_id].finish()
+        if usage is not None:
+            self._status.record_usage(usage)
 
     def show_tool_started(self, tool_call_id: str, name: str, arguments: str | Mapping[str, Any]) -> None:
         panel = ToolCallPanel(tool_call_id, name, arguments)

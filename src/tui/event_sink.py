@@ -26,6 +26,7 @@ from src.core.agent_events import (
     ToolExecutionUpdate,
 )
 from src.core.tool_pipeline import Observation
+from src.llm.stream import Usage
 
 
 class TuiTarget(Protocol):
@@ -39,7 +40,9 @@ class TuiTarget(Protocol):
 
     def show_message_delta(self, message_id: str, delta: MessageDelta) -> None: ...
 
-    def show_message_finished(self, message_id: str) -> None: ...
+    def show_message_finished(self, message_id: str, usage: Usage | None = None) -> None:
+        """MessageEnd 落点：usage 是 provider 真实 token 用量，None 表示该收束无用量。"""
+        ...
 
     def show_tool_started(self, tool_call_id: str, name: str, arguments: str | Mapping[str, Any]) -> None: ...
 
@@ -64,7 +67,7 @@ class TuiEventSink:
         elif isinstance(event, MessageUpdate):
             self._target.show_message_delta(event.message_id, event.delta)
         elif isinstance(event, MessageEnd):
-            self._target.show_message_finished(event.message_id)
+            self._target.show_message_finished(event.message_id, event.usage)
         elif isinstance(event, ToolExecutionStart):
             self._target.show_tool_started(event.tool_call_id, event.name, event.arguments)
         elif isinstance(event, ToolExecutionUpdate):

@@ -27,6 +27,19 @@ def isolate_user_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
 
+class FakeClock:
+    """可推进的单调时钟：计时测试不依赖真实等待（issue #90）。"""
+
+    def __init__(self, now: float = 100.0) -> None:
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
 class ScriptedRunner:
     """脚本化 TaskRunner：按脚本向 sink 发事件，记录提交、插话与中止信号（不依赖真实引擎）。
 
@@ -81,10 +94,12 @@ class ScriptedRunnerFactory:
         return self.runner
 
 
-def make_app(*, model: str = "fake/model", cwd: Path | None = None) -> tuple[IntelliAgentApp, ScriptedRunner]:
-    """装配一个带脚本 runner 的 TUI 应用。"""
+def make_app(
+    *, model: str = "fake/model", cwd: Path | None = None, clock: FakeClock | None = None
+) -> tuple[IntelliAgentApp, ScriptedRunner]:
+    """装配一个带脚本 runner 的 TUI 应用；clock 用于注入可推进的计时时钟。"""
     factory = ScriptedRunnerFactory()
-    app = IntelliAgentApp(runner_factory=factory, model=model, cwd=cwd or DEFAULT_CWD)
+    app = IntelliAgentApp(runner_factory=factory, model=model, cwd=cwd or DEFAULT_CWD, clock=clock)
     assert factory.runner is not None
     return app, factory.runner
 
