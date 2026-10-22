@@ -463,6 +463,85 @@ class TestHookCapabilityContract:
             ToolPipeline.from_host(host)
 
 
+class TestPermissionCapability:
+    """PERMISSION 能力契约：直接转换成 beforeToolCall，排在通用 HOOK 之前。"""
+
+    @staticmethod
+    def load_permission(host: PluginHost, name: str, provider: object) -> None:
+        capability = CapabilityDeclaration(kind=CapabilityKind.PERMISSION, name=name)
+        manifest = build_manifest(name=f"permission-{name}", capabilities=(capability,))
+        host.load(FakePlugin(manifest=manifest, providers={(CapabilityKind.PERMISSION, name): provider}))
+
+    @staticmethod
+    def load_tool(host: PluginHost, log: list[str]) -> None:
+        capability = CapabilityDeclaration(kind=CapabilityKind.TOOL, name="echo")
+        manifest = build_manifest(name="echo-tool", capabilities=(capability,))
+        host.load(FakePlugin(manifest=manifest, providers={(CapabilityKind.TOOL, "echo"): make_tool(log)}))
+
+    async def test_permission_blocks_before_generic_hook_and_execute(self) -> None:
+        log: list[str] = []
+
+        async def deny(call: ToolCall) -> HookDecision | None:
+            log.append("permission")
+            return HookDecision(block=True, reason="no permission")
+
+        async def generic(call: ToolCall) -> HookDecision | None:
+            log.append("generic")
+            return None
+
+        host = PluginHost()
+        self.load_permission(host, "policy", deny)
+        TestHookCapabilityContract.load_hook_plugin(
+            host, "generic-hook", "hook.generic", BeforeToolCallHook(callback=generic)
+        )
+        self.load_tool(host, log)
+
+        observation = await ToolPipeline.from_host(host).run(make_request())
+
+        assert observation.status == "denied"
+        assert observation.error == "no permission"
+        assert log == ["permission"]
+
+    async def test_permission_accepts_wrapped_hook_provider(self) -> None:
+        log: list[str] = []
+
+        async def allow(call: ToolCall) -> HookDecision | None:
+            log.append("permission")
+            return None
+
+        host = PluginHost()
+        self.load_permission(host, "wrapped", BeforeToolCallHook(callback=allow))
+        self.load_tool(host, log)
+
+        observation = await ToolPipeline.from_host(host).run(make_request())
+
+        assert observation.status == "success"
+        assert log == ["permission", "execute"]
+
+    async def test_permission_exception_fails_closed(self) -> None:
+        log: list[str] = []
+
+        async def explode(call: ToolCall) -> HookDecision | None:
+            raise RuntimeError("policy backend down")
+
+        host = PluginHost()
+        self.load_permission(host, "broken", explode)
+        self.load_tool(host, log)
+
+        observation = await ToolPipeline.from_host(host).run(make_request())
+
+        assert observation.status == "error"
+        assert "policy backend down" in (observation.error or "")
+        assert log == []
+
+    def test_invalid_permission_provider_is_rejected(self) -> None:
+        host = PluginHost()
+        self.load_permission(host, "bogus", object())
+
+        with pytest.raises(TypeError, match="permission capability 'bogus'"):
+            ToolPipeline.from_host(host)
+
+
 class TestBasicToolsIntegration:
     """流水线接真实 ToolSpec：PluginHost 组装，read 工具走完整流水线产出 success 观察。"""
 

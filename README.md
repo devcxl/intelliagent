@@ -128,7 +128,7 @@ class MyPlugin:
 my-plugin = "my_plugin:MyPlugin"
 ```
 
-Hook 能力（beforeToolCall/afterToolCall/turn 边界）可实现 permission、memory 等外部插件——内核不捆绑实现（ADR 0008）。
+Permission 能力直接作为 `beforeToolCall`（provider 为 async callable 或 `BeforeToolCallHook`），排在通用 Hook 之前；Hook 能力（beforeToolCall/afterToolCall/turn 边界）可实现 memory 等外部插件。内核不捆绑 permission 实现（ADR 0008），契约见 `docs/dev/permission-plugin.md`。
 
 ## 内置工具
 

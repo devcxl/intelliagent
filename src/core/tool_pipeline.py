@@ -6,7 +6,8 @@
 
 - prepareArguments：修复模型畸形参数（JSON 字符串、双重编码 JSON 文本），容错收敛为参数对象或诊断。
 - validate：JSON Schema 校验 + 标量 coerce（"5"→5），失败给字段级详细错误。
-- beforeToolCall：hook 能力（CapabilityKind.HOOK）链式调用；返回 block 或抛错即工具不执行（fail-closed）。
+- beforeToolCall：PERMISSION 能力与 HOOK 能力链式调用（permission 先于通用 hook）；
+  返回 block 或抛错即工具不执行（fail-closed）。
 - execute：调用 Tool 能力提供者（ToolSpec 结构性满足 ToolProvider）。
 - afterToolCall：hook 链式改写结果 content/status/error；仅在 execute 之后运行。
 
@@ -80,7 +81,7 @@ class HookDecision:
 
 
 class BeforeToolCall(Protocol):
-    """beforeToolCall 挂载回调（permission 插件形态）。
+    """beforeToolCall 挂载回调（permission 插件或通用 before hook 形态）。
 
     返回 HookDecision(block=True) 或抛出异常都表示阻止执行（fail-closed）：工具绝不运行；
     显式 block 产出 denied 观察，抛错产出 error 观察。
@@ -102,7 +103,7 @@ class AfterToolCall(Protocol):
 
 @dataclass(frozen=True)
 class BeforeToolCallHook:
-    """beforeToolCall 挂载点的 hook 能力提供者（CONTEXT 术语：Hook）：注册为 CapabilityKind.HOOK。"""
+    """beforeToolCall 挂载点的 hook 能力提供者：注册为 CapabilityKind.HOOK 或 PERMISSION。"""
 
     callback: BeforeToolCall
 
@@ -159,11 +160,16 @@ class ToolPipeline:
 
     @classmethod
     def from_host(cls, host: PluginHost, *, sink: EventSink | None = None) -> ToolPipeline:
-        """从 PluginHost 组装流水线：Tool 能力提供者作为可执行工具，Hook 能力提供者按注册顺序链式挂载。"""
+        """从 PluginHost 组装流水线：Tool 能力作为可执行工具，权限与 Hook 能力按序挂载。
+
+        PERMISSION 提供者排在通用 before HOOK 之前：permission 先裁决，通用 hook 再做补充拦截；
+        任一方 block/异常都短路，工具不执行。
+        """
         tools = {
             name: cast(ToolProvider, provider) for name, provider in host.capabilities(CapabilityKind.TOOL).items()
         }
-        return cls(tools=tools, hooks=_hook_providers(host), sink=sink)
+        hooks = (*_permission_hooks(host), *_hook_providers(host))
+        return cls(tools=tools, hooks=hooks, sink=sink)
 
     async def run(self, request: ToolRequest) -> Observation:
         """执行一次工具调用的完整流水线，返回 Observation。
@@ -392,6 +398,26 @@ def _denied_observation(call: ToolCall, reason: str) -> Observation:
         status="denied",
         error=reason,
     )
+
+
+def _permission_hooks(host: PluginHost) -> tuple[BeforeToolCallHook, ...]:
+    """把 PERMISSION 能力转换为 beforeToolCall hook，保持注册顺序。
+
+    provider 可以是 async callable（BeforeToolCall 形态）或已包装的 BeforeToolCallHook；
+    其他形态显式拒绝——静默丢弃 permission 等于 fail-open。
+    """
+    hooks: list[BeforeToolCallHook] = []
+    for name, provider in host.capabilities(CapabilityKind.PERMISSION).items():
+        if isinstance(provider, BeforeToolCallHook):
+            hooks.append(provider)
+        elif callable(provider):
+            hooks.append(BeforeToolCallHook(callback=provider))
+        else:
+            raise TypeError(
+                f"permission capability '{name}' must provide a callable or BeforeToolCallHook, "
+                f"got {type(provider).__name__}"
+            )
+    return tuple(hooks)
 
 
 def _hook_providers(host: PluginHost) -> tuple[HookProvider, ...]:

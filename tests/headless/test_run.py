@@ -34,7 +34,10 @@ class FakePermissionPlugin:
         )
 
     def register(self, registrar: CapabilityRegistrar, config: BaseModel | None) -> None:
-        registrar.register(CapabilityKind.PERMISSION, "approve", object())
+        async def approve(call: object) -> None:
+            return None
+
+        registrar.register(CapabilityKind.PERMISSION, "approve", approve)
 
 
 @dataclass(frozen=True)
