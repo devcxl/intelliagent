@@ -30,10 +30,11 @@ def _write_config(tmp_path: Path, body: str) -> Path:
     return config
 
 
-def test_build_app_wires_engine_as_task_runner(tmp_path: Path) -> None:
+async def test_build_app_wires_engine_as_task_runner(tmp_path: Path) -> None:
     config = _write_config(tmp_path, _DEFAULT_CONFIG + "workspace:\n  dir: /work/project\n")
     app = build_app(config)
-    assert isinstance(app.task_runner, Engine)
+    async with app.run_test():
+        assert isinstance(app.task_runner, Engine)
 
 
 async def test_status_bar_shows_configured_cwd_and_model(tmp_path: Path) -> None:
@@ -59,6 +60,32 @@ def test_build_app_validates_default_model_key_at_startup(tmp_path: Path, monkey
     )
     with pytest.raises(ValueError, match="OPENAI_API_KEY"):
         build_app(config)
+
+
+async def test_async_runner_factory_is_awaited_on_mount() -> None:
+    """异步 runner 装配（MCP connect 等）在 on_mount 完成，提交前 runner 已就绪。"""
+
+    async def factory(sink):  # noqa: ANN001, ANN202 - 测试内联协议实现
+        return ScriptedRunner(sink)
+
+    app = IntelliAgentApp(runner_factory=factory, model="fake/model", cwd=Path("/work"))
+    async with app.run_test():
+        assert isinstance(app.task_runner, ScriptedRunner)
+
+
+async def test_async_startup_failure_exits_with_startup_code(
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """MCP 连接等异步启动失败：写脱敏错误并以启动失败码退出。"""
+
+    async def factory(sink):  # noqa: ANN001, ANN202 - 测试内联协议实现
+        raise RuntimeError("mcp connect failed")
+
+    app = IntelliAgentApp(runner_factory=factory, model="fake/model", cwd=Path("/work"))
+    async with app.run_test():
+        pass
+    assert app.return_code == 2
+    assert "mcp connect failed" in capfd.readouterr().err
 
 
 async def test_app_invokes_close_callback_on_exit() -> None:

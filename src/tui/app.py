@@ -11,6 +11,8 @@ message_update 边收边渲染（issue #63，合并重绘见 MessageView），�
 
 from __future__ import annotations
 
+import inspect
+import sys
 import threading
 from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
@@ -45,8 +47,8 @@ class TaskRunner(Protocol):
     def follow_up(self, message: str) -> None: ...
 
 
-RunnerFactory = Callable[[EventSink], TaskRunner]
-"""runner 装配器：接收 TUI 的事件出口，产出绑定该出口的 runner。"""
+RunnerFactory = Callable[[EventSink], TaskRunner | Awaitable[TaskRunner]]
+"""runner 装配器：接收 TUI 的事件出口，产出 runner；MCP 等异步装配可返回 awaitable。"""
 
 
 class IntelliAgentApp(App[None]):
@@ -69,10 +71,18 @@ class IntelliAgentApp(App[None]):
         model: str,
         cwd: Path,
         on_close: Callable[[], Awaitable[None]] | None = None,
+        startup_notices: list[str] | None = None,
     ) -> None:
         super().__init__()
         self._sink = TuiEventSink(self)
-        self._runner = runner_factory(self._sink)
+        self._runner_factory = runner_factory
+        self._runner: TaskRunner | None = None
+        self._pending_runner: Awaitable[TaskRunner] | None = None
+        built = runner_factory(self._sink)
+        if inspect.isawaitable(built):
+            self._pending_runner = built
+        else:
+            self._runner = built
         self._stream = MessageStream(id="message-stream")
         self._prompt = Input(id="prompt", placeholder="输入任务…… Enter 提交")
         self._status = StatusBar(cwd, model)
@@ -81,6 +91,7 @@ class IntelliAgentApp(App[None]):
         self._run_worker: Worker[None] | None = None
         self._run_settled = False
         self._on_close = on_close
+        self._startup_notices = startup_notices if startup_notices is not None else []
 
     @property
     def event_sink(self) -> TuiEventSink:
@@ -88,8 +99,8 @@ class IntelliAgentApp(App[None]):
         return self._sink
 
     @property
-    def task_runner(self) -> TaskRunner:
-        """执行入口（引擎），供组装诊断与测试读取。"""
+    def task_runner(self) -> TaskRunner | None:
+        """执行入口（引擎），供组装诊断与测试读取；异步装配完成前为 None。"""
         return self._runner
 
     def compose(self) -> ComposeResult:
@@ -97,7 +108,20 @@ class IntelliAgentApp(App[None]):
         yield self._prompt
         yield self._status
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
+        """完成可能异步的 runner 装配（MCP connect 等），再开始接收输入。"""
+        try:
+            if self._pending_runner is not None:
+                self._runner = await self._pending_runner
+                self._pending_runner = None
+        except Exception as exc:
+            sys.stderr.write(f"error: {redact_secrets(str(exc))}\n")
+            self._status.set_run_state("启动失败")
+            self._prompt.disabled = True
+            self.exit(return_code=2)
+            return
+        for notice in self._startup_notices:
+            self._stream.add_message(MessageView("system", text=notice))
         self._prompt.focus()
 
     async def on_unmount(self) -> None:
@@ -118,6 +142,8 @@ class IntelliAgentApp(App[None]):
         text = self._prompt.value.strip()
         if not text:
             return
+        if self._runner is None:
+            return
         self._prompt.value = ""
         self._stream.add_message(MessageView("user", text=text))
         if self._run_worker is not None and not self._run_worker.is_finished:
@@ -134,6 +160,8 @@ class IntelliAgentApp(App[None]):
 
         异常收束时缺 MessageEnd 的半程增量在此清算落屏（PR #76 审查遗留）。
         """
+        if self._runner is None:
+            return
         try:
             await self._runner.run(task)
         except Exception as exc:

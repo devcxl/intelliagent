@@ -80,5 +80,12 @@ plugins:
     config:
       database_url: "sqlite:///intelliagent.db"
 
-# 说明：mcp 插件已在 src/plugins/ 实现契约，但需要异步 connect/close，
-# 尚未接入组合根；接入前写 plugins.mcp 不会生效。
+# 说明：mcp 是 opt-in 插件——只有显式配置 servers 才会在启动时连接；
+# 连接失败或没有发现任何工具会直接启动失败，不静默降级。
+# mcp:
+#   enabled: true
+#   config:
+#     servers:
+#       - name: filesystem
+#         transport: stdio
+#         command: ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"]

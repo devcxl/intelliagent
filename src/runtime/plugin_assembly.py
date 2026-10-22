@@ -13,8 +13,18 @@ import re
 from pathlib import Path
 from typing import TextIO
 
+from pydantic import ValidationError
+
 from src.config.yaml_config import IntelliAgentConfig
-from src.core.plugin_host import CapabilityKind, Plugin, PluginHost, discover_entry_points, resolve_plugin
+from src.core.plugin_host import (
+    CapabilityKind,
+    Plugin,
+    PluginConfigError,
+    PluginHost,
+    PluginLoadError,
+    discover_entry_points,
+    resolve_plugin,
+)
 from src.llm.client import ProviderClient
 from src.llm.protocols.anthropic_messages import AnthropicMessagesAdapter
 from src.llm.protocols.openai_chat import OpenAIChatAdapter
@@ -22,6 +32,8 @@ from src.llm.protocols.openai_responses import OpenAIResponsesAdapter
 from src.llm.provider_registry import ModelRegistry, ModelSettings, ProviderSettings
 from src.llm.stream import LLMClient
 from src.plugins.basic_tools import BasicToolsPlugin
+from src.plugins.mcp import PLUGIN_NAME as MCP_PLUGIN_NAME
+from src.plugins.mcp import McpConnector, McpPlugin, McpPluginConfig, McpPluginError
 from src.plugins.skill import SkillPlugin
 from src.plugins.storage import StoragePlugin
 
@@ -98,6 +110,46 @@ def build_host(config: IntelliAgentConfig) -> PluginHost:
     return host
 
 
+async def connect_mcp_plugins(
+    config: IntelliAgentConfig,
+    host: PluginHost,
+    *,
+    connector: McpConnector | None = None,
+) -> tuple[McpPlugin, ...]:
+    """按 plugins.mcp 配置连接 MCP 服务器并加载插件。
+
+    MCP 是 opt-in：plugins.mcp 缺席或 enabled: false 时返回空；显式启用但连接/发现
+    失败时启动失败（能力缺席即功能缺席，不静默降级）。connector 仅用于测试注入。
+    """
+    entry = config.plugins.get(MCP_PLUGIN_NAME)
+    if entry is None or not entry.enabled:
+        return ()
+    try:
+        mcp_config = McpPluginConfig.model_validate(entry.config)
+    except ValidationError as exc:
+        raise PluginConfigError(f"mcp plugin configuration is invalid: {exc}") from exc
+
+    plugin = McpPlugin(mcp_config, connector=connector)
+    try:
+        await plugin.connect()
+        host.load(plugin, entry.config)
+    except McpPluginError as exc:
+        await _close_mcp_quietly(plugin)
+        raise PluginLoadError(f"mcp plugin: {exc}") from exc
+    except BaseException:
+        await _close_mcp_quietly(plugin)
+        raise
+    return (plugin,)
+
+
+async def _close_mcp_quietly(plugin: McpPlugin) -> None:
+    """失败路径的清理：连接已部分建立时尽力关闭，不让清理错误掩盖启动错误。"""
+    try:
+        await plugin.close()
+    except Exception:
+        pass
+
+
 def _iter_plugin_sources(config: IntelliAgentConfig):
     """内置与外部插件统一的启用/配置裁决（消除两段重复加载循环）。"""
     for plugin in builtin_plugins(config):
@@ -113,11 +165,23 @@ def _iter_plugin_sources(config: IntelliAgentConfig):
         yield plugin, entry.config if entry is not None else None
 
 
+def permission_warning(host: PluginHost) -> str | None:
+    """ADR 0008 姿态：有工具且无 PERMISSION 能力时返回警告文本，否则 None。
+
+    TUI 用它把警告渲染进消息流（避免运行中写 stderr 破坏终端画面），
+    headless 用它写 stderr。
+    """
+    if host.capabilities(CapabilityKind.TOOL) and not host.capabilities(CapabilityKind.PERMISSION):
+        return PERMISSION_WARNING
+    return None
+
+
 def warn_missing_permission_plugin(host: PluginHost, stderr: TextIO) -> None:
     """ADR 0008 姿态：本次运行有工具（可能产生副作用）且无 PERMISSION 能力时显著警告。
 
     零工具的 run 没有可拦截的动作，不警告（US45：a run that would *need* permission）。
     """
-    if host.capabilities(CapabilityKind.TOOL) and not host.capabilities(CapabilityKind.PERMISSION):
-        stderr.write(PERMISSION_WARNING)
+    warning = permission_warning(host)
+    if warning is not None:
+        stderr.write(warning)
         stderr.flush()

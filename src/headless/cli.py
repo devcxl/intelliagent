@@ -30,7 +30,13 @@ from src.core.agent_events import RunOutcome
 from src.core.plugin_host import PluginError, PluginHost
 from src.headless.events import JsonLineSink
 from src.runtime.engine_runtime import EngineRuntime, build_engine_runtime
-from src.runtime.plugin_assembly import build_host, create_llm_client, redact_secrets, warn_missing_permission_plugin
+from src.runtime.plugin_assembly import (
+    build_host,
+    connect_mcp_plugins,
+    create_llm_client,
+    redact_secrets,
+    warn_missing_permission_plugin,
+)
 
 EXIT_OK = 0
 EXIT_FAILURE = 1
@@ -70,19 +76,30 @@ def main(
     stdout = sys.stdout if stdout is None else stdout
     stderr = sys.stderr if stderr is None else stderr
     args = build_parser().parse_args(argv)
-    assembled = _assemble(args, stdin, stdout, stderr)
+    return asyncio.run(_main_async(args, stdin, stdout, stderr, abort))
+
+
+async def _main_async(
+    args: argparse.Namespace,
+    stdin: TextIO,
+    stdout: TextIO,
+    stderr: TextIO,
+    abort: threading.Event | None,
+) -> int:
+    """在同一个事件循环里完成装配、运行与关闭：MCP 连接不能被拆到另一个 loop。"""
+    assembled = await _assemble(args, stdin, stdout, stderr)
     if isinstance(assembled, int):
         return assembled
     host, runtime, task = assembled
     warn_missing_permission_plugin(host, stderr)
     if abort is not None:
-        return _run(runtime, task, abort, stderr)
+        return await _run(runtime, task, abort, stderr)
     own_abort = threading.Event()
     with _abort_on_sigint(own_abort):
-        return _run(runtime, task, own_abort, stderr)
+        return await _run(runtime, task, own_abort, stderr)
 
 
-def _assemble(
+async def _assemble(
     args: argparse.Namespace, stdin: TextIO, stdout: TextIO, stderr: TextIO
 ) -> tuple[PluginHost, EngineRuntime, str] | int:
     """解析任务 → 加载配置 → 组装 PluginHost 与 EngineRuntime；启动失败统一走脱敏错误输出并返回退出码。"""
@@ -93,15 +110,25 @@ def _assemble(
             raise ValueError("配置缺少 default_model（如 deepseek/deepseek-flash）")
         client = create_llm_client(config)
         host = build_host(config)
-        runtime = build_engine_runtime(
-            config,
-            host,
-            client,
-            config.default_model,
-            JsonLineSink(stdout),
-            conversation_id=f"headless-{uuid4().hex}",
-            resume=False,
-        )
+        mcp_plugins = await connect_mcp_plugins(config, host)
+        try:
+            runtime = build_engine_runtime(
+                config,
+                host,
+                client,
+                config.default_model,
+                JsonLineSink(stdout),
+                conversation_id=f"headless-{uuid4().hex}",
+                resume=False,
+                closers=tuple(plugin.close for plugin in mcp_plugins),
+            )
+        except BaseException:
+            for plugin in mcp_plugins:
+                try:
+                    await plugin.close()
+                except Exception:
+                    pass
+            raise
     except (ValueError, ConfigError, PluginError) as exc:
         return _fail(stderr, exc)
     return host, runtime, task
@@ -113,22 +140,19 @@ def _fail(stderr: TextIO, exc: Exception) -> int:
     return EXIT_USAGE
 
 
-def _run(runtime: EngineRuntime, task: str, abort: threading.Event, stderr: TextIO) -> int:
+async def _run(runtime: EngineRuntime, task: str, abort: threading.Event, stderr: TextIO) -> int:
     """跑一个 Run 并把收束结果映射为退出码；运行期异常收敛为失败退出。"""
-
-    async def run() -> RunOutcome:
-        try:
-            result = await runtime.engine.run(task, abort=abort)
-        finally:
-            await runtime.close()
-        return result.outcome
-
     try:
-        outcome = asyncio.run(run())
+        result = await runtime.engine.run(task, abort=abort)
     except Exception as exc:
         stderr.write(f"error: {redact_secrets(str(exc))}\n")
         return EXIT_FAILURE
-    return exit_code(outcome)
+    finally:
+        try:
+            await runtime.close()
+        except Exception as exc:
+            stderr.write(f"warning: cleanup failed: {redact_secrets(str(exc))}\n")
+    return exit_code(result.outcome)
 
 
 def _resolve_task(argument: str | None, stdin: TextIO) -> str:

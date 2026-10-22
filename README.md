@@ -105,6 +105,8 @@ TUI 会自动续接同一数据库中的 `tui` 会话；删除 `intelliagent.db`
 
 Skill 默认扫描工作区下的 `.agents/skills` 与 `~/.config/opencode/skills`；可用 `plugins.skill.config` 覆盖路径，或用 `plugins.skill.enabled: false` 关闭。
 
+MCP 是 opt-in：在 `plugins.mcp.config.servers` 配置服务器后，TUI/Headless 启动时会连接并发现工具；连接失败或未发现工具会直接启动失败。示例见 `intelliagent.yaml.example`。
+
 ## 插件开发
 
 第三方插件经 Entry Points 发现（group `intelliagent.plugins`）：

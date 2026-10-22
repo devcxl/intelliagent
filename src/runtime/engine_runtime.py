@@ -11,6 +11,7 @@ context 未配置时仍持久化，但跳过阈值压缩（Compactor.should_comp
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from src.config.yaml_config import IntelliAgentConfig
@@ -26,15 +27,27 @@ from src.plugins.storage import STORAGE_CAPABILITY_NAME, StorageStore
 
 @dataclass
 class EngineRuntime:
-    """一次前端运行所需的 Engine 与其可选存储依赖。"""
+    """一次前端运行所需的 Engine 与其可选资源依赖。"""
 
     engine: Engine
     storage: StorageStore | None = None
+    closers: tuple[Callable[[], Awaitable[None]], ...] = ()
 
     async def close(self) -> None:
-        """释放存储连接；无存储或重复关闭都是幂等的。"""
+        """释放 MCP 等外部资源，再释放存储连接；重复关闭幂等。"""
+        first_error: Exception | None = None
+        for closer in self.closers:
+            try:
+                await closer()
+            except Exception as exc:
+                first_error = first_error or exc
         if self.storage is not None:
-            await self.storage.close()
+            try:
+                await self.storage.close()
+            except Exception as exc:
+                first_error = first_error or exc
+        if first_error is not None:
+            raise first_error
 
 
 def build_engine_runtime(
@@ -46,6 +59,7 @@ def build_engine_runtime(
     *,
     conversation_id: str,
     resume: bool,
+    closers: Sequence[Callable[[], Awaitable[None]]] = (),
 ) -> EngineRuntime:
     """按配置与插件宿主组装 EngineRuntime。
 
@@ -57,6 +71,7 @@ def build_engine_runtime(
         sink: 事件出口；None 表示不订阅事件。
         conversation_id: 会话根 entry id；同一 id 的 TUI 重启后续接同一段会话。
         resume: True 续接该会话的最新 leaf；False 要求该会话是全新的（headless 每次新 id）。
+        closers: 运行结束时释放的外部资源（如 MCP 插件 close）。
     """
     storage = _storage_store(host)
     hooks: list[TurnHookProvider] = []
@@ -75,7 +90,7 @@ def build_engine_runtime(
         )
         hooks.extend(compactor.hooks())
     engine = Engine.from_host(host, llm=client, model=model, sink=sink, extra_hooks=hooks)
-    return EngineRuntime(engine=engine, storage=storage)
+    return EngineRuntime(engine=engine, storage=storage, closers=tuple(closers))
 
 
 def _storage_store(host: PluginHost) -> StorageStore | None:

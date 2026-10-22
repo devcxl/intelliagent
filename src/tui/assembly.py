@@ -6,13 +6,17 @@ plugins: 裁决、ADR 0008 permission 警告），本模块只保留 TUI 前端�
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from src.config.yaml_config import ConfigError, IntelliAgentConfig, load_config
 from src.core.agent_events import EventSink
 from src.runtime.engine_runtime import EngineRuntime, build_engine_runtime
-from src.runtime.plugin_assembly import build_host, create_llm_client, warn_missing_permission_plugin
+from src.runtime.plugin_assembly import (
+    build_host,
+    connect_mcp_plugins,
+    create_llm_client,
+    permission_warning,
+)
 from src.tui.app import IntelliAgentApp, TaskRunner
 
 TUI_CONVERSATION_ID = "tui"
@@ -31,21 +35,34 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
     config = load_config(config_path)
     model = _require_default_model(config)
     cwd = Path(config.workspace.dir).resolve()
-    host = build_host(config)
     llm = create_llm_client(config)
-    warn_missing_permission_plugin(host, sys.stderr)
     runtimes: list[EngineRuntime] = []
+    notices: list[str] = []
 
-    def runner_factory(sink: EventSink) -> TaskRunner:
-        runtime = build_engine_runtime(
-            config,
-            host,
-            llm,
-            model,
-            sink,
-            conversation_id=TUI_CONVERSATION_ID,
-            resume=True,
-        )
+    async def runner_factory(sink: EventSink) -> TaskRunner:
+        host = build_host(config)
+        mcp_plugins = await connect_mcp_plugins(config, host)
+        try:
+            warning = permission_warning(host)
+            if warning is not None:
+                notices.append(warning.strip())
+            runtime = build_engine_runtime(
+                config,
+                host,
+                llm,
+                model,
+                sink,
+                conversation_id=TUI_CONVERSATION_ID,
+                resume=True,
+                closers=tuple(plugin.close for plugin in mcp_plugins),
+            )
+        except BaseException:
+            for plugin in mcp_plugins:
+                try:
+                    await plugin.close()
+                except Exception:
+                    pass
+            raise
         runtimes.append(runtime)
         return runtime.engine
 
@@ -53,7 +70,13 @@ def build_app(config_path: str | Path | None = None) -> IntelliAgentApp:
         for runtime in runtimes:
             await runtime.close()
 
-    return IntelliAgentApp(runner_factory=runner_factory, model=model, cwd=cwd, on_close=close_runtime)
+    return IntelliAgentApp(
+        runner_factory=runner_factory,
+        model=model,
+        cwd=cwd,
+        on_close=close_runtime,
+        startup_notices=notices,
+    )
 
 
 def _require_default_model(config: IntelliAgentConfig) -> str:

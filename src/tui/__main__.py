@@ -13,14 +13,14 @@ EXIT_STARTUP_FAILURE = 2
 
 
 def main() -> int:
-    """组装并运行 TUI；配置/插件错误脱敏后写 stderr 并以 2 退出，不留 traceback。"""
+    """组装并运行 TUI；同步/异步启动错误由入口或应用脱敏后以 2 退出。"""
     try:
         app = build_app()
     except (ConfigError, PluginError, ValueError) as exc:
         sys.stderr.write(f"error: {redact_secrets(str(exc))}\n")
         return EXIT_STARTUP_FAILURE
     app.run()
-    return 0
+    return getattr(app, "return_code", 0)
 
 
 if __name__ == "__main__":
