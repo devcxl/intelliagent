@@ -103,6 +103,8 @@ uv run python -m src.tui
 TUI 会自动续接同一数据库中的 `tui` 会话；删除 `intelliagent.db` 可重置。
 自动压缩在配置了模型 `limit.context` 时生效；未配置时只持久化、不压缩。
 
+Skill 默认扫描工作区下的 `.agents/skills` 与 `~/.config/opencode/skills`；可用 `plugins.skill.config` 覆盖路径，或用 `plugins.skill.enabled: false` 关闭。
+
 ## 插件开发
 
 第三方插件经 Entry Points 发现（group `intelliagent.plugins`）：

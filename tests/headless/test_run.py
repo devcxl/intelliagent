@@ -164,7 +164,10 @@ def test_warns_on_stderr_when_no_permission_plugin(monkeypatch: object, tmp_path
 
 
 def test_no_warning_when_permission_plugin_installed(monkeypatch: object, tmp_path: Path) -> None:
-    monkeypatch.setattr("src.runtime.plugin_assembly.BUILT_IN_PLUGINS", (FakePermissionPlugin(),))  # type: ignore[attr-defined]
+    monkeypatch.setattr(
+        "src.runtime.plugin_assembly.builtin_plugins",
+        lambda config: (FakePermissionPlugin(),),
+    )  # type: ignore[attr-defined]
     config = _write_config(tmp_path)
     fake = FakeLLM()
     fake.enqueue(*text_events("done"))
@@ -274,6 +277,8 @@ def test_disabled_builtin_plugin_is_not_loaded(monkeypatch: object, tmp_path: Pa
         + "plugins:\n"
         + "  basic-tools:\n"
         + "    enabled: false\n"
+        + "  skill:\n"
+        + "    enabled: false\n"
         + "  storage:\n"
         + "    config:\n"
         + '      database_url: ":memory:"\n',
@@ -284,7 +289,7 @@ def test_disabled_builtin_plugin_is_not_loaded(monkeypatch: object, tmp_path: Pa
     out = _run(monkeypatch, ["run", "任务", "--config", str(config)], fake=fake)
 
     assert out.code == 0
-    assert fake.requests[0].tools is None  # basic-tools 是唯一的 Tool 能力来源，禁用即无工具
+    assert fake.requests[0].tools is None  # basic-tools + skill 都禁用后无 Tool 能力来源
 
 
 class TestReviewRegressions:

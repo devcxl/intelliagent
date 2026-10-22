@@ -66,6 +66,13 @@ plugins:
   basic-tools:
     enabled: true
 
+  # 内置 skill 插件：默认扫描项目级 .agents/skills 与用户级 ~/.config/opencode/skills。
+  skill:
+    enabled: true
+    config:
+      project_paths: [.agents/skills]
+      user_paths: ["~/.config/opencode/skills"]
+
   # 内置存储插件：SQLite append-only 记录（相对路径按启动目录解析）。
   # TUI 固定续接同一数据库中的 tui 会话；headless 每次运行创建新会话。
   storage:
@@ -73,6 +80,5 @@ plugins:
     config:
       database_url: "sqlite:///intelliagent.db"
 
-# 说明：mcp / skill 插件已在 src/plugins/ 实现契约，但尚未接入组合根
-# （src/runtime/plugin_assembly.py 当前只加载 basic-tools 与 storage）。
-# 接入前写 plugins.mcp / plugins.skill 不会生效。
+# 说明：mcp 插件已在 src/plugins/ 实现契约，但需要异步 connect/close，
+# 尚未接入组合根；接入前写 plugins.mcp 不会生效。

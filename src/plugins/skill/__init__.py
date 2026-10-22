@@ -3,7 +3,7 @@
 from src.plugins.skill.catalog import SkillCatalog
 from src.plugins.skill.loader import load_skills
 from src.plugins.skill.model import Skill
-from src.plugins.skill.plugin import SkillPlugin
+from src.plugins.skill.plugin import SkillConfig, SkillPlugin
 from src.plugins.skill.prompt import SkillPromptInjector
 from src.plugins.skill.section import render_available_skills
 from src.plugins.skill.tool import MAX_BODY_CHARS, skill_load_tool
@@ -12,6 +12,7 @@ __all__ = [
     "MAX_BODY_CHARS",
     "Skill",
     "SkillCatalog",
+    "SkillConfig",
     "SkillPlugin",
     "SkillPromptInjector",
     "load_skills",

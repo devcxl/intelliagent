@@ -10,6 +10,7 @@ plugins: 段的 enabled: false 对内置与外部插件统一生效，其余条�
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import TextIO
 
 from src.config.yaml_config import IntelliAgentConfig
@@ -21,9 +22,19 @@ from src.llm.protocols.openai_responses import OpenAIResponsesAdapter
 from src.llm.provider_registry import ModelRegistry, ModelSettings, ProviderSettings
 from src.llm.stream import LLMClient
 from src.plugins.basic_tools import BasicToolsPlugin
+from src.plugins.skill import SkillPlugin
 from src.plugins.storage import StoragePlugin
 
-BUILT_IN_PLUGINS: tuple[Plugin, ...] = (BasicToolsPlugin(), StoragePlugin())
+
+def builtin_plugins(config: IntelliAgentConfig) -> tuple[Plugin, ...]:
+    """内置插件集合：basic-tools、storage、skill。
+
+    skill 的项目扫描路径基于 workspace.dir 解析；插件条目里的 enabled/config 仍由
+    build_host 统一裁决。mcp 需要异步连接，单独由 MCP 生命周期接线。
+    """
+    workspace = Path(config.workspace.dir).resolve()
+    return (BasicToolsPlugin(), StoragePlugin(), SkillPlugin(workspace=workspace))
+
 
 PERMISSION_WARNING = (
     "警告: 未安装 permission 插件，本次运行的工具调用将不经确认直接执行（ADR 0008 默认安全姿态）。"
@@ -89,7 +100,7 @@ def build_host(config: IntelliAgentConfig) -> PluginHost:
 
 def _iter_plugin_sources(config: IntelliAgentConfig):
     """内置与外部插件统一的启用/配置裁决（消除两段重复加载循环）。"""
-    for plugin in BUILT_IN_PLUGINS:
+    for plugin in builtin_plugins(config):
         entry = config.plugins.get(plugin.manifest.name)
         if entry is not None and not entry.enabled:
             continue

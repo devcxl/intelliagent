@@ -10,6 +10,7 @@ import asyncio
 import threading
 from pathlib import Path
 
+import pytest
 from textual.pilot import Pilot
 from textual.widgets import Input
 
@@ -18,6 +19,12 @@ from src.core.engine import RunResult
 from src.tui.app import IntelliAgentApp, TaskRunner
 
 DEFAULT_CWD = Path("/work/project")
+
+
+@pytest.fixture(autouse=True)
+def isolate_user_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """把 HOME 指向测试临时目录，避免开发者本机 skill 影响请求内容。"""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
 
 class ScriptedRunner:

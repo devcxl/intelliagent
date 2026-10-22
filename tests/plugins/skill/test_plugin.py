@@ -9,7 +9,7 @@ from src.core.engine import Engine
 from src.core.plugin_host import CapabilityKind, PluginHost
 from src.core.turn_hooks import PrepareRequestHook
 from src.plugins.basic_tools import ToolSpec
-from src.plugins.skill import Skill, SkillCatalog, SkillPlugin, render_available_skills
+from src.plugins.skill import Skill, SkillCatalog, SkillConfig, SkillPlugin, render_available_skills
 from tests.core.engine_support import FakeLLM, text_events, tool_call_events
 
 BODY_MARKER = "BODY-MARKER-MUST-NOT-APPEAR"
@@ -35,6 +35,7 @@ class TestSkillPluginContract:
         assert declared == {(CapabilityKind.TOOL, "skill_load"), (CapabilityKind.HOOK, "available_skills")}
         assert plugin.manifest.name == "skill"
         assert plugin.manifest.api_version == 1
+        assert plugin.manifest.config_schema is SkillConfig
 
     def test_plugin_registers_tool_and_hook_via_plugin_host(self) -> None:
         host = PluginHost()
@@ -45,6 +46,24 @@ class TestSkillPluginContract:
         assert isinstance(tool, ToolSpec)
         hook = host.get_capability(CapabilityKind.HOOK, "available_skills")
         assert isinstance(hook, PrepareRequestHook)
+
+    async def test_config_paths_build_catalog_against_workspace(self, tmp_path: Path) -> None:
+        skill_file = tmp_path / "custom" / "demo" / "SKILL.md"
+        skill_file.parent.mkdir(parents=True)
+        skill_file.write_text(
+            "---\nname: demo\ndescription: 配置扫描的 skill\n---\nBODY-FROM-CONFIG",
+            encoding="utf-8",
+        )
+        host = PluginHost()
+        host.load(
+            SkillPlugin(workspace=tmp_path),
+            {"project_paths": ["custom"], "user_paths": []},
+        )
+
+        tool = host.get_capability(CapabilityKind.TOOL, "skill_load")
+        assert isinstance(tool, ToolSpec)
+        data = json.loads(await tool.run(name="demo"))
+        assert data["body"] == "BODY-FROM-CONFIG"
 
 
 class TestEngineIntegration:
