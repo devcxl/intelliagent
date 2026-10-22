@@ -157,23 +157,23 @@ class IntelliAgentApp(App[None]):
 
         运行中 Enter 转交 steer（引擎的插话 seam），Alt+Enter 转交 follow_up；引擎已收束
         （agent_end 已发）而 worker 尚未回收的窗口期统一走 follow_up——steering 队列此时
-        已无消费点，直接 steer 会静默丢失。空白提交忽略。
+        已无消费点，直接 steer 会静默丢失。空白提交忽略；非空提交保留原始格式（缩进、
+        行尾空格与末尾换行）交给历史、消息视图与 runner。
         """
-        content = text.strip()
-        if not content or self._runner is None:
+        if not text.strip() or self._runner is None:
             return
         self._prompt.clear()
-        self._prompt.remember(content)
-        self._stream.add_message(MessageView("user", text=content))
+        self._prompt.remember(text)
+        self._stream.add_message(MessageView("user", text=text))
         if self._run_worker is not None and not self._run_worker.is_finished:
             if queue or self._run_settled:
-                self._runner.follow_up(content)
+                self._runner.follow_up(text)
             else:
-                self._runner.steer(content)
+                self._runner.steer(text)
             return
         self._run_settled = False
         self._abort_event = threading.Event()
-        self._run_worker = self.run_worker(self._run(content, self._abort_event), exclusive=True)
+        self._run_worker = self.run_worker(self._run(text, self._abort_event), exclusive=True)
 
     async def _run(self, task: str, abort: threading.Event) -> None:
         """跑一个 Run；异常不逃逸出 worker（引擎已发 agent_end 收束事件），错误落到消息流与状态栏。

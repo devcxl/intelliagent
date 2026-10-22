@@ -46,6 +46,41 @@ async def test_enter_submits_multiline_text() -> None:
         assert [view.text for view in views] == ["first line\nsecond line"]
 
 
+async def test_submit_preserves_original_whitespace() -> None:
+    """提交不裁剪：缩进、行尾空格与末尾换行原样交给 runner、消息视图与历史。"""
+    raw = "  indented\ncode  \n"
+    app, runner = make_app()
+    async with app.run_test() as pilot:
+        await submit(pilot, raw)
+        assert runner.tasks == [raw]
+        views = list(app.query_one(MessageStream).query(MessageView))
+        assert [view.text for view in views] == [raw]
+        await pilot.press("ctrl+p")
+        await pilot.pause()
+        assert editor(pilot).text == raw
+
+
+async def test_wrapped_long_line_drives_height_and_resizes() -> None:
+    """软换行按可视行数驱动高度：窄终端增高并封顶，清空回落，resize 后按新宽度重算。"""
+    app, _ = make_app()
+    async with app.run_test(size=(40, 24)) as pilot:
+        prompt = editor(pilot)
+        prompt.text = "word " * 80
+        await pilot.pause()
+        assert prompt.size.height == MAX_HEIGHT
+
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+        assert prompt.size.height == MIN_HEIGHT
+
+        prompt.text = "word " * 80
+        await pilot.pause()
+        assert prompt.size.height == MAX_HEIGHT
+        await pilot.resize_terminal(200, 24)
+        await pilot.pause()
+        assert MIN_HEIGHT <= prompt.size.height < MAX_HEIGHT
+
+
 async def test_editor_height_grows_between_min_and_max_then_resets() -> None:
     app, _ = make_app()
     async with app.run_test() as pilot:

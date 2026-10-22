@@ -46,6 +46,7 @@ class PromptEditor(TextArea):
         super().__init__(placeholder=PLACEHOLDER, id=id, classes=classes)
         self._prompt_history: list[str] = []
         self._history_index = 0
+        self._applied_height = 0
         self._sync_height()
 
     @property
@@ -96,14 +97,26 @@ class PromptEditor(TextArea):
         await super()._on_key(event)
 
     def on_text_area_changed(self) -> None:
-        """内容变化后按逻辑行数调整高度。"""
+        """内容变化后按软换行后的可视行数调整高度。"""
+        self._sync_height()
+
+    def _on_resize(self) -> None:
+        """终端尺寸变化后先让 TextArea 重新换行，再按新的可视行数重算高度。"""
+        super()._on_resize()
         self._sync_height()
 
     def _sync_height(self) -> None:
-        """高度随内容在 MIN_HEIGHT 与 MAX_HEIGHT 之间变化（不含顶部边框）。"""
-        lines = self.document.line_count
-        rows = max(MIN_HEIGHT, min(MAX_HEIGHT, lines))
-        self.styles.height = rows + BORDER_TOP_HEIGHT
+        """高度随软换行后的可视行数在 MIN_HEIGHT 与 MAX_HEIGHT 之间变化。
+
+        size.height 是内容区高度（不含顶部边框），因此样式高度额外计入边框；
+        只在目标高度变化时写样式，避免高度变化触发的 resize 反复改写自身。
+        """
+        rows = max(MIN_HEIGHT, min(MAX_HEIGHT, self.wrapped_document.height))
+        target = rows + BORDER_TOP_HEIGHT
+        if target == self._applied_height:
+            return
+        self._applied_height = target
+        self.styles.height = target
 
     def _ctrl_c(self) -> None:
         """Ctrl+C：有选中文本复制，输入非空清空，输入为空退出。"""
