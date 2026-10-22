@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from src.core.agent_events import AgentEnd, AgentStart, MessageEnd, MessageStart, MessageUpdate
 from src.llm.stream import TextDelta
-from src.tui.widgets import MessageStream, MessageView
+from src.tui.message_stream import MessageStream
+from src.tui.message_view import MessageView
 from tests.tui.conftest import make_app, submit
 
 

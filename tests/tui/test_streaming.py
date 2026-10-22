@@ -7,6 +7,7 @@ TDD 先行：本文件先于实现落地，红转绿即验收证据。测试走�
 from __future__ import annotations
 
 import pytest
+from textual.widgets import Markdown
 
 from src.core.agent_events import (
     AgentEnd,
@@ -20,7 +21,9 @@ from src.core.agent_events import (
 )
 from src.core.tool_pipeline import Observation, ObservationStatus
 from src.llm.stream import Error, TextDelta, ToolCallDelta
-from src.tui.widgets import MessageStream, MessageView, StatusBar, ToolCallPanel
+from src.tui.message_stream import MessageStream
+from src.tui.message_view import MessageView
+from src.tui.widgets import StatusBar, ToolCallPanel
 from tests.tui.conftest import make_app, submit
 
 
@@ -35,17 +38,18 @@ def observation(status: ObservationStatus, content: str = "ok", error: str | Non
     )
 
 
-def count_redraws(view: MessageView, monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """记录该消息单元的重绘（update 调用）次数：验证合并重绘与不全量重绘。"""
-    redraws: list[str] = []
-    original = view.update
+def spy_markdown_appends(view: MessageView, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """记录该消息的 Markdown 实际 append 片段：验证合并渲染与只重绘本单元。"""
+    markdown = view.query_one(Markdown)
+    appends: list[str] = []
+    original = markdown.append
 
-    def counting_update(content: object = "", *, layout: bool = True) -> None:
-        redraws.append(str(content))
-        original(content, layout=layout)
+    def counting_append(fragment: str) -> object:
+        appends.append(fragment)
+        return original(fragment)
 
-    monkeypatch.setattr(view, "update", counting_update)
-    return redraws
+    monkeypatch.setattr(markdown, "append", counting_append)
+    return appends
 
 
 async def test_delta_renders_before_message_end() -> None:
@@ -58,16 +62,18 @@ async def test_delta_renders_before_message_end() -> None:
         await pilot.pause()
         view = app.query_one(MessageView)
         assert view.rendered_text == "你好"
+        assert view.query_one(Markdown).source == "你好"
         sink.emit(MessageUpdate("m1", TextDelta("，世界")))
         await pilot.pause()
         assert view.rendered_text == "你好，世界"
+        assert view.query_one(Markdown).source == "你好，世界"
         sink.emit(MessageEnd("m1"))
         await pilot.pause()
         assert view.rendered_text == "你好，世界"
 
 
 async def test_deltas_merge_into_single_redraw(monkeypatch: pytest.MonkeyPatch) -> None:
-    """渲染成本控制：一轮到达的多个 delta 合并为一次重绘，且只重绘该消息单元（requestRender 语义）。"""
+    """渲染成本控制：一轮到达的多个 delta 合并为一次 Markdown append，且只重绘本消息单元。"""
     app, _ = make_app()
     async with app.run_test() as pilot:
         sink = app.event_sink
@@ -75,14 +81,29 @@ async def test_deltas_merge_into_single_redraw(monkeypatch: pytest.MonkeyPatch) 
         sink.emit(MessageStart("m2", role="assistant"))
         await pilot.pause()
         views = {view.message_id: view for view in app.query_one(MessageStream).query(MessageView)}
-        redraws_m1 = count_redraws(views["m1"], monkeypatch)
-        redraws_m2 = count_redraws(views["m2"], monkeypatch)
+        appends_m1 = spy_markdown_appends(views["m1"], monkeypatch)
+        appends_m2 = spy_markdown_appends(views["m2"], monkeypatch)
         for chunk in ("流", "式", "渲染"):
             sink.emit(MessageUpdate("m1", TextDelta(chunk)))
         await pilot.pause()
         assert views["m1"].rendered_text == "流式渲染"
-        assert len(redraws_m1) == 1
-        assert redraws_m2 == []
+        assert appends_m1 == ["流式渲染"]
+        assert appends_m2 == []
+        assert views["m1"].query_one(Markdown).source == "流式渲染"
+
+
+async def test_start_and_deltas_in_one_sync_burst_are_not_lost() -> None:
+    """MessageStart 与增量同一同步突发：挂载未完成时缓冲，流就绪后按序落屏。"""
+    app, _ = make_app()
+    async with app.run_test() as pilot:
+        sink = app.event_sink
+        sink.emit(MessageStart("m1", role="assistant"))
+        sink.emit(MessageUpdate("m1", TextDelta("第一段")))
+        sink.emit(MessageUpdate("m1", TextDelta("第二段")))
+        await pilot.pause()
+        view = app.query_one(MessageView)
+        assert view.rendered_text == "第一段第二段"
+        assert view.query_one(Markdown).source == "第一段第二段"
 
 
 async def test_error_delta_renders_error_state() -> None:
@@ -189,6 +210,17 @@ class TestReviewRegressions:
             view = app.query_one(MessageView)
             assert view.rendered_text == "（无内容）"
 
+    async def test_flush_pending_settles_message_started_in_same_burst(self) -> None:
+        """同一同步突发里 Start 与收束事件到达：挂载未完成也要落空态占位，不丢半程消息。"""
+        app, _ = make_app()
+        async with app.run_test() as pilot:
+            sink = app.event_sink
+            sink.emit(MessageStart("m1", role="assistant"))
+            sink.emit(AgentEnd("error"))
+            await pilot.pause()
+            view = app.query_one(MessageView)
+            assert view.rendered_text == "（无内容）"
+
     async def test_settle_flushes_buffered_text_without_natural_flush_window(self) -> None:
         """钉死清算：无自然 flush 窗口（不 pause）时缓冲文本必须经 settle 落屏。
 
@@ -205,29 +237,29 @@ class TestReviewRegressions:
             view = app.query_one(MessageView)
             assert view.rendered_text == "half text"
 
-    async def test_sync_burst_schedules_single_redraw(self) -> None:
-        """合并机制钉死：同步突发的多个增量只安排一次 call_later（pi requestRender 合并语义）。"""
+    async def test_sync_burst_renders_once_with_combined_content(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """合并机制钉死：同步突发的多个增量不逐 delta 落屏，只在合并窗口后 append 一次。
+
+        变异敏感：若 flush 不再合并（每个 delta 直接写 Markdown），同步突发期间就会出现
+        append 片段，而不是等到窗口收口后一次写入完整内容。
+        """
         app, _ = make_app()
         async with app.run_test() as pilot:
             sink = app.event_sink
             sink.emit(MessageStart("m1", role="assistant"))
+            await pilot.pause()
             view = app.query_one(MessageView)
-            scheduled: list[object] = []
-            original = view.call_later
-
-            def spy(callback):
-                scheduled.append(callback)
-                return original(callback)
-
-            view.call_later = spy  # type: ignore[method-assign]
+            appends = spy_markdown_appends(view, monkeypatch)
             sink.emit(MessageUpdate("m1", TextDelta("a")))
             sink.emit(MessageUpdate("m1", TextDelta("b")))
             sink.emit(MessageUpdate("m1", TextDelta("c")))
-            assert len(scheduled) == 1  # 合并标志生效：一次安排（变异敏感：去掉 _flush_scheduled 则为 3）
+            assert appends == []
             await pilot.pause()
+            assert appends == ["abc"]
+            assert view.query_one(Markdown).source == "abc"
 
-    async def test_flush_resets_merge_flag(self) -> None:
-        """flush 复位合并标志：回调被丢弃后后续增量仍能安排重绘（不悬挂）。"""
+    async def test_delta_after_flush_still_renders(self) -> None:
+        """合并窗口收口后到达的新增量仍能落屏：合并标志复位，不悬挂在下一次重绘之前。"""
         app, _ = make_app()
         async with app.run_test() as pilot:
             sink = app.event_sink
@@ -235,9 +267,8 @@ class TestReviewRegressions:
             sink.emit(MessageUpdate("m1", TextDelta("a")))
             await pilot.pause()
             view = app.query_one(MessageView)
-            view._flush_scheduled = True  # 模拟回调被丢弃的悬挂态  # noqa: SLF001
-            view.flush()  # 兜底路径复位标志
-            scheduled_after: list[object] = []
-            view.call_later = lambda cb: (scheduled_after.append(cb), True)[1]  # type: ignore[method-assign]
+            assert view.rendered_text == "a"
             sink.emit(MessageUpdate("m1", TextDelta("b")))
-            assert len(scheduled_after) == 1
+            await pilot.pause()
+            assert view.rendered_text == "ab"
+            assert view.query_one(Markdown).source == "ab"

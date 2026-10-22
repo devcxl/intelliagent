@@ -12,7 +12,9 @@ from textual.pilot import Pilot
 
 from src.core.agent_events import AgentEnd, AgentStart
 from src.tui.editor import MAX_HEIGHT, MAX_HISTORY, MIN_HEIGHT, PromptEditor
-from src.tui.widgets import MessageStream, MessageView, StatusBar
+from src.tui.message_stream import MessageStream
+from src.tui.message_view import MessageView
+from src.tui.widgets import StatusBar
 from tests.tui.conftest import make_app, submit
 
 
