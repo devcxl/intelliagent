@@ -31,6 +31,10 @@ def build_host(database: Path) -> PluginHost:
     return host
 
 
+def non_system(messages):  # noqa: ANN001, ANN202 - 测试内联 helper
+    return [message for message in messages if message.get("role") != "system"]
+
+
 async def test_runtime_persists_and_resumes_tui_conversation(tmp_path: Path) -> None:
     config = build_config()
     host = build_host(tmp_path / "runtime.db")
@@ -53,7 +57,7 @@ async def test_runtime_persists_and_resumes_tui_conversation(tmp_path: Path) -> 
             await second.close()
 
         messages = second_llm.requests[0].messages
-        assert [message.get("content") for message in messages] == ["hello", "hi", "next"]
+        assert [message.get("content") for message in non_system(messages)] == ["hello", "hi", "next"]
     finally:
         await first.close()
 
@@ -83,6 +87,6 @@ async def test_runtime_new_headless_conversation_does_not_reuse_tui_context(tmp_
         finally:
             await headless_runtime.close()
 
-        assert [message.get("content") for message in headless_llm.requests[0].messages] == ["fresh"]
+        assert [message.get("content") for message in non_system(headless_llm.requests[0].messages)] == ["fresh"]
     finally:
         await tui_runtime.close()

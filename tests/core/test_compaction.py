@@ -178,11 +178,16 @@ class TestCompactionTrigger:
         compactor = make_compactor(llm, store, keep_recent_tokens=1)
         system = {"role": "system", "content": "You are IntelliAgent."}
         tools = [{"type": "function", "function": {"name": "rec", "description": "d", "parameters": {}}}]
-        request = RequestContext(turn=1, model="fake/model", messages=[system, user("task")], tools=tools)
+        request = RequestContext(
+            turn=1,
+            model="fake/model",
+            messages=[system, user("old"), user("task")],
+            tools=tools,
+        )
 
         await compactor.prepare_request(request)
 
-        assert request.messages == [system, user("task")]  # 未压缩时投影即全量记录
+        assert request.messages == [system, user("old"), user("task")]  # 未压缩时投影即全量记录
 
         llm.enqueue(*summary_response("S"))
         outcome = await compactor.compact()

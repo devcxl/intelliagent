@@ -29,6 +29,20 @@ from tests.core.engine_support import (
 class TestDoubleLoop:
     """内层循环跑一个 assistant 响应 + 其工具结果；没有工具调用才收束。"""
 
+    async def test_system_prompt_is_leading_but_not_in_conversation(self) -> None:
+        """system prompt 每次请求前置，但不进入 Conversation 记录（不参与压缩）。"""
+        llm = FakeLLM()
+        llm.enqueue(*text_events("ok"))
+        engine = build_engine(llm, system_prompt="SYSTEM-PROMPT")
+
+        await engine.run("task")
+
+        assert llm.requests[0].messages[0] == {"role": "system", "content": "SYSTEM-PROMPT"}
+        assert engine.messages == (
+            {"role": "user", "content": "task"},
+            {"role": "assistant", "content": "ok"},
+        )
+
     async def test_tool_calls_chain_across_turns_until_settle(self) -> None:
         log: list[str] = []
         llm = FakeLLM()

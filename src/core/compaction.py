@@ -270,27 +270,32 @@ class Compactor:
         """把 Conversation 记录中尚未落库的 Message 追加为 message entry（append-only 链）。
 
         messages 是引擎 Conversation 的全量记录（append-only）：与已落库序号对齐，只追加新尾部；
-        hook 注入的临时视图不在记录中，因此不会落库。
+        hook 注入的临时视图不在记录中，因此不会落库。system message 不进入 Conversation
+        entry：它由 Compactor 在投影时始终前置，避免被压缩进摘要。
         """
         await self._ensure_started()
-        for message in list(messages)[self._persisted :]:
+        conversation = [message for message in messages if message.get("role") != "system"]
+        for message in conversation[self._persisted :]:
             entry_id = await self._store.append_chat_message(message, parent_id=self._tip)
             self._tip = entry_id
             self._persisted += 1
 
     async def projection_messages(self) -> list[ChatMessage]:
-        """现算投影（CONTEXT 术语：Projection）：摘要消息 + 保留段 entry 重建的消息序列。
+        """现算投影（CONTEXT 术语：Projection）：system prompt + 摘要消息 + 保留段消息。
 
         只有 message entry 进入模型视图（pi：custom 类 entry 不进 LLM 上下文）。
+        system prompt 不属于可压缩历史，永远作为 leading system message 保留。
         """
         await self._ensure_started()
+        system_prompt = str(self._checkpoint.get("system_prompt") or "")
+        prefix: list[ChatMessage] = [{"role": "system", "content": system_prompt}] if system_prompt else []
         if self._tip is None:
-            return []
+            return prefix
         summary, kept_pairs = await self._store.chat_projection(self._tip)
         kept = [message for _entry_id, message in kept_pairs]
         if summary is None:
-            return kept
-        return [summary_message(summary), *kept]
+            return [*prefix, *kept]
+        return [*prefix, summary_message(summary), *kept]
 
     async def context_tokens(self) -> int:
         """当前投影的上下文 token 估算。"""

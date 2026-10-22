@@ -36,6 +36,25 @@ class TestSectionInjection:
         assert request.messages[0]["content"] == render_available_skills(make_catalog().skills())
         assert request.messages[1] == {"role": "user", "content": "task"}
 
+    async def test_injects_metadata_after_existing_system_messages(self) -> None:
+        """已有 preamble/rules 时，skills section 追加在 system 块末尾，不抢 leading 位置。"""
+        injector = SkillPromptInjector(make_catalog())
+        request = RequestContext(
+            turn=1,
+            model="fake/model",
+            messages=[
+                {"role": "system", "content": "preamble"},
+                {"role": "user", "content": "task"},
+            ],
+            tools=[],
+        )
+
+        await injector(request)
+
+        assert [message["role"] for message in request.messages] == ["system", "system", "user"]
+        assert request.messages[0]["content"] == "preamble"
+        assert request.messages[1]["content"] == render_available_skills(make_catalog().skills())
+
     async def test_body_is_not_injected_into_request(self) -> None:
         """正文按需加载：注入的只有 name/description/location，skill 正文不进 prompt。"""
         injector = SkillPromptInjector(make_catalog())

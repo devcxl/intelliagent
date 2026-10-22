@@ -33,3 +33,8 @@
 - 引擎改造量集中在 Phase 3，但换来 P0 缺陷的根治与 TUI 流式渲染的基础。
 - 事件模型与 pi 同构，未来对照 pi 文档/源码排错成本低。
 - pi 为 MIT 许可，参考其实现属合规借鉴；代码为按原理重写，非逐行翻译。
+
+## 实施状态（2026-10-22）
+
+- system prompt 当前落地为单一稳定 leading system message（preamble / rules / cwd / tools），随投影始终保留在摘要之前；section 增量 patch 与 transcript replay 尚未实现，留待后续。
+- `system prompt` 不写入 message entry，避免被压缩进摘要；Compactor 在投影时前置同一份 prompt。

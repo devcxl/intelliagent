@@ -13,12 +13,14 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 from src.config.yaml_config import IntelliAgentConfig
 from src.core.agent_events import EventSink
 from src.core.compaction import Compactor
 from src.core.engine import Engine
 from src.core.plugin_host import CapabilityKind, PluginHost
+from src.core.system_prompt import build_system_prompt
 from src.core.token_counting import TokenCounter, UsageRecordingClient
 from src.core.turn_hooks import TurnHookProvider
 from src.llm.stream import LLMClient
@@ -76,6 +78,8 @@ def build_engine_runtime(
     storage = _storage_store(host)
     hooks: list[TurnHookProvider] = []
     client: LLMClient = llm
+    tools = tuple(host.capabilities(CapabilityKind.TOOL)) if _model_supports_tools(config, model) else ()
+    system_prompt = build_system_prompt(Path(config.workspace.dir), tools)
     if storage is not None:
         counter = TokenCounter()
         client = UsageRecordingClient(llm, counter)
@@ -87,9 +91,17 @@ def build_engine_runtime(
             context_window=_context_window(config, model),
             conversation_root_id=conversation_id,
             resume=resume,
+            system_prompt=system_prompt,
         )
         hooks.extend(compactor.hooks())
-    engine = Engine.from_host(host, llm=client, model=model, sink=sink, extra_hooks=hooks)
+    engine = Engine.from_host(
+        host,
+        llm=client,
+        model=model,
+        sink=sink,
+        extra_hooks=hooks,
+        system_prompt=system_prompt,
+    )
     return EngineRuntime(engine=engine, storage=storage, closers=tuple(closers))
 
 
@@ -113,3 +125,11 @@ def _context_window(config: IntelliAgentConfig, model: str) -> int | None:
         return None
     entry = provider.models.get(model_id)
     return entry.limit.context if entry is not None else None
+
+
+def _model_supports_tools(config: IntelliAgentConfig, model: str) -> bool:
+    """模型是否声明支持 function calling；未声明条目时按支持处理。"""
+    provider_name, _, model_id = model.partition("/")
+    provider = config.providers.get(provider_name)
+    entry = provider.models.get(model_id) if provider is not None else None
+    return entry.tool_call if entry is not None else True

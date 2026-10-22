@@ -124,6 +124,7 @@ class Engine:
         max_turns: int = 50,
         steering_mode: QueueMode = "all",
         follow_up_mode: QueueMode = "all",
+        system_prompt: str | None = None,
     ) -> None:
         self._llm = llm
         self._pipeline = pipeline
@@ -141,6 +142,7 @@ class Engine:
         self._finish_turn_hooks = tuple(hook for hook in hooks if isinstance(hook, FinishTurnHook))
         self._steering = PendingMessageQueue(steering_mode)
         self._follow_ups = PendingMessageQueue(follow_up_mode)
+        self._system_prompt = system_prompt
         self._messages: list[ChatMessage] = []
         self._turn_seq = 0
         self._message_seq = 0
@@ -160,6 +162,7 @@ class Engine:
         steering_mode: QueueMode = "all",
         follow_up_mode: QueueMode = "all",
         extra_hooks: Sequence[TurnHookProvider] = (),
+        system_prompt: str | None = None,
     ) -> Engine:
         """从 PluginHost 组装引擎：Tool 能力进工具流水线，Hook 能力按形态分流到工具链与 turn 边界。
 
@@ -184,6 +187,7 @@ class Engine:
             max_turns=max_turns,
             steering_mode=steering_mode,
             follow_up_mode=follow_up_mode,
+            system_prompt=system_prompt,
         )
 
     @property
@@ -429,11 +433,18 @@ class Engine:
                 self._tool_schemas = list(update.tools)
 
     def _request_context(self, turn: int) -> RequestContext:
-        """本次请求的可变视图：消息是快照拷贝，prepareRequest 的注入只影响本次请求。"""
+        """本次请求的可变视图：消息是快照拷贝，prepareRequest 的注入只影响本次请求。
+
+        system prompt 作为 leading system message 注入，不进入 Conversation 记录；
+        Compactor 单独持有同一份 prompt，投影时始终保留在摘要之前。
+        """
+        messages = [dict(message) for message in self._messages]
+        if self._system_prompt:
+            messages.insert(0, {"role": "system", "content": self._system_prompt})
         return RequestContext(
             turn=turn,
             model=self._model,
-            messages=[dict(message) for message in self._messages],
+            messages=messages,
             tools=list(self._tool_schemas),
         )
 

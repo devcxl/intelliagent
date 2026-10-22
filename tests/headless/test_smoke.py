@@ -29,7 +29,9 @@ class SmokeLLM:
             yield ToolCallDelta(index=0, id="c1", name="read", arguments_delta='{"path": "README.md", "limit": 5}')
             yield Done(stop_reason="stop", usage=None)
             return
-        assert any("IntelliAgent" in str(m.get("content")) for m in request.messages), "read 结果必须进入上下文"
+        assert any(
+            message.get("role") == "tool" and "冒烟仓库" in str(message.get("content")) for message in request.messages
+        ), "read 结果必须进入上下文"
         yield TextDelta("项目名是 IntelliAgent")
         yield Done(stop_reason="stop", usage=None)
 

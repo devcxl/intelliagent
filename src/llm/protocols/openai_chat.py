@@ -88,7 +88,7 @@ class OpenAIChatAdapter:
     def _request_kwargs(self, target: ModelTarget, request: StreamRequest) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": target.wire_model,
-            "messages": request.messages,
+            "messages": _project_messages(request.messages),
             "stream": True,
             "stream_options": {"include_usage": True},
         }
@@ -105,6 +105,21 @@ class OpenAIChatAdapter:
 def _first_choice(chunk: Any) -> Any:
     choices = getattr(chunk, "choices", None) or ()
     return choices[0] if choices else None
+
+
+def _project_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """把多条 system 折叠为单一 leading system（部分 Chat 端点不接受中途/多条 system）。"""
+    system_parts: list[str] = []
+    rest: list[dict[str, Any]] = []
+    for message in messages:
+        if message.get("role") == "system":
+            system_parts.append(str(message.get("content") or ""))
+        else:
+            rest.append(message)
+    if not system_parts:
+        return list(messages)
+    system = "\n\n".join(part for part in system_parts if part)
+    return [{"role": "system", "content": system}, *rest] if system else rest
 
 
 def _extract_usage(chunk: Any) -> Usage | None:

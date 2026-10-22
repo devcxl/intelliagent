@@ -53,6 +53,19 @@ async def drive_run_until_compaction(
     assert result.outcome == "settled"
 
 
+async def test_projection_keeps_seeded_system_prompt_out_of_storage(store: StorageStore) -> None:
+    """system prompt 不落 message entry，但每次投影都作为 leading system message。"""
+    compactor = make_compactor(FakeLLM(), store, system_prompt="SYSTEM-PROMPT")
+    await compactor.sync_messages([user("hello")])
+
+    projection = await compactor.projection_messages()
+
+    assert projection[0] == {"role": "system", "content": "SYSTEM-PROMPT"}
+    assert projection[1] == user("hello")
+    _summary, kept = await store.chat_projection(compactor.leaf_entry_id)
+    assert [message for _entry_id, message in kept] == [user("hello")]
+
+
 async def test_prepare_request_projects_without_touching_engine_record(store: StorageStore) -> None:
     """prepareRequest 的请求视图即投影；引擎 Conversation 记录保持原样（append-only）。"""
     llm = FakeLLM()

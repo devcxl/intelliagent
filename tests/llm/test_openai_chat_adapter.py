@@ -154,6 +154,22 @@ def test_request_projection_uses_limits_and_tool_gate() -> None:
     assert completions2.calls[0]["max_tokens"] == 7
 
 
+def test_multiple_system_messages_fold_to_single_leading_system() -> None:
+    completions = FakeCompletions(FakeStream([_text_chunk("ok", "stop")]))
+    adapter = OpenAIChatAdapter(_client_factory(FakeClient(completions), []))
+    messages = [
+        {"role": "system", "content": "preamble"},
+        {"role": "system", "content": "<available_skills/>"},
+        {"role": "user", "content": "hi"},
+    ]
+
+    list(adapter.stream(TARGET, _request(messages=messages), timeout=60))
+
+    projected = completions.calls[0]["messages"]
+    assert projected[0] == {"role": "system", "content": "preamble\n\n<available_skills/>"}
+    assert projected[1] == {"role": "user", "content": "hi"}
+
+
 def test_abort_mid_stream_ends_with_aborted_and_closes() -> None:
     stream = FakeStream([_text_chunk("one"), _text_chunk("two", "stop")])
     adapter = OpenAIChatAdapter(_client_factory(FakeClient(FakeCompletions(stream)), []))

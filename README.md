@@ -21,7 +21,7 @@ src/
 
 **插件契约**（ADR 0007）：Manifest + Plugin Protocol，Entry Points 是第三方插件的唯一发现入口，内置插件走同一契约。能力类型：tool / hook / permission / storage——一个插件可注册多种能力。memory、permission 等由外部插件承载。
 
-**引擎**（ADR 0010，复刻 pi）：双层循环状态机、stopReason 三分类、steering/follow-up 插话、turn 边界 hooks、投影式压缩（原始记录永不删除，上下文每次请求现算）。
+**引擎**（ADR 0010，复刻 pi）：双层循环状态机、stopReason 三分类、steering/follow-up 插话、turn 边界 hooks、投影式压缩（原始记录永不删除，上下文每次请求现算）、稳定的 leading system prompt（preamble/rules/cwd/tools）。
 
 ## 快速开始
 

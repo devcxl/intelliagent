@@ -129,7 +129,8 @@ def test_argument_task_runs_to_completion_with_events(monkeypatch: object, tmp_p
     observation = next(event for event in out.events() if event["type"] == "tool_execution_end")["observation"]
     assert observation["status"] == "success"  # type: ignore[index]
     assert "headless-ok" in observation["content"]  # type: ignore[index]
-    assert fake.requests[0].messages[0] == {"role": "user", "content": "echo一下再回答"}
+    user_messages = [message for message in fake.requests[0].messages if message.get("role") == "user"]
+    assert user_messages[0] == {"role": "user", "content": "echo一下再回答"}
     assert any(schema["function"]["name"] == "bash" for schema in fake.requests[0].tools or [])
 
 
@@ -141,7 +142,8 @@ def test_stdin_task_drives_run_and_events_flow(monkeypatch: object, tmp_path: Pa
     out = _run(monkeypatch, ["run", "--config", str(config)], stdin_text="介绍一下你自己\n", fake=fake)
 
     assert out.code == 0
-    assert fake.requests[0].messages[0] == {"role": "user", "content": "介绍一下你自己"}
+    user_messages = [message for message in fake.requests[0].messages if message.get("role") == "user"]
+    assert user_messages[0] == {"role": "user", "content": "介绍一下你自己"}
     assert out.events()[-1] == {"type": "agent_end", "outcome": "settled"}
 
 

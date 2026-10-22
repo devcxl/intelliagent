@@ -21,4 +21,9 @@ class SkillPromptInjector:
         skills = self._catalog.skills()
         if not skills:
             return
-        request.messages.insert(0, {"role": "system", "content": render_available_skills(skills)})
+        index = 0
+        for message in request.messages:
+            if message.get("role") != "system":
+                break
+            index += 1
+        request.messages.insert(index, {"role": "system", "content": render_available_skills(skills)})

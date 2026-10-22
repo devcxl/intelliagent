@@ -52,8 +52,5 @@ async def test_tui_resumes_tui_conversation_after_restart(tmp_path: Path, monkey
         await second_app.workers.wait_for_complete()
         await pilot.pause()
 
-    assert [message.get("content") for message in second_llm.requests[0].messages] == [
-        "hello",
-        "hi",
-        "next",
-    ]
+    non_system = [message for message in second_llm.requests[0].messages if message.get("role") != "system"]
+    assert [message.get("content") for message in non_system] == ["hello", "hi", "next"]
