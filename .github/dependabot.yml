@@ -1,0 +1,13 @@
+version: 2
+
+# 每周生成依赖更新 PR，由维护者审查并运行测试后手动合并；不启用自动合并（issue #98）。
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
