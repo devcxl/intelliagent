@@ -344,25 +344,49 @@ class Engine:
     async def _resolve_tool_calls(
         self, tool_calls: Sequence[Mapping[str, Any]], stop_reason: StopReason
     ) -> tuple[Observation, ...]:
-        """按 stopReason 分类处理本轮 tool call：正常走流水线；error/aborted/length 全部判失败不执行。"""
+        """按 stopReason 分类处理本轮 tool call：正常走流水线；error/aborted/length 全部判失败不执行。
+
+        正常路径下整批并行执行（ADR 0014：无条件并行、不设并发上限），gather 保序返回，
+        因此 tool 结果消息与模型发出的 tool_calls 顺序一致（OpenAI / Anthropic 的协议要求）。
+        单个工具内部的异常已由流水线收敛为 error 观察，这里只兜住理论上逃逸的异常，
+        避免一个工具的意外让整批结果丢失（fail-closed 到「该工具失败」而非「整批失败」）。
+        """
         if not tool_calls:
             return ()
         if stop_reason in ("error", "aborted"):
             return self._fail_tool_calls(tool_calls, NOT_EXECUTED.format(reason=stop_reason))
         if stop_reason == "length":
             return self._fail_tool_calls(tool_calls, TRUNCATED)
-        observations: list[Observation] = []
-        for call in tool_calls:
-            function = call.get("function") or {}
-            observations.append(
-                await self._pipeline.run(
+        results = await asyncio.gather(
+            *(
+                self._pipeline.run(
                     ToolRequest(
                         tool_call_id=str(call.get("id") or ""),
-                        name=str(function.get("name") or ""),
-                        arguments=str(function.get("arguments") or ""),
+                        name=str((call.get("function") or {}).get("name") or ""),
+                        arguments=str((call.get("function") or {}).get("arguments") or ""),
                     )
                 )
-            )
+                for call in tool_calls
+            ),
+            return_exceptions=True,
+        )
+        observations: list[Observation] = []
+        for call, result in zip(tool_calls, results, strict=True):
+            if isinstance(result, BaseException):
+                function = call.get("function") or {}
+                reason = f"tool execution raised: {result}"
+                observations.append(
+                    Observation(
+                        tool_call_id=str(call.get("id") or ""),
+                        name=str(function.get("name") or ""),
+                        arguments={"raw": str(function.get("arguments") or "")},
+                        content=reason,
+                        status="error",
+                        error=reason,
+                    )
+                )
+            else:
+                observations.append(result)
         return tuple(observations)
 
     def _fail_tool_calls(self, tool_calls: Sequence[Mapping[str, Any]], reason: str) -> tuple[Observation, ...]:
