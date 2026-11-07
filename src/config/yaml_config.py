@@ -20,11 +20,6 @@ DEFAULT_CONFIG_FILENAME = "intelliagent.yaml"
 
 _ENV_PATTERN = re.compile(r"\{env:([^:}]+)(?::([^}]*))?\}")
 
-# 过渡说明（issue #52 / Spec #49 expand 阶段）：
-# interpolate_env/deep_interpolate_env 与旧 src/config/env_interpolator.py、WorkspaceConfig 与旧
-# src/config/unified_config.py 存在刻意重复——旧配置层随 ticket #64（contract）整体删除，此处不复用
-# 将删代码，也不做双向同步。#64 落地后此注释可移除。
-
 
 class _StrictLoader(yaml.SafeLoader):
     """SafeLoader 收紧：拒绝重复键与非字符串键。
@@ -150,9 +145,9 @@ def _read_yaml_file(config_path: Path) -> dict[str, Any]:
     return raw
 
 
-def _validate_config(data: Any, config_path: Path) -> IntelliAgentConfig:
+def _validate_config(data: dict[str, Any], config_path: Path) -> IntelliAgentConfig:
     """pydantic 校验；每条错误格式化为「配置路径: 原因」以便定位插件与字段。"""
-    if isinstance(data, dict) and "model" in data:
+    if "model" in data:
         raise ConfigError(
             f"{config_path}: model: 字段已删除，请改为 default_model: provider/model-id，"
             "并在 providers: 下声明该 provider"

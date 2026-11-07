@@ -26,8 +26,6 @@ async def run_read(
     file_path, path_error = resolve_tool_path(path, path_policy)
     if path_error is not None:
         return path_error
-    if file_path is None:
-        return tool_error("PATH_RESOLVE_ERROR", f"无法解析路径: {path}")
     if not file_path.exists():
         return tool_error("FILE_NOT_FOUND", f"文件不存在: {file_path}", path=str(file_path))
     if file_path.is_dir():
@@ -98,8 +96,6 @@ async def run_write(path: str, content: str, *, path_policy: PathPolicy | None =
     file_path, path_error = resolve_tool_path(path, path_policy)
     if path_error is not None:
         return path_error
-    if file_path is None:
-        return tool_error("PATH_RESOLVE_ERROR", f"无法解析路径: {path}")
     try:
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding="utf-8")
@@ -128,8 +124,6 @@ async def run_edit(
     file_path, path_error = resolve_tool_path(path, path_policy)
     if path_error is not None:
         return path_error
-    if file_path is None:
-        return tool_error("PATH_RESOLVE_ERROR", f"无法解析路径: {path}")
     if not file_path.exists():
         return tool_error("FILE_NOT_FOUND", f"文件不存在: {file_path}", path=str(file_path))
     if file_path.is_dir():

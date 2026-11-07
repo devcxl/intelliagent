@@ -27,8 +27,6 @@ async def run_grep(pattern: str, path: str = ".", *, path_policy: PathPolicy | N
     target, path_error = resolve_tool_path(path, path_policy)
     if path_error is not None:
         return path_error
-    if target is None:
-        return tool_error("PATH_RESOLVE_ERROR", f"无法解析路径: {path}")
     if not target.exists():
         return tool_error("FILE_NOT_FOUND", f"检索目标不存在: {target}", path=str(target))
     rg_path = shutil.which("rg")
