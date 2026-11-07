@@ -21,8 +21,8 @@ class _RecordingApp:
 
 def test_main_builds_and_runs_the_app(monkeypatch: pytest.MonkeyPatch) -> None:
     app = _RecordingApp()
-    monkeypatch.setattr("src.tui.__main__.build_app", lambda: app)
-    assert main() == 0
+    monkeypatch.setattr("src.tui.__main__.build_app", lambda *args, **kwargs: app)
+    assert main([]) == 0
     assert app.ran
 
 
@@ -31,7 +31,7 @@ def test_main_reports_missing_config_without_traceback(
 ) -> None:
     """缺 intelliagent.yaml：给可诊断的脱敏错误与退出码 2，而不是 traceback。"""
     monkeypatch.chdir(tmp_path)
-    assert main() == EXIT_STARTUP_FAILURE
+    assert main([]) == EXIT_STARTUP_FAILURE
     err = capsys.readouterr().err
     assert err.startswith("error: ")
     assert "intelliagent.yaml" in err

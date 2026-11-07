@@ -23,10 +23,12 @@ from src.plugins.storage.models import APPEND_ONLY_TRIGGER_STATEMENTS, Base, Ent
 from src.plugins.storage.records import (
     ENTRY_TYPE_COMPACTION,
     ENTRY_TYPE_CONVERSATION,
+    ENTRY_TYPE_CONVERSATION_TITLE,
     ENTRY_TYPE_MESSAGE,
     ENTRY_TYPE_RUN,
     ENTRY_TYPE_RUN_STATUS,
     CompactionRecord,
+    ConversationRecord,
     Entry,
     MessagePayload,
     Projection,
@@ -262,11 +264,12 @@ class StorageStore:
             row = (await session.execute(select(EntryRow).order_by(EntryRow.created_at.desc()))).scalars().first()
             return row.id if row is not None else None
 
-    async def ensure_conversation(self, conversation_id: str) -> Entry:
+    async def ensure_conversation(self, conversation_id: str, *, workspace: str | None = None) -> Entry:
         """确保会话根 entry 存在并返回；已存在时校验类型后复用。
 
         会话根是 conversation 类型的 entry，不进入 LLM 消息投影；message/compaction
-        以 parent_id 挂在它下面形成一段独立会话。
+        以 parent_id 挂在它下面形成一段独立会话。workspace 记录启动目录，供会话列表按
+        项目隔离（ADR 0013）；已存在的会话不覆盖已有 workspace。
         """
         if not conversation_id:
             raise StorageError("conversation id must not be empty")
@@ -276,8 +279,84 @@ class StorageStore:
                 if row.type != ENTRY_TYPE_CONVERSATION:
                     raise StorageError(f"entry '{conversation_id}' is not a conversation entry (type '{row.type}')")
                 return _to_entry(row)
-            row = await self._insert_entry(session, ENTRY_TYPE_CONVERSATION, {}, entry_id=conversation_id)
+            payload: dict[str, Any] = {}
+            if workspace:
+                payload["workspace"] = workspace
+            row = await self._insert_entry(session, ENTRY_TYPE_CONVERSATION, payload, entry_id=conversation_id)
             return _to_entry(row)
+
+    async def list_conversations(self, *, workspace: str | None = None) -> tuple[ConversationRecord, ...]:
+        """列出会话（按创建时间倒序），workspace 给定时只返回该目录下的会话。
+
+        逐条读取 conversation entry 并在 Python 侧过滤：会话数量级很小，避免为 JSON 字段
+        下推到 SQL 引入与 SQLite 版本相关的表达式依赖（KISS）。
+        """
+        async with self._session() as session:
+            rows = (
+                (await session.execute(select(EntryRow).where(EntryRow.type == ENTRY_TYPE_CONVERSATION)))
+                .scalars()
+                .all()
+            )
+            conversations = [_to_entry(row) for row in rows]
+            titles = await self._titles_for(session, [entry.id for entry in conversations])
+        records = [
+            ConversationRecord(
+                entry_id=entry.id,
+                workspace=entry.payload.get("workspace"),
+                title=titles.get(entry.id),
+                created_at=entry.created_at,
+            )
+            for entry in conversations
+            if workspace is None or entry.payload.get("workspace") == workspace
+        ]
+        records.sort(key=lambda record: record.created_at, reverse=True)
+        return tuple(records)
+
+    async def append_conversation_title(self, conversation_id: str, title: str) -> Entry:
+        """追加一条会话标题记录（append-only）；会话根不存在时报可诊断错误。"""
+        if not title.strip():
+            raise StorageError("conversation title must not be empty")
+        async with self._session() as session:
+            root = await session.get(EntryRow, conversation_id)
+            if root is None:
+                raise EntryNotFoundError(f"conversation '{conversation_id}' does not exist")
+            if root.type != ENTRY_TYPE_CONVERSATION:
+                raise StorageError(f"entry '{conversation_id}' is not a conversation entry (type '{root.type}')")
+            row = await self._insert_entry(
+                session, ENTRY_TYPE_CONVERSATION_TITLE, {"title": title}, parent_id=conversation_id
+            )
+            return _to_entry(row)
+
+    async def conversation_title(self, conversation_id: str) -> str | None:
+        """取会话的最新标题；尚未生成时返回 None。"""
+        async with self._session() as session:
+            titles = await self._titles_for(session, [conversation_id])
+        return titles.get(conversation_id)
+
+    async def _titles_for(self, session: AsyncSession, conversation_ids: Sequence[str]) -> dict[str, str]:
+        """批量取每个会话的最新标题：同一会话多次追加时以最后一条为准。"""
+        if not conversation_ids:
+            return {}
+        rows = (
+            (
+                await session.execute(
+                    select(EntryRow)
+                    .where(
+                        EntryRow.type == ENTRY_TYPE_CONVERSATION_TITLE,
+                        EntryRow.parent_id.in_(list(conversation_ids)),
+                    )
+                    .order_by(EntryRow.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        titles: dict[str, str] = {}
+        for row in rows:
+            title = (row.payload or {}).get("title")
+            if isinstance(title, str) and row.parent_id is not None:
+                titles[row.parent_id] = title
+        return titles
 
     async def latest_leaf_in(self, conversation_id: str) -> str:
         """沿指定会话的 message/compaction 子链找到最新 leaf；分叉时报错（不支持 fork）。"""

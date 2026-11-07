@@ -34,6 +34,8 @@ class EngineRuntime:
     engine: Engine
     storage: StorageStore | None = None
     closers: tuple[Callable[[], Awaitable[None]], ...] = ()
+    llm: LLMClient | None = None
+    """未包装的模型客户端：会话标题生成等旁路调用使用它（不进 usage 统计）。"""
 
     async def close(self) -> None:
         """释放 MCP 等外部资源，再释放存储连接；重复关闭幂等。"""
@@ -75,7 +77,7 @@ def build_engine_runtime(
         resume: True 续接该会话的最新 leaf；False 要求该会话是全新的（headless 每次新 id）。
         closers: 运行结束时释放的外部资源（如 MCP 插件 close）。
     """
-    storage = _storage_store(host)
+    storage = storage_store(host)
     hooks: list[TurnHookProvider] = []
     client: LLMClient = llm
     tools = tuple(host.capabilities(CapabilityKind.TOOL)) if _model_supports_tools(config, model) else ()
@@ -102,10 +104,10 @@ def build_engine_runtime(
         extra_hooks=hooks,
         system_prompt=system_prompt,
     )
-    return EngineRuntime(engine=engine, storage=storage, closers=tuple(closers))
+    return EngineRuntime(engine=engine, storage=storage, closers=tuple(closers), llm=llm)
 
 
-def _storage_store(host: PluginHost) -> StorageStore | None:
+def storage_store(host: PluginHost) -> StorageStore | None:
     """读取内置 storage 能力；未启用时返回 None。"""
     provider = host.capabilities(CapabilityKind.STORAGE).get(STORAGE_CAPABILITY_NAME)
     if provider is None:

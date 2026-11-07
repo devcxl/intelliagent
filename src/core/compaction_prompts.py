@@ -105,3 +105,11 @@ Summarize the prefix to provide context for the retained suffix:
 - [Information needed to understand the retained recent work]
 
 Be concise. Focus on what's needed to understand the kept suffix."""
+
+TITLE_PROMPT = """Generate a short title for the conversation below.
+
+Rules:
+- One line, at most 20 Chinese characters or 8 English words.
+- Describe the concrete task or topic, not the medium ("fix login retry bug", not "a conversation about code").
+- No quotes, no trailing punctuation, no prefix like "Title:".
+- Reply with the title only."""

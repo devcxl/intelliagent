@@ -28,10 +28,12 @@ from src.core.engine import RunResult
 from src.core.tool_pipeline import Observation
 from src.llm.stream import Usage
 from src.runtime.plugin_assembly import redact_secrets
+from src.runtime.session_view import SessionSummary
 from src.tui.editor import PromptEditor
 from src.tui.event_sink import TuiEventSink
 from src.tui.message_stream import MessageStream
 from src.tui.message_view import MessageView
+from src.tui.session_picker import SessionPicker
 from src.tui.status_bar import StatusBar
 from src.tui.tool_panel import TOOL_BODY_MAX_LINES, ToolCallPanel
 
@@ -44,6 +46,10 @@ RUN_STATE_LABELS: dict[RunOutcome, str] = {
 
 ABORTING_LABEL = "中止中"
 """Esc 已置位 abort 信号、等待 turn 边界收束时的状态栏文案。"""
+
+COMMAND_RESUME = "/resume"
+COMMAND_NEW = "/new"
+"""会话命令（ADR 0013）：仅这两条，命令系统不引入更长的命令表。"""
 
 
 class TaskRunner(Protocol):
@@ -58,6 +64,25 @@ class TaskRunner(Protocol):
 
 RunnerFactory = Callable[[EventSink], TaskRunner | Awaitable[TaskRunner]]
 """runner 装配器：接收 TUI 的事件出口，产出 runner；MCP 等异步装配可返回 awaitable。"""
+
+
+class SessionController(Protocol):
+    """会话切换入口（ADR 0013）：列出、打开与新建会话。
+
+    与 RunnerFactory 分开是因为职责不同：factory 只造初始 runner，controller 还要能
+    在运行期换成另一段会话的 runner。存储插件缺席时组装方不注入 controller，
+    `/resume` 与 `/new` 因此在界面上显式不可用（能力缺席即功能缺席）。
+    """
+
+    async def list_sessions(self) -> tuple[SessionSummary, ...]: ...
+
+    async def open(self, sink: EventSink, conversation_id: str) -> TaskRunner: ...
+
+    async def create(self, sink: EventSink) -> TaskRunner: ...
+
+    async def ensure_title(self) -> str | None:
+        """为当前会话生成标题（幂等）：首轮收束后调用，返回标题或 None。"""
+        ...
 
 
 class IntelliAgentApp(App[None]):
@@ -101,6 +126,7 @@ class IntelliAgentApp(App[None]):
         on_close: Callable[[], Awaitable[None]] | None = None,
         startup_notices: list[str] | None = None,
         clock: Callable[[], float] | None = None,
+        session_controller: SessionController | None = None,
     ) -> None:
         super().__init__()
         self._sink = TuiEventSink(self)
@@ -122,6 +148,7 @@ class IntelliAgentApp(App[None]):
         self._abort_event: threading.Event | None = None
         self._on_close = on_close
         self._startup_notices = startup_notices if startup_notices is not None else []
+        self._sessions = session_controller
 
     @property
     def event_sink(self) -> TuiEventSink:
@@ -198,14 +225,22 @@ class IntelliAgentApp(App[None]):
         self._stream.follow_latest()
 
     def _submit(self, text: str, *, queue: bool = False) -> None:
-        """提交：清空编辑器、记录历史、本地渲染用户消息，并按运行状态分派。
+        """提交：命令走会话命令，其余清空编辑器、记录历史、本地渲染并按运行状态分派。
 
         运行中 Enter 转交 steer（引擎的插话 seam），Alt+Enter 转交 follow_up；引擎已收束
         （agent_end 已发）而 worker 尚未回收的窗口期统一走 follow_up——steering 队列此时
         已无消费点，直接 steer 会静默丢失。空白提交忽略；非空提交保留原始格式（缩进、
         行尾空格与末尾换行）交给历史、消息视图与 runner。
+
+        斜杠命令（ADR 0013）只在「首个 token 以 / 开头且不含空格」时识别：`/` 后带空格
+        或出现在正文中间都按普通消息发送，避免误吞用户输入。
         """
         if not text.strip() or self._runner is None:
+            return
+        command = text.strip()
+        if not queue and command.startswith("/") and " " not in command:
+            self._prompt.clear()
+            self._handle_command(command)
             return
         self._prompt.clear()
         self._prompt.remember(text)
@@ -219,6 +254,74 @@ class IntelliAgentApp(App[None]):
         self._run_settled = False
         self._abort_event = threading.Event()
         self._run_worker = self.run_worker(self._run(text, self._abort_event), exclusive=True)
+
+    def _busy(self) -> bool:
+        """是否有 run 尚未收束（worker 未回收即视为忙）。"""
+        return self._run_worker is not None and not self._run_worker.is_finished
+
+    def _handle_command(self, command: str) -> None:
+        """会话命令分发：`/resume` 选择并打开、`/new` 新建；运行中一律拒绝（ADR 0013）。
+
+        拒绝而不是自动中止：切换点必须落在 idle，否则 in-flight 工具的 Observation 会被
+        Compactor 落到新会话的链上。
+        """
+        if self._sessions is None:
+            self._system_notice("会话切换不可用：storage 插件未启用（plugins.storage.enabled）。")
+            return
+        if command not in (COMMAND_RESUME, COMMAND_NEW):
+            self._system_notice(f"未知命令 {command}。可用：{COMMAND_RESUME} 切换会话、{COMMAND_NEW} 新建会话。")
+            return
+        if self._busy():
+            self._system_notice("当前 run 尚未收束：请先按 Esc 中止，再切换会话。")
+            return
+        coro = self._pick_and_open() if command == COMMAND_RESUME else self._open_new()
+        self.run_worker(coro, group="session", exclusive=True)
+
+    async def _pick_and_open(self) -> None:
+        """列出会话 → 弹选择器 → 打开选中会话；取消或无会话时给出提示。"""
+        assert self._sessions is not None
+        records = await self._sessions.list_sessions()
+        if not records:
+            self._system_notice("本目录还没有可恢复的会话。")
+            return
+        choice = await self.push_screen_wait(SessionPicker(records))
+        if choice is None:
+            return
+        await self._switch(await self._sessions.open(self._sink, choice))
+
+    async def _open_new(self) -> None:
+        """新建会话并切换过去。"""
+        assert self._sessions is not None
+        await self._switch(await self._sessions.create(self._sink))
+
+    async def _switch(self, runner: TaskRunner) -> None:
+        """切换会话：换 runner、清界面状态（ADR 0013）。
+
+        不调用旧 runtime 的 close：StorageStore.close() 是终态，会把共用的存储连接关掉。
+        旧 runtime 只丢弃引用，应用退出时统一释放。
+        """
+        self._runner = runner
+        self._run_worker = None
+        self._run_settled = False
+        self._abort_event = None
+        self._messages.clear()
+        self._tool_panels.clear()
+        self._stream.clear()
+        self._status.set_run_state("已切换会话")
+        self._prompt.focus()
+
+    def _system_notice(self, text: str) -> None:
+        """系统提示落到消息流（与启动通知同样的呈现方式）。"""
+        self._stream.add_message(MessageView("system", text=text))
+
+    async def _ensure_title(self) -> None:
+        """首轮收束后补生成会话标题；失败静默（标题是锦上添花，不打断对话）。"""
+        if self._sessions is None:
+            return
+        try:
+            await self._sessions.ensure_title()
+        except Exception as exc:  # noqa: BLE001 - 标题失败不得影响对话
+            self._system_notice(f"会话标题生成失败：{redact_secrets(str(exc))}")
 
     async def _run(self, task: str, abort: threading.Event) -> None:
         """跑一个 Run；异常不逃逸出 worker（引擎已发 agent_end 收束事件），错误落到消息流与状态栏。
@@ -245,6 +348,8 @@ class IntelliAgentApp(App[None]):
         self._run_settled = True
         self._stream.flush_pending()
         self._status.finish_run(RUN_STATE_LABELS[outcome])
+        if outcome in ("settled", "terminated"):
+            self.run_worker(self._ensure_title(), group="title", exclusive=True)
 
     def show_message_started(self, message_id: str, role: str) -> None:
         view = MessageView(role, message_id=message_id)
