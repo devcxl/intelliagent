@@ -21,15 +21,15 @@ import signal
 import sys
 import threading
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 from types import FrameType
 from typing import TextIO
-from uuid import uuid4
 
 from src.config.yaml_config import ConfigError, load_config
 from src.core.agent_events import RunOutcome
 from src.core.plugin_host import PluginError, PluginHost
 from src.headless.events import JsonLineSink
-from src.runtime.engine_runtime import EngineRuntime, build_engine_runtime
+from src.runtime.engine_runtime import EngineRuntime, build_engine_runtime, storage_store
 from src.runtime.plugin_assembly import (
     build_host,
     connect_mcp_plugins,
@@ -37,6 +37,7 @@ from src.runtime.plugin_assembly import (
     redact_secrets,
     warn_missing_permission_plugin,
 )
+from src.runtime.session import SessionError, SessionSelection, ensure_conversation_title, resolve_session
 
 EXIT_OK = 0
 EXIT_FAILURE = 1
@@ -49,12 +50,25 @@ def exit_code(outcome: RunOutcome) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """argparse 解析：run 子命令 + 任务位置参数（缺省读 stdin）+ --config。"""
+    """argparse 解析：run 子命令 + 任务位置参数（缺省读 stdin）+ --config + 会话选择。
+
+    会话选择（ADR 0013）：缺省新建会话；``-c`` 恢复本 workspace 最近创建的会话；
+    ``-s`` 打开指定会话。``-c`` 与 ``-s`` 互斥。
+    """
     parser = argparse.ArgumentParser(prog="intelliagent", description="IntelliAgent 无头模式：任务进、事件流出")
     subparsers = parser.add_subparsers(dest="command", required=True)
     run = subparsers.add_parser("run", help="执行一个任务，事件流以 JSON Lines 写到 stdout")
     run.add_argument("task", nargs="?", help="任务内容；缺省时从 stdin 读取")
     run.add_argument("--config", help="intelliagent.yaml 路径（默认当前目录的 intelliagent.yaml）")
+    session = run.add_mutually_exclusive_group()
+    session.add_argument(
+        "-c",
+        "--continue",
+        dest="resume_last",
+        action="store_true",
+        help="恢复本目录最近创建的会话",
+    )
+    session.add_argument("-s", "--session", dest="conversation_id", help="打开指定会话 id")
     return parser
 
 
@@ -90,19 +104,19 @@ async def _main_async(
     assembled = await _assemble(args, stdin, stdout, stderr)
     if isinstance(assembled, int):
         return assembled
-    host, runtime, task = assembled
+    host, runtime, task, selection, model = assembled
     warn_missing_permission_plugin(host, stderr)
     if abort is not None:
-        return await _run(runtime, task, abort, stderr)
+        return await _run(runtime, task, abort, stderr, selection=selection, model=model)
     own_abort = threading.Event()
     with _abort_on_sigint(own_abort):
-        return await _run(runtime, task, own_abort, stderr)
+        return await _run(runtime, task, own_abort, stderr, selection=selection, model=model)
 
 
 async def _assemble(
     args: argparse.Namespace, stdin: TextIO, stdout: TextIO, stderr: TextIO
-) -> tuple[PluginHost, EngineRuntime, str] | int:
-    """解析任务 → 加载配置 → 组装 PluginHost 与 EngineRuntime；启动失败统一走脱敏错误输出并返回退出码。"""
+) -> tuple[PluginHost, EngineRuntime, str, SessionSelection, str] | int:
+    """解析任务 → 加载配置 → 选会话 → 组装 PluginHost 与 EngineRuntime；启动失败统一走脱敏错误输出并返回退出码。"""
     try:
         task = _resolve_task(args.task, stdin)
         config = load_config(args.config)
@@ -112,14 +126,21 @@ async def _assemble(
         host = build_host(config)
         mcp_plugins = await connect_mcp_plugins(config, host)
         try:
+            selection = await resolve_session(
+                storage_store(host),
+                workspace=str(Path(config.workspace.dir).resolve()),
+                prefix="headless",
+                resume_last=getattr(args, "resume_last", False),
+                conversation_id=getattr(args, "conversation_id", None),
+            )
             runtime = build_engine_runtime(
                 config,
                 host,
                 client,
                 config.default_model,
                 JsonLineSink(stdout),
-                conversation_id=f"headless-{uuid4().hex}",
-                resume=False,
+                conversation_id=selection.conversation_id,
+                resume=selection.resume,
                 closers=tuple(plugin.close for plugin in mcp_plugins),
             )
         except BaseException:
@@ -129,9 +150,9 @@ async def _assemble(
                 except Exception:
                     pass
             raise
-    except (ValueError, ConfigError, PluginError) as exc:
+    except (ValueError, ConfigError, PluginError, SessionError) as exc:
         return _fail(stderr, exc)
-    return host, runtime, task
+    return host, runtime, task, selection, config.default_model
 
 
 def _fail(stderr: TextIO, exc: Exception) -> int:
@@ -140,10 +161,23 @@ def _fail(stderr: TextIO, exc: Exception) -> int:
     return EXIT_USAGE
 
 
-async def _run(runtime: EngineRuntime, task: str, abort: threading.Event, stderr: TextIO) -> int:
-    """跑一个 Run 并把收束结果映射为退出码；运行期异常收敛为失败退出。"""
+async def _run(
+    runtime: EngineRuntime,
+    task: str,
+    abort: threading.Event,
+    stderr: TextIO,
+    *,
+    selection: SessionSelection,
+    model: str,
+) -> int:
+    """跑一个 Run 并把收束结果映射为退出码；运行期异常收敛为失败退出。
+
+    收束后补一次会话标题生成（ADR 0013）：幂等，已有标题或失败都不影响退出码。
+    """
     try:
         result = await runtime.engine.run(task, abort=abort)
+        if exit_code(result.outcome) == EXIT_OK:
+            await _generate_title(runtime, selection, model)
     except Exception as exc:
         stderr.write(f"error: {redact_secrets(str(exc))}\n")
         return EXIT_FAILURE
@@ -153,6 +187,19 @@ async def _run(runtime: EngineRuntime, task: str, abort: threading.Event, stderr
         except Exception as exc:
             stderr.write(f"warning: cleanup failed: {redact_secrets(str(exc))}\n")
     return exit_code(result.outcome)
+
+
+async def _generate_title(runtime: EngineRuntime, selection: SessionSelection, model: str) -> None:
+    """收束后补一次标题生成；失败不影响运行结果（ensure_conversation_title 内部已静默）。"""
+    if runtime.storage is None or runtime.llm is None:
+        return
+    await ensure_conversation_title(
+        runtime.llm,
+        runtime.storage,
+        conversation_id=selection.conversation_id,
+        messages=runtime.engine.messages,
+        model=model,
+    )
 
 
 def _resolve_task(argument: str | None, stdin: TextIO) -> str:

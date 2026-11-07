@@ -57,6 +57,14 @@ class MessageStream(VerticalScroll):
         for view in self._messages:
             view.settle()
 
+    def clear(self) -> None:
+        """清空消息流（切换会话时重建视图）：移除全部单元并恢复贴底跟随。"""
+        self._messages.clear()
+        self.remove_children()
+        self._following = True
+        if self.is_mounted:
+            self.anchor()
+
     def page_up(self) -> None:
         """PgUp：上翻一页；离开底部后停止跟随。"""
         self.scroll_page_up(animate=False)

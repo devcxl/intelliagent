@@ -8,7 +8,7 @@ from src.plugins.basic_tools.result import tool_error
 from src.utils.path_policy import PathPolicy, resolve_workspace_root
 
 
-def resolve_tool_path(path: object, path_policy: PathPolicy | None) -> tuple[Path | None, str | None]:
+def resolve_tool_path(path: object, path_policy: PathPolicy | None) -> tuple[Path, None] | tuple[None, str]:
     """校验并解析工具的 path 参数，做工作区边界检查。
 
     相对路径基于 CWD 解析；边界检查与文件操作使用同一解析结果，

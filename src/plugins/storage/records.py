@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from src.plugins.storage.errors import StorageError
 
 ENTRY_TYPE_CONVERSATION = "conversation"
+ENTRY_TYPE_CONVERSATION_TITLE = "conversation_title"
 ENTRY_TYPE_MESSAGE = "message"
 ENTRY_TYPE_COMPACTION = "compaction"
 ENTRY_TYPE_RUN = "run"
@@ -80,6 +81,20 @@ class RunRecord(BaseModel):
     token_usage: dict[str, int] | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class ConversationRecord(BaseModel):
+    """一段会话的元数据投影（CONTEXT 术语：Conversation）：workspace + 可选标题 + 创建时间。
+
+    标题是追加的 conversation_title entry（append-only），因此这里给出的是投影结果而非可变字段。
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    entry_id: str
+    workspace: str | None = None
+    title: str | None = None
+    created_at: datetime
 
 
 class Projection(BaseModel):

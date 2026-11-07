@@ -1,4 +1,4 @@
-"""TUI 持久化接线：重启后自动续接同一数据库中的 tui 会话。"""
+"""TUI 持久化接线：重启后按 -c 语义续接本目录最近创建的会话（ADR 0013）。"""
 
 from __future__ import annotations
 
@@ -29,14 +29,16 @@ plugins:
 """
 
 
-async def test_tui_resumes_tui_conversation_after_restart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_tui_resumes_last_conversation_with_continue_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     database = tmp_path / "tui.db"
     config = tmp_path / "intelliagent.yaml"
     config.write_text(TUI_CONFIG.format(database_url=str(database)), encoding="utf-8")
 
     first_llm = FakeLLM()
     first_llm.enqueue(*text_events("hi"))
-    monkeypatch.setattr("src.tui.assembly.create_llm_client", lambda config: first_llm)
+    monkeypatch.setattr("src.runtime.tui_session_controller.create_llm_client", lambda config: first_llm)
     first_app = build_app(config)
     async with first_app.run_test() as pilot:
         await submit(pilot, "hello")
@@ -45,8 +47,8 @@ async def test_tui_resumes_tui_conversation_after_restart(tmp_path: Path, monkey
 
     second_llm = FakeLLM()
     second_llm.enqueue(*text_events("again"))
-    monkeypatch.setattr("src.tui.assembly.create_llm_client", lambda config: second_llm)
-    second_app = build_app(config)
+    monkeypatch.setattr("src.runtime.tui_session_controller.create_llm_client", lambda config: second_llm)
+    second_app = build_app(config, resume_last=True)
     async with second_app.run_test() as pilot:
         await submit(pilot, "next")
         await second_app.workers.wait_for_complete()
